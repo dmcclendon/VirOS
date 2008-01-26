@@ -1,0 +1,30 @@
+#!/bin/bash
+
+
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+echo "${progname}: BEGIN XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+echo "${progname}: software managment trait options:"
+cat ${progdir}/trait-options
+
+source ${progdir}/trait-options
+
+if [ "x${install}" != "x" ]; then
+    echo "${progname}: installing software: $install"
+    yum --enablerepo=atrpms -y install $install
+    echo "${progname}: done installing software: $install"
+fi
+
+if [ "x${erase}" != "x" ]; then
+    echo "${progname}: uninstalling software: $erase"
+    yum -y erase $erase
+    echo "${progname}: done uninstalling software: $erase"
+fi
+
+echo "${progname}: END XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+exit 0
+

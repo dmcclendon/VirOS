@@ -1,0 +1,56 @@
+#!/bin/bash
+
+/sbin/chkconfig --add zyx-live
+
+lokkit -f --quiet --nostart --enabled
+rpm -e --nodeps aspell-af
+rpm -e --nodeps aspell-ar
+rpm -e --nodeps aspell-bg
+rpm -e --nodeps aspell-bn
+rpm -e --nodeps aspell-br
+rpm -e --nodeps aspell-ca
+rpm -e --nodeps aspell-cs
+rpm -e --nodeps aspell-cy
+rpm -e --nodeps aspell-da
+rpm -e --nodeps aspell-de
+rpm -e --nodeps aspell-el
+rpm -e --nodeps aspell-es
+rpm -e --nodeps aspell-fo
+rpm -e --nodeps aspell-fr
+rpm -e --nodeps aspell-ga
+rpm -e --nodeps aspell-gd
+rpm -e --nodeps aspell-gl
+rpm -e --nodeps aspell-gu
+rpm -e --nodeps aspell-he
+rpm -e --nodeps aspell-hi
+rpm -e --nodeps aspell-hr
+rpm -e --nodeps aspell-id
+rpm -e --nodeps aspell-is
+rpm -e --nodeps aspell-it
+rpm -e --nodeps aspell-mr
+rpm -e --nodeps aspell-nl
+rpm -e --nodeps aspell-no
+rpm -e --nodeps aspell-or
+rpm -e --nodeps aspell-pa
+rpm -e --nodeps aspell-pl
+rpm -e --nodeps aspell-pt
+rpm -e --nodeps aspell-ru
+rpm -e --nodeps aspell-sl
+rpm -e --nodeps aspell-sr
+rpm -e --nodeps aspell-sv
+rpm -e --nodeps aspell-ta
+rpm -e --nodeps aspell-te
+rpm -e --nodeps man-pages
+rpm -e --nodeps man-pages-cs
+rpm -e --nodeps man-pages-da
+rpm -e --nodeps man-pages-de
+rpm -e --nodeps man-pages-es
+rpm -e --nodeps man-pages-fr
+rpm -e --nodeps man-pages-it
+rpm -e --nodeps man-pages-ja
+rpm -e --nodeps man-pages-ko
+rpm -e --nodeps man-pages-pl
+rpm -e --nodeps man-pages-ru
+rpm -e --nodeps man-pages-uk
+rpm -e --nodeps scim-tables
+rpm -e --nodeps scim-tables-chinese

@@ -1,0 +1,19 @@
+VirOS Known Bugs
+----------------
+
+- invoking viros mutate as root works inadequately due to qfakeroot having
+  no good mechanism to identify the IP of the localhost (e.g. 10.0.2.2 for
+  non-native qemu mode vs 127.0.0.1 for native chroot mode)
+
+- on at least a couple occasions, qemu has come up, frozen in an alternate
+  console mode ("parallel=0").  very rare, and not reproducable
+
+- at least once, the f8 rescue iso oopsed before doing much, though there
+  had been "-m 256 -m 320" on the qemu cmdline.  That is fixed now, but
+  I suspect that reflects either a kernel bug irrespective of the qemu
+  cmdline, or a qemu bug.
+
+TESTING M-ZyX currently has unclean shutdown on /mnt/.LiveOS/overlayfs not mounted
+  blablabla
+
+

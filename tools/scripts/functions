@@ -1,0 +1,348 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# functions: utility functions
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+if [ "x${viros_comtrace}" == "x" ]; then
+    viros_comtrace="VirOS-${progname}"
+fi
+
+if [ "x${vopt_debug}" == "x" ]; then
+    vopt_debug=0
+fi
+
+if [ "x${vopt_verbose}" == "x" ]; then
+    vopt_verbose=0
+fi
+
+if [ "x${vopt_quiet}" == "x" ]; then
+    vopt_quiet=0
+fi
+
+if [ "x${progname}" == "x" ]; then
+    progname="vsys functions"
+fi
+
+if [ "x${logfiles}" == "x" ]; then
+    logfiles="/dev/null"
+fi
+
+if [ "x${cleanup_command}" == "x" ]; then
+    cleanup_command="echo cleaning up..."
+fi
+
+function normalize_path {
+    result=$( cd $( dirname $1 ) ; pwd )/$( basename $1 )
+    if (($?)); then
+	die "unexpected problem normalizing path $1"
+    else
+	echo "$result"
+    fi
+}
+
+
+function veva {
+
+    if (($vopt_debug)); then
+	vlogfiles="${logfiles} /dev/stdout"
+    else
+	vlogfiles="${logfiles}"
+    fi
+
+    for logfile in $vlogfiles; do
+	echo "========================================================================" >> $logfile
+	echo "${progname}: BEGIN $( date +%Y-%m-%d:%H:%M:%S ) veva: $@" >> $logfile
+	echo "------------------------------------------------------------------------" >> $logfile
+	echo "${progname}: status: $@" >> $logfile
+    done
+
+    set -o pipefail
+    if (($vopt_debug)); then
+	eval $@ 2>&1 | tee -a $logfiles
+	retval=$?
+    else
+	eval $@ 2>&1 | tee -a $logfiles > /dev/null
+	retval=$?
+    fi
+    set +o pipefail
+
+    for logfile in $vlogfiles; do
+	echo "------------------------------------------------------------------------" >> $logfile
+	echo "${progname}: RV $retval END $( date +%Y-%m-%d:%H:%M:%S ) veva: $@" >> $logfile
+	echo "========================================================================" >> $logfile
+    done
+
+    return $retval
+}
+
+function vevastupid {
+
+    if (($vopt_debug)); then
+	vlogfiles="${logfiles} /dev/stdout"
+    else
+	vlogfiles="${logfiles}"
+    fi
+
+    for logfile in $vlogfiles; do
+	echo "========================================================================" >> $logfile
+	echo "${progname}: BEGIN $( date +%Y-%m-%d:%H:%M:%S ) veva: $@" >> $logfile
+	echo "------------------------------------------------------------------------" >> $logfile
+	echo "${progname}: status: $@" >> $logfile
+    done
+
+    for (( i=1 ; $i <= $# ; i=$(( $i + 1 )) )); do
+	eval "datcopy[$i]=\$$i"
+	if ( echo "${datcopy[$i]}" | grep -q "VirOS_Synthesis_Monitor" ); then
+	    datcopy[$i]="\"$( echo ${datcopy[$i]} | sed -e 's/VirOS_Synthesis_Monitor/VirOS\ Synthesis\ Monitor/')\""
+	fi
+    done
+
+    set -o pipefail
+    if (($vopt_debug)); then
+	eval ${datcopy[@]} 2>&1 | tee -a $logfiles
+	retval=$?
+    else
+	eval ${datcopy[@]} 2>&1 | tee -a $logfiles > /dev/null
+	retval=$?
+    fi
+    set +o pipefail
+
+    for logfile in $vlogfiles; do
+	echo "------------------------------------------------------------------------" >> $logfile
+	echo "${progname}: RV $retval END $( date +%Y-%m-%d:%H:%M:%S ) veva: $@" >> $logfile
+	echo "========================================================================" >> $logfile
+    done
+
+    return $retval
+}
+
+function die {
+    echo -en "\n"
+    status "===================================="
+    status $@
+    status "===================================="
+    
+    status "VSYS has exited prior to task completion"
+    status "===================================="
+
+    status "cleaning up..."
+    status "(please wait up to 1 minute if possible)"
+    if (($vopt_debug)); then
+	status "cleanup_command is $cleanup_command"
+    fi
+    veva $cleanup_command
+    status "done cleaning up...  have a nice day!"
+
+    exit 1
+}
+
+function die_bug {
+    status "===================================="
+    status $@
+    status "===================================="
+    
+    status "VSYS has exited ungracefully"
+    status ""
+    status "please submit a bug report to bugs@viros.org"
+    status "===================================="
+
+    status "cleaning up..."
+    veva $cleanup_command
+
+    exit 1
+}
+
+function debug {
+    time="$( date +%Y-%m-%d:%H:%M:%S )"
+    if (($vopt_debug)); then
+	echo "${viros_comtrace}: ${time}: debug: $@"
+    fi
+    for logfile in $logfiles; do
+	echo "${progname}: ${time}: debug: $@" >> $logfile
+    done
+}
+
+function debugcat {
+    if [ ! -f $1 ]; then
+	die "file $1 can not be debugcat-ed"
+    fi
+
+    time="$( date +%Y-%m-%d:%H:%M:%S )"
+    if (($vopt_debug)); then
+	echo "${viros_comtrace}: ${time}: debug: catting file $1"
+	cat $1
+    fi
+    for logfile in $logfiles; do
+	echo "${progname}: ${time}: debug: catting file $1" >> $logfile
+	cat $1 >> $logfile
+    done
+}
+
+function verbose {
+    time="$( date +%Y-%m-%d:%H:%M:%S )"
+    if (($vopt_verbose)); then
+	echo "${viros_comtrace}: ${time}: verbose: $@"
+    elif (($vopt_debug)); then
+	echo "${viros_comtrace}: ${time}: verbose: $@"
+    fi
+    for logfile in $logfiles; do
+	if [ -d "$( dirname $logfile )" ]; then
+	    echo "${progname}: ${time}: verbose: $@" >> $logfile
+	fi
+    done
+}
+
+function status {
+    bequiet=0
+    if [ "x${vopt_quiet}" == "x1" ]; then
+	bequiet=1
+    elif [ "x${vopt_quiet}" == "x1" ]; then
+	bequiet=1
+    fi
+
+    time="$( date +%Y-%m-%d:%H:%M:%S )"
+    if ((! $bequiet)); then
+	echo "${progname}: ${time}: status: $@"
+    fi
+    for logfile in $logfiles; do
+	echo "${progname}: ${time}: status: $@" >> $logfile
+    done
+}
+
+function simple_statuslogger {
+    wdone=0
+    while (( !$wdone )); do
+        read
+        wdone=$?
+        echo "${REPLY}" >> $1
+	if (($vopt_debug)); then
+	    echo "${REPLY}" 
+	else
+	    echo -en "."
+	fi
+    done
+    echo -en "\n" >> $1
+    echo -en "\n"
+}
+
+function statuslogger {
+    logfile=$1
+    msg_prefix=$2
+    divider=$3
+
+    if [ "x${divider}" == "x" ]; then
+	divider=1
+    fi
+
+    if [ "x${msg_prefix}" == "x" ]; then
+	msg_prefix="progress"
+    fi
+
+    if [ "x${logfile}" == "x" ]; then
+	logfile=/dev/null
+    fi
+
+    minvalsecs=300
+    numdots_perline=42
+    numdots=0
+    wdone=0
+    oldepochsecs=$( date +%s )
+    divcount=0
+    while (( !$wdone )); do
+        read
+	wdone=$?
+
+	divcount=$(( $divcount + 1 ))
+
+	if [ $divcount -eq $divider ]; then
+            divcount=0
+	    
+            newepochsecs=$( date +%s )
+            timediff=$(($newepochsecs - $oldepochsecs))
+            if [ $timediff -gt $minvalsecs ]; then
+		numdots=0
+		echo -en "\n"
+		oldepochsecs=$newepochsecs
+            fi
+	    
+            if (( !$numdots )); then
+		time="$( date +%H:%M:%S )"
+		echo -en "${msg_prefix}: ${time}: "
+            fi
+            echo "${REPLY}" >> ${logfile}
+            echo -en "."
+            numdots=$(($numdots + 1))
+            if [ $numdots -eq $numdots_perline ]; then
+		numdots=0
+		echo -en "\n"
+            fi
+	fi
+    done
+    echo -en "\n"
+}
+
+function waitonoutput {
+    
+    filename="$1"
+    string="$2"
+    period="$3"
+    timeout="$4"
+
+    timeelapsed=0
+    
+    while [ true ]; do
+	if ( grep -q "$string" $filename > /dev/null 2>&1 ); then
+	    return 0
+	fi
+
+	if (( $timeelapsed > $timeout )); then
+	    return 1
+	fi
+	
+	sleep $period
+	timeelapsed=$(($timeelapsed + $period))
+    done
+}
+
+function make_vncstartup {
+    cat <<EOF > $1
+EOF
+    chmod +x $1
+}
+
+function cleanup_and_exit {
+    if (( $vopt_debug )); then
+	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
+    else
+	verbose "removing tmpdir, was ${tmpdir}"
+	rm -rf "${tmpdir}"
+    fi
+    verbose "goodbye!"
+    exit 0
+}
+

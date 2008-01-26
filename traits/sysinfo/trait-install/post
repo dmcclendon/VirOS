@@ -1,0 +1,10 @@
+#!/bin/bash
+#
+# trait installers assume they are run within a chroot to the target
+# system, after the files have also been extracted to the root of the
+# target system.
+
+rundir=$( dirname $0 )
+cd ${rundir}
+
+/usr/sbin/sysinfo | tee -a /root/sysinfo.output

@@ -1,0 +1,19 @@
+#!/bin/bash
+#
+# common viros system constant definitions
+#
+
+viros_synthesize_qmem=320
+viros_mutate_qmem=256
+viros_transmogrify_qmem=256
+viros_transmogrify_scratch=20G
+viros_transmogrify_statuslogger_divfactor=33
+viros_mutate_statuslogger_divfactor=10
+
+viros_arap_portmin=11245
+viros_arap_portmax=11354
+
+qrap_host_ip=10.0.2.2
+
+vsys_vnc_portmin=5901
+vsys_vnc_portmax=5909

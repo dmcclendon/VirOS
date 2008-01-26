@@ -1,0 +1,111 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# sysinfo: generate an installed package list for a system, sorted by size
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+#
+# sysinfo
+#
+# This script when run on an rpm based system, will print out a list of
+# the installed packages, reverse sorted by size.  Additional information
+# about dependencies that each package fulfills will be printed out, and
+# optionally the rpm description of the package.
+#
+# The motivation for this script was to look at systems intended to be
+# put into a livecd format, and find the 'low hanging fruit' of packages
+# that can be removed to achieve a smaller footprint.  In general the
+# output produced could be useful for any sysadmin looking for the best
+# way to free up disk space by removing unneeded packages.
+#
+
+
+showdesc=1
+
+
+if [ ! -f tttmp.rpmqalast ]; then
+    rpm -qa --last > tttmp.rpmqalast
+fi
+
+instpkgs=$( cat tttmp.rpmqalast | awk '{print $1}' )
+
+if [ ! -f tttmp.unsortedpkgsizes ]; then
+    for instpkg in $instpkgs; do
+	pkgsize=$( rpm -q --queryformat="%{SIZE}" $instpkg )
+	pkgsizemb=$( echo "$pkgsize / 1024 / 1024" | bc -l | sed -e 's/\(.*\...\).*/\1/' )
+	echo "$pkgsizemb megs --- $instpkg" >> tttmp.unsortedpkgsizes
+    done
+fi
+
+if [ ! -f tttmp.sortedpkgsizes ]; then
+    cat tttmp.unsortedpkgsizes | sort -n -r > tttmp.sortedpkgsizes
+fi
+
+instpkgs=$( cat tttmp.sortedpkgsizes | awk '{print $4}' )
+for instpkg in $instpkgs; do
+    echo "========================================================================"
+    pkgsize=$( rpm -q --queryformat="%{SIZE}" $instpkg )
+    pkgsizemb=$( echo "$pkgsize / 1024 / 1024" | bc -l | sed -e 's/\(.*\...\).*/\1/' )
+    echo -en "(${pkgsizemb}MB) "
+    shortname=$( rpm -q --queryformat="%{NAME}" $instpkg )
+    echo -en "$shortname"
+    if $( rpm -e --test $instpkg > tttmp.rpmetestout 2>&1 ); then
+	echo -en " is removable\n"
+    else
+	echo -en " is NOT removable\n"
+	rm -f tttmp.deppkgsizes.unsorted
+	rm -f tttmp.deppkgsizes.sorted
+	cat tttmp.rpmetestout | grep "is needed by (installed)" | sed -e 's/.*\(installed\)..//' | sed -e 's/\(.*\)\..*$/\1/' | sort | uniq  > tttmp.dependencies
+	deps=$( cat tttmp.dependencies )
+	for dep in $deps; do
+	    pkgsize=$( rpm -q --queryformat="%{SIZE}" $dep )
+	    pkgsizemb=$( echo "$pkgsize / 1024 / 1024" | bc -l | sed -e 's/\(.*\...\).*/\1/' )
+	    echo "$pkgsizemb megs --- $dep" >> tttmp.deppkgsizes.unsorted
+	done
+	cat tttmp.deppkgsizes.unsorted | sort -n -r | uniq > tttmp.deppkgsizes.sorted
+	numdeps=$( cat tttmp.deppkgsizes.sorted | wc -l )
+	topthreedeps=$( cat tttmp.deppkgsizes.sorted | head -3 | awk '{print $4}' )
+	echo "------------------------------------------------------------------------"
+	echo "number of packages that are dependent: ${numdeps}"
+	echo "biggest deps are "
+	for bigdep in $topthreedeps; do
+	    shortname=$( rpm -q --queryformat="%{NAME}" $bigdep )
+	    echo -en "$shortname"
+	    pkgsize=$( rpm -q --queryformat="%{SIZE}" $bigdep )
+	    pkgsizemb=$( echo "$pkgsize / 1024 / 1024" | bc -l | sed -e 's/\(.*\...\).*/\1/' )
+	    echo -en "(${pkgsizemb}MB) \n"
+	done
+	echo -en "\n"
+    fi
+
+    if (($showdesc)); then
+	echo "------------------------------------------------------------------------"
+	echo -en "package description: $instpkg \n\n"
+	rpm -q --queryformat="%{DESCRIPTION}\n" $instpkg
+    fi
+    echo "========================================================================"
+    echo -en "\n\n\n"
+done
+

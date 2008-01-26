@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# vmirmog: a tool for converting config files for use with local net mirrors
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+
+origcom=$0
+progname=$( basename $0 )
+progdir=$( dirname $0 )
+rundir=$( pwd )
+mypid=$$
+
+if [ $# -ne 3 ]; then
+    echo "usage: vmirmog <MirrorListFile> <Target> <VMirrorBaseUrl>"
+    exit 1
+fi	
+
+mirrorlist=$1
+target=$2
+vmirbaseurl=$3
+
+if [ -f ${target} ]; then
+    for token in $( < ${mirrorlist} ); do
+	repfrom=$( echo $token | sed -e 's/___/\//g' | sed -e 's/__/\//g' | sed -e 's/^/http:\/\//' )
+	repto="${vmirbaseurl}/${token}"
+	${progdir}/vreplace ${repfrom} ${repto} -- ${target}
+    done
+elif [ -d ${target} ]; then
+    find ${target} -type f -print \
+	-exec ${origcom} $mirrorlist '{}' $vmirbaseurl ';'
+else
+    echo "usage: vmirmog <MirrorListFile> <Target> <VMirrorBaseUrl>"
+    exit 1
+fi
+
+

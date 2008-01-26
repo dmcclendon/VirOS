@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ "x${viros_comtrace}" = "x" ]; then
+    viros_comtrace="${progname}"
+else
+    viros_comtrace="${viros_comtrace}:${progname}"
+fi
+
+trap "die viros ${progname} killed" SIGTERM
+trap "die viros ${progname} interrupted by user" SIGINT
+

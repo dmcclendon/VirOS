@@ -1,0 +1,55 @@
+####
+####
+#### VirOS System Image Generation Configuration
+####
+####
+
+##
+## global configuration
+##
+
+cachedir ~/.viros/cachedir
+
+##
+## phase 1 configuration - synthesis
+##
+
+###vsysgen_output_container_size 7G
+###vsysgen_distro fedora-8
+###vsysgen_arch x86
+###vsysgen_install_boot_iso "http://download.fedoraproject.org/pub/fedora/linux/releases/8/Fedora/i386/iso/Fedora-8-i386-rescuecd.iso"
+###vsysgen_install_boot_iso_sha1sum "aa27d819079b8c92efa2ea58a5c0c84825f7a959"
+###vsysgen_distro_config string "f8.ks" inherit
+###vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" 
+
+##
+## phase 2 configuration - mutation
+##
+
+addtrait ZyX.brand::distroname="F-ZyX":distroversion="0.8"
+addtrait ZyX.live
+addtrait ZyX.adduser::username="guest":usercomment="Guest User"
+addtrait ZyX.gdm::autologin=true:user=guest
+addtrait ZyX.autostartff::user=guest
+addtrait rliveinst
+addtrait ZyX.livecd-iso-to-disk
+addtrait ZyX.anaconda_package_removal_bug
+addtrait F-ZyX.release
+#addtrait viros
+addtrait F-ZyX.logos
+
+
+
+
+
+##
+## phase 3 configuration - transmogrification
+##
+
+vxmogopts bootloader=isolinux
+vxmogopts bootloader_append="ram_overlay_size=1024 qnash"
+
+vxmogopts fs_label=F-ZyX
+vxmogopts selinux=1
+vxmogopts prelink=1
+vxmogopts md5verify=1

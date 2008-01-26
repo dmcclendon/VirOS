@@ -1,0 +1,27 @@
+#!/bin/bash
+
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+/sbin/chkconfig --add zyx-live
+
+lokkit -f --quiet --nostart --enabled
+
+cp -a /etc/inittab /etc/inittab.stock
+cat /etc/inittab.stock | \
+    sed -e 's/^\([123]\):2345:respawn/\#\1:2345:respawn/' | \
+    sed -e 's/rc\.sysinit/rc\.sysinit\.zyx/' \
+    > /etc/inittab
+
+cat <<EOF >> /etc/rc.d/rc.local
+
+if [ -b /dev/sda ]; then
+    hdparm -B 254 /dev/sda
+fi
+
+modprobe kqemu > /dev/null 2>&1
+
+chvt 4
+
+EOF

@@ -1,0 +1,363 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# smirfgen: an initramfs generator 
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+# Inspired by similar programs from a bunch of other distributions.
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+function usage {
+    echo ""
+    echo "smirfgen \\"
+    echo "    [--help] \\"
+    echo "    [--verbose] \\"
+    echo "    [--debug] \\"
+    echo "    [--config=<config-file>] \\"
+    echo "    [[--add_files=<file-list>]] \\"
+    echo "    [[--add_links=<link-list>]] \\"
+    echo "    [[--add_modules=<module-list>]] \\"
+    echo "    [[--add_module_groups=<module-group-list>]] \\"
+    echo "    [[--add_search_paths=<path-list>]] \\"
+    echo "    [--output=<output-initramfs-image>] \\"
+    echo "    [--kversion=<kernel-version>]"
+    echo ""
+    echo "config file contains bash syntax option which will be interpreted"
+    echo "as if they were passed on the commandline with -- prefixed"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+
+
+
+
+function gen_smirfgen_nash_run_init {
+    cat <<EOF
+setuproot
+switchroot
+EOF
+}
+
+
+function cofo_rest_of {
+    retstring=$( echo $1 | sed -e 's/^\([^:]*\)\(.*\)/\2/' )
+    echo "$retstring" | sed -e 's/^://'
+}
+
+function cofo_first_term {
+    termstring=$( echo $1 | sed -e 's/^\([^:]*\)\(.*\)/\1/' )
+    echo "$termstring"
+}
+
+function cofo_second_term {
+    termstring=$( cofo_first_term $( cofo_rest_of $1 ) )
+    echo "$termstring"
+}
+
+function cofo_third_term {
+    termstring=$( cofo_first_term $( cofo_rest_of $( cofo_rest_of $1 ) ) )
+    echo "$termstring"
+}
+
+
+if [ "x${vopt_debug}" == "x1" ]; then
+    default_vopt_debug=1
+else
+    default_vopt_debug=0
+fi
+
+if [ "x${vopt_verbose}" == "x1" ]; then
+    default_vopt_verbose=1
+else
+    default_vopt_verbose=0
+fi
+
+if [ "x${vopt_quiet}" == "x1" ]; then
+    default_vopt_quiet=1
+else
+    default_vopt_quiet=0
+fi
+
+
+vregopt help boolean 0
+vregopt verbose boolean ${default_vopt_verbose}
+vregopt debug boolean ${default_vopt_debug}
+vregopt quiet boolean ${default_vopt_quiet}
+vregopt config string ""
+vregopt add_files cumulative ""
+vregopt add_links cumulative ""
+vregopt add_tar_dirs cumulative ""
+vregopt add_modules cumulative ""
+vregopt add_module_groups cumulative ""
+vregopt add_search_paths cumulative "${rundir} ${LIBVOPT_CONFIGS_PATHS}"
+vregopt output string "./smirfgen.output.initramfs"
+vregopt kversion string "$( uname -r )"
+vparseopt "$@"
+
+if (( $vopt_help )); then 
+    usage clean 
+fi
+
+if (( $vopt_debug )); then 
+    vopt_verbose=1
+    vopt_quiet=0
+fi
+
+status "initializing..."
+
+if (($vopt_debug)); then
+    debug "showing options data"
+    vshowopts
+fi
+
+tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+mkdir -p ${tmpdir}
+verbose "making temporary directory ${tmpdir}/initramfs ..."
+mkdir -p ${tmpdir}/initramfs
+
+ir_dirs=""
+ir_bindirs=""
+ir_smfs=""
+ir_files=""
+for item in $vopt_add_files; do
+    if ( echo $item | grep -q "^dir:" ); then
+	ir_dirs="${ir_dirs} $( echo $item | sed -e 's/^dir://' )"
+    elif ( echo $item | grep -q "^bindir:" ); then
+	ir_dirs="${ir_dirs} $( echo $item | sed -e 's/^bindir://' )"
+	ir_bindirs="${ir_bindirs} $( echo $item | sed -e 's/^bindir://' | sed -e 's/:.*$//' )"
+    elif ( echo $item | grep -q "^SmIrFgEnMaGiC_" ); then
+	ir_smfs="${ir_smfs} $( echo $item | sed -e 's/^SmIrFgEnMaGiC_//' )"
+    else
+	ir_files="${ir_files} $item"
+    fi
+done
+
+status "creating directories in initramfs"
+for ir_dir in $ir_dirs; do
+    ir_dirname=$( echo $ir_dir | sed -e 's/:.*//' )
+    ir_dirmode=$( echo $ir_dir | sed -e 's/.*://' )
+    debug "making directory $ir_dirname with perms $ir_dirmode ..."
+    if [ "x${ir_dirmode}" == "x" ]; then
+	mdmflag=""
+    else
+	mdmflag="--mode=${ir_dirmode}"
+    fi
+
+    mkdir -p ${mdmflag} ${tmpdir}/initramfs/${ir_dirname}
+done
+
+status "copying files to initramfs"
+for ir_file in $ir_files; do
+    ir_file_src=$( cofo_first_term $ir_file )
+    ir_file_dst=$( cofo_second_term $ir_file )
+    ir_file_mod=$( cofo_third_term $ir_file )
+
+    if ( echo "$ir_file_dst" | grep -q '/$' ); then
+	ir_file_dst="${ir_file_dst}$( basename ${ir_file_src} )"
+    fi
+
+    if [ "x${ir_file_dst}" == "x" ]; then
+	ir_file_dst=${ir_file_src}
+    fi
+
+    if ( ! echo "$ir_file_src" | grep -q "^/" ); then
+	searchdone=0
+	for searchpath in ${vopt_add_search_paths}; do
+	    if ((! $searchdone)); then
+		if [ -f "${searchpath}/${ir_file_src}" ]; then
+		    ir_file_src="${searchpath}/${ir_file_src}"
+		    searchdone=1
+		elif [ -d "${searchpath}/${ir_file_src}" ]; then
+		    ir_file_src="${searchpath}/${ir_file_src}"
+		    searchdone=1
+		fi
+	    fi
+	done
+    fi
+
+    if [ -d $ir_file_src ]; then
+	debug "copying directory and contents of $ir_file_src to initramfs/${ir_file_dst} with perms $ir_file_mod ..."
+	if [ ! -d $( dirname ${tmpdir}/initramfs/${ir_file_dst} ) ]; then
+	    mkdir -p $( dirname ${tmpdir}/initramfs/${ir_file_dst} )
+	fi
+	cp -R $ir_file_src ${tmpdir}/initramfs/${ir_file_dst}
+	if [ "x${ir_file_mod}" != "x" ]; then
+	    chmod $ir_file_mod ${tmpdir}/initramfs/${ir_file_dst}
+	fi
+    elif [ -f $ir_file_src ]; then
+	debug "copying file $ir_file_src to initramfs/${ir_file_dst} with perms $ir_file_mod ..."
+	if [ ! -d $( dirname ${tmpdir}/initramfs/${ir_file_dst} ) ]; then
+	    mkdir -p $( dirname ${tmpdir}/initramfs/${ir_file_dst} )
+	fi
+	cp $ir_file_src ${tmpdir}/initramfs/${ir_file_dst}
+	if [ "x${ir_file_mod}" != "x" ]; then
+	    chmod $ir_file_mod ${tmpdir}/initramfs/${ir_file_dst}
+	fi
+    else
+	status "ignoring file ${ir_file_src}, does not exist"
+    fi
+done
+
+status "creating symlinks in initramfs"
+for ir_link in $vopts_add_links; do
+    ir_link_src=$( cofo_first_term $ir_link )
+    ir_link_dst=$( cofo_second_term $ir_link )
+    ir_link_mod=$( cofo_third_term $ir_link )
+
+    if [ "x${ir_link_dst}" == "x" ]; then
+	ir_link_dst="$( dirname $ir_link_src )"
+    fi
+
+    debug "making link of $ir_link_src to initramfs/${ir_link_dst} with perms $ir_link_mod ..."
+    ln -s $ir_link_src ${tmpdir}/initramfs/${ir_link_dst}
+    if [ "x${ir_link_mod}" != "x" ]; then
+	chmod $ir_link_mod ${tmpdir}/initramfs/${ir_link_dst}
+    fi
+done
+
+status "calculating and copying so dependencies into initramfs"
+for ir_bindir in $ir_bindirs; do
+    verbose "checking so deps for all of directory $ir_bindir"
+    for xfile in $( find ${tmpdir}/initramfs/${ir_bindir} -type f -print ); do
+	debug "checking so deps for file $xfile"
+	if ( ldd $xfile > /dev/null 2>&1 ); then
+	    xlibs=$( ldd $xfile | sed -e 's/.*=>//' | sed -e 's/\s*(0x[0-9a-f]*)//' )
+	    for xlib in $xlibs; do
+		debug "copying library dependency $xlib"
+		cp --parents $xlib ${tmpdir}/initramfs/
+	    done
+	else
+	    debug "ldd could not check deps for $xfile"
+	fi
+    done
+done
+
+status "expanding kernel modules groups"
+for module_group in $vopt_add_module_groups; do
+    if [ "$module_group" == "ata" ]; then
+	if [ -f /lib/modules/${vopt_kversion}/modules.libata ]; then
+	    vopt_add_modules="${vopt_add_modules} $( cat /lib/modules/${vopt_kversion}/modules.libata | sed -e 's/\.ko//' )"
+	else
+	    vopt_add_modules="${vopt_add_modules} $( cat /lib/modules/${vopt_kversion}/modules.block | grep ata | sed -e 's/\.ko//' )"
+	    vopt_add_modules="${vopt_add_modules} $( cat /lib/modules/${vopt_kversion}/modules.block | grep ahci | sed -e 's/\.ko//' )"
+	fi
+    else
+	vopt_add_modules="${vopt_add_modules} $( cat /lib/modules/${vopt_kversion}/modules.${module_group} | sed -e 's/\.ko//' )"
+    fi
+done
+
+debug "after module group expansion, module list is $vopt_add_modules"
+
+status "calculating kernel modules dependencies"
+
+if (( $vopt_verbose )); then mpqflag=""; else mpqflag="--quiet"; fi
+
+touch ${tmpdir}/modlist 
+for module in $vopt_add_modules; do
+    /sbin/modprobe $mpqflag --set-version ${vopt_kversion} \
+	--show-depends $module >> ${tmpdir}/modlist 
+done
+modfiles=$( cat ${tmpdir}/modlist | awk '{print $2}' | sort -u )
+mkdir -p ${tmpdir}/initramfs/lib/modules/${vopt_kversion}
+status "copying kernel modules to initramfs"
+for mfile in ${modfiles}; do
+    debug "copying kernel module $mfile to initramfs ..."
+    cp $mfile ${tmpdir}/initramfs/lib/modules/${vopt_kversion}/
+done
+
+status "running depmod for initramfs"
+/sbin/depmod -b ${tmpdir}/initramfs -v ${vopt_kversion} \
+    >  ${tmpdir}/depmod.out
+
+if (( $vopt_debug )); then
+    debug "begin depmod output..."
+    debugcat ${tmpdir}/depmod.out
+    debug "end depmod output..."
+fi
+
+for ir_smf in $ir_smfs; do
+    ir_smf_src=$( cofo_first_term $ir_smf )
+    ir_smf_dst=$( cofo_second_term $ir_smf )
+    ir_smf_mod=$( cofo_third_term $ir_smf )
+
+    if [ "x${ir_smf_dst}" == "x"  ]; then
+	ir_smf_dst="$( dirname $ir_smf_src )"
+    fi
+    debug "creating smirfgen magic file $ir_smf_src as initramfs/${ir_smf_dst} with perms $ir_smf_mod ..."
+    case $ir_smf_src in
+	smirfgen_liveos_nash_run_init)
+	    gen_smirfgen_nash_run_init > ${tmpdir}/initramfs/${ir_smf_dst}
+	    ;;
+	*)
+	    die "unknown smirfgen magic file $ir_smf_src"
+	    ;;
+    esac
+    if [ "x${ir_smf_mod}" != "x" ]; then
+	chmod $ir_smf_mod ${tmpdir}/initramfs/${ir_smf_dst}
+    fi
+done
+
+for tar_dir in $vopt_add_tar_dirs; do
+    td_src=$( echo $tar_dir | sed -e 's/^\([^:]*\):\([^:]*\)$/\1/' )
+    td_dst=$( echo $tar_dir | sed -e 's/^\([^:]*\):\([^:]*\)$/\2/' )
+    pushd ${tmpdir}/initramfs > /dev/null 2>&1
+    tar -cpsf "${vopt_output}.${td_dst}" ./${td_src}
+    rm -rf ./${td_src}
+    popd  > /dev/null 2>&1
+done
+
+status "composing compressed cpio initramfs output"
+pushd ${tmpdir}/initramfs > /dev/null 2>&1
+find . | cpio --quiet --create -H newc | gzip --best > ../sunfirfs
+popd  > /dev/null 2>&1
+mv ${tmpdir}/sunfirfs ${vopt_output}
+status "done, initramfs size is $( ls -lh ${vopt_output} | awk '{print $5}' )"
+
+if (( $vopt_debug )); then
+    debug "debug enabled: NOT removing tmpdir ${tmpdir}"
+else
+    verbose "removing tmpdir, was ${tmpdir}"
+    rm -rf ${tmpdir}
+fi
+verbose "goodbye!"
+exit 0
+

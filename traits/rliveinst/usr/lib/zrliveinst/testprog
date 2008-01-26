@@ -1,0 +1,10 @@
+#!/bin/bash
+
+progress=0.0
+
+while (( $( echo "$progress < 1.0" | bc -l ) == "1" )); do
+    pdisp=$( echo "$progress * 100" | bc -l ) 
+    echo "rliveinst: installation progress - $pdisp %"
+    sleep 1
+    progress=$( echo "$progress + 0.1" | bc -l )
+done

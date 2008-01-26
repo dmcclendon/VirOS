@@ -1,0 +1,24 @@
+#!/bin/bash
+
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+distroname="Generic-ZyX"
+distroversion="1.0"
+distroreleasename="alpha"
+source ${progdir}/trait-options
+
+branded_files="\
+/etc/zyx-release
+/etc/fedora-release
+/etc/redhat-release
+/etc/issue
+/etc/issue.net
+"
+
+for branded_file in ${branded_files}; do
+    sed -i -e "s/ZYXDISTRONAME/${distroname}/g" ${branded_file}
+    sed -i -e "s/ZYXDISTROVERSION/${distroversion}/g" ${branded_file}
+    sed -i -e "s/ZYXDISTRORELEASENAME/${distroreleasename}/g" ${branded_file}
+done

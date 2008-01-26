@@ -1,0 +1,111 @@
+#!/bin/bash
+
+intro_text="\
+Hello and welcome to the revolutionary 
+
+  *ZyX Rebootless LiveOS Installer* !!!
+
+If you choose to continue, you will be 
+able to select a disk volume, which will 
+be !!!WIPED!!! and replaced with the 
+Live Operating System that you are 
+currently using.  
+
+This means that unlike traditional LiveCD
+installers, you will not need to reboot
+after the installation completes.  You will
+be able to eject or remove the LiveOS media,
+and then go about your business, without
+a needless reboot.  That's pretty cool!
+
+WARNING WARNING WARNING !!! - before you
+click OK, make sure you understand that
+part above about how this process will
+*WIPE* the data from some part or all of
+one of your disk(s).  Feel free to cancel
+now, or at the 'are you sure' dialog after
+selecting the installation target.
+
+WARNING!!! This INCLUDES overwriting the
+bootloader with a new one.  For the time
+being, if you want to boot anything but
+this new system, it will be up to you
+to modify the grub configuration.
+"
+
+done_text="\
+Congratulations!!!
+
+The installation is complete.  With any
+luck, you should now be able to eject
+the LiveCD or remove the LiveUSB safely,
+and enjoy your newly installed system
+without rebooting.
+
+Remember, if some bug ate your system,
+you were warned...
+"
+
+zenity --question \
+    --width 480 --height 360 \
+    --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
+    --text "$intro_text"
+zrv=$?
+
+if (($zrv)); then
+    echo "zrliveinst: installation declined, goodbye!"
+    exit 0
+fi
+
+partchoice=$( /usr/lib/zrliveinst/listparts | sort | zenity --list \
+    --width 480 --height 360 \
+    --title "ZyX RLiveInst: Choose Installation Destination Disk Volume" \
+    --column "Installation Destination Disk Volume Options" \
+    --text "Select a disk volume for installation from the list below:" )
+
+if [ "x" == "x${partchoice}" ]; then
+    echo "zrliveinst: installation declined, goodbye!"
+    exit 0
+fi
+
+destpart=$( echo "$partchoice" | sed -e 's/.*\s--\s//' )
+
+zenity --question \
+    --width 480 --height 360 \
+    --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
+    --text "Are you SURE that you want to ERASE and REPLACE BOTH the BOOTLOADER AND the disk partition $partchoice ???"
+zrv=$?
+
+if (($zrv)); then
+    echo "zrliveinst: installation declined, goodbye!"
+    exit 0
+fi
+
+zenity --question \
+    --width 480 --height 360 \
+    --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
+    --text "Are you REALLY SURE that you want to ERASE and REPLACE BOTH the BOOTLOADER AND the disk partition $partchoice ???"
+zrv=$?
+
+if (($zrv)); then
+    echo "zrliveinst: installation declined, goodbye!"
+    exit 0
+fi
+
+/usr/sbin/rliveinst ${destpart} 2>&1 | \
+    tee -a /var/log/rliveinst.log | \
+    sed -u -e 's/.*-.//' -e 's/\s%$//' | \
+    zenity --progress --width 480 --height 360 \
+    --title "ZyX RLiveInst: Installation Progress" \
+    --text "Rebootless LiveOS Installation in Progress..."
+zrv=$?
+
+if (($zrv)); then
+    echo "zrliveinst: installation cancelled, goodbye!"
+    exit 0
+fi
+
+zenity --info \
+    --width 480 --height 360 \
+    --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
+    --text "$done_text"

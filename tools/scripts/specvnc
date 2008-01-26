@@ -1,0 +1,168 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# specvnc: a featureful tool for launching vnc sessions
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+function usage {
+    echo ""
+    echo "${progname} \\"
+    echo "    [--help] [--quiet] [--verbose] [--debug] \\"
+    echo "    [--config=<config>] \\"
+    echo "    <viros-command> \\"
+    echo "    [[<viros-command-options>]] "
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+function cleanup_and_exit {
+    if (( $vopt_debug )); then
+	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
+    else
+	verbose "removing tmpdir, was ${tmpdir}"
+	rm -rf ${tmpdir}
+    fi
+    verbose "goodbye!"
+    exit 0
+}
+
+
+if [ $# -ne 3 ]; then
+    echo "usage: ${progname} --display=<displaynumber> --confdir=<> <start|stop|view>"
+    exit 1
+fi
+
+specvnc_display=$( echo $1 | sed -e 's/.*=//' )
+specvnc_confdir=$( echo $2 | sed -e 's/.*=//' )
+specvnc_action=$3
+
+specvnc_port=$(( $specvnc_display + 5900 ))
+
+
+function launch_specvnc {
+    if [ -d "${specvnc_confdir}" ]; then
+	die "specvnc confdir ${specvnc_confdir} already exists, aborting..."
+    fi
+
+    if ( checkport ${specvnc_port} ); then 
+	status "port ${specvnc_port} is available"
+    else
+	die "port ${specvnc_port} is not available"
+    fi
+
+    
+    cleanup_command="${cleanup_command} ; \
+	rm -rf ${specvnc_confdir} \
+        "
+    if $(! mkdir ${specvnc_confdir} > /dev/null 2>&1 ); then
+	die "could not make config dir ${specvnc_confdir}"
+    fi
+    
+    status "configuring special vnc server..."
+
+    vsys_vncpassword=$( cat /dev/random | hexdump -n 4 -e '"%02x\n"' )
+    echo -e "${vsys_vncpassword}\n${vsys_vncpassword}\n" | \
+        veva env HOME=${specvnc_confdir} vncpasswd 
+
+    veva make_vncstartup ${specvnc_confdir}/.vnc/xstartup
+
+
+    status "starting special vnc server..."
+
+    cleanup_command="${cleanup_command} ; \
+        status \"status: stopping special vnc server...\" ; \
+        sleep 1 ; \
+        veva env HOME=${specvnc_confdir} vncserver -kill :${specvnc_display} \
+        "
+
+
+    vncname="VirOS_Synthesis_Monitor    "
+    vevastupid env HOME=${specvnc_confdir} vncserver :${specvnc_display} \
+	-name "${vncname}" \
+	-depth 16 \
+	-localhost
+
+    sleep 2
+
+
+}
+
+function destroy_specvnc {
+    veva env HOME=${specvnc_confdir} vncserver -kill :${specvnc_display} 
+}
+
+function view_specvnc {
+    if [ ! -f "${specvnc_confdir}/vsm" ]; then
+	cp $( which vncviewer ) ${specvnc_confdir}/vsm
+	sed -i -e 's/VNC:/\ \ \ \ /' ${specvnc_confdir}/vsm
+    fi
+
+    status "viewing special vnc server on display ${specvnc_display} ..."
+    ${specvnc_confdir}/vsm -shared -passwd ${specvnc_confdir}/.vnc/passwd :${specvnc_display} \
+	>> ${specvnc_confdir}/viewers.log 2>&1 
+}
+
+function viewonly_specvnc {
+    if [ ! -f "${specvnc_confdir}/vsm" ]; then
+	cp $( which vncviewer ) ${specvnc_confdir}/vsm
+	sed -i -e 's/VNC:/\ \ \ \ /' ${specvnc_confdir}/vsm
+    fi
+
+    status "viewing special vnc server on display ${specvnc_display} ..."
+    ${specvnc_confdir}/vsm -shared -viewonly -passwd ${specvnc_confdir}/.vnc/passwd :${specvnc_display} \
+	>> ${specvnc_confdir}/viewers.log 2>&1 
+}
+
+
+if [ "$specvnc_action" = "start" ]; then
+    launch_specvnc
+elif [ "$specvnc_action" = "stop" ]; then
+    destroy_specvnc
+elif [ "$specvnc_action" = "view" ]; then
+    view_specvnc
+elif [ "$specvnc_action" = "viewonly" ]; then
+    viewonly_specvnc
+fi
+
+exit 0
+

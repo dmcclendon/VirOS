@@ -1,0 +1,207 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# findoverlay: early init tool to set up LiveOS persistence overlay device
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+zyx=$1
+overlay=$2
+loopdev=$3
+rloopdev=$4
+debug=$5
+ram_overlay_size=$6
+
+function fodebug {
+    if ((${debug})); then
+	echo "findoverlay: $*"
+    fi
+}
+
+fodebug "starting..."
+
+LIVEOS_SAFELABEL="$zyx"
+
+fodebug "LiveOS SAFELABEL is ${LIVEOS_SAFELABEL}"
+
+if ( echo $overlay | grep -q ":" ); then
+    pathspec=$( echo $overlay | sed -e 's/^.*://' )
+else
+    pathspec="/boot/LiveOS/zyx/overlay-${LIVEOS_SAFELABEL}"
+fi
+
+if [ "x${pathspec}" == "x" -o "${pathspec}" == "auto" ]; then
+    pathspec="/boot/LiveOS/zyx/overlay-${LIVEOS_SAFELABEL}"
+elif ( echo $pathspec | grep -v -q "/" ); then
+    pathspec="/boot/LiveOS/zyx/overlay-${LIVEOS_SAFELABEL}-${pathspec}"
+fi
+
+fodebug "calculated pathspec is ${pathspec}"
+
+devspec=$( echo $overlay | sed -e 's/:.*$//' )
+if [ ! -n "$devspec" ]; then
+    devspec="auto"
+fi
+
+fodebug "calculated devspec is ${devspec}"
+
+
+
+numcandidates=0
+candidates=""
+if [ "$devspec" == "auto" ]; then
+    devices="$( find /dev -name "sd*" -print 2> /dev/null ) $( find /dev -name "scd*" -print 2> /dev/null ) $( find /dev -name "sr*" -print 2> /dev/null)"
+    fodebug "found devices are $devices"
+    mkdir /testmount
+    for device in $devices; do
+	fodebug "about to test readonly on device $device"
+	devro=$( blockdev --getro $device 2> /dev/null )
+	if (($?)); then
+	    devusable=0
+	else
+	    if (( $devro )); then
+		devusable=0
+	    else
+		devusable=1
+	    fi
+	fi
+	if (( $devusable )); then 
+	    blockdev --setro $device
+	    fodebug "about to test mount device $device"
+	    fstype=$( vol_id -t $device )
+	    if  [ "$fstype" == "vfat" ]; then
+		mountcom="mount -n -t vfat -o ro"
+	    elif  [ "$fstype" == "ext3" ]; then
+		mountcom="mount -n -t ext3 -o ro"
+	    else
+		fodebug "unsupported filesystem found, trying auto"
+		mountcom="mount -n -t auto -o ro"
+	    fi
+	    if ( $mountcom $device /testmount > /dev/null 2>&1 ); then
+		fodebug "about to look for /testmount/${pathspec} on $device"
+		if [ -f /testmount/${pathspec} ]; then
+		    fodebug "found /testmount/${pathspec} on $device"
+		    numcandidates=$(( $numcandidates + 1 ))
+		    candidates="$candidates $device"
+		    fodebug "numcandidates is now $numcandidates"
+		    fodebug "candidates is now $candidates"
+		fi
+		fodebug "about to unmount device $device"
+		umount /testmount
+	    fi
+	    blockdev --setrw $device
+	fi
+    done
+    rmdir /testmount
+    
+    if [ $numcandidates -gt 1 ]; then
+	xdone=0
+	while (( ! $xdone )); do
+	    echo -en "\n\n\nfindoverlay: multiple overlay images found, plese select one:\n\n\n"
+	    echo -en "choices:\n\n"
+	    echo -en "0: ignore overlay images, create fresh overlay in ram\n"
+	    candidatenum=1
+	    for candidate in $candidates; do
+		cfslabel="$( /sbin/vol_id -L $candidate )"
+		cuuid="$( /sbin/vol_id -u $candidate )"
+		cfstype="$( /sbin/vol_id -t $candidate )"
+		echo -en "${candidatenum}: ${candidate} LABEL=${cfslabel} FSTYPE=${cfstype} UUID=${cuuid}\n"
+		candidatenum=$(( $candidatenum + 1 ))
+	    done
+	    echo -en "\n\nchoice? (60 second timeout, default: 0)"
+	    read -t 60 choice
+
+	    candidatenum=1
+	    for candidate in $candidates; do
+		if [ $choice -eq $candidatenum ]; then
+		    pdev=$candidate
+		fi
+		candidatenum=$(( $candidatenum + 1 ))
+	    done
+
+	    if (( ! $choice )); then
+		pdev=tmpfs
+		xdone=1
+	    elif ( blockdev $pdev > /dev/null 2>&1 ); then
+		xdone=1
+	    else
+		echo -en "\n\nInvalid Choice - Please Choose Again\n\n"
+	    fi
+	done
+    elif [ $numcandidates -eq 0 ]; then
+	pdev=""
+    else
+	pdev=$candidates
+    fi
+else
+    
+    if ( echo $devspec | grep -q "^UUID=" ); then
+	cuuid=$( echo $devspec | sed -e 's/^UUID=//' )
+	pdev=$( findfs UUID=${cuuid} )
+    elif ( echo $devspec | grep -q "^LABEL=" ); then
+	clabel=$( echo $devspec | sed -e 's/^LABEL=//' )
+	pdev=$( findfs LABEL=${clabel} )
+    elif ( echo $devspec | grep -q '/' ); then
+	pdev=$devspec
+    else
+	pdev="/dev/${devspec}"
+    fi
+fi
+
+pdev=$( echo $pdev | sed -e 's/^\s*//' | sed -e 's/\s*$//' )
+fodebug "persistence device is: $pdev"
+pmounted=0
+if ( blockdev $pdev > /dev/null 2>&1 ); then
+    fodebug "about to mount persistence device $pdev"
+    mount -n -t auto $pdev /mnt/.LiveOS/overlayfs
+    ofstype="$( /sbin/vol_id -t $pdev )"
+    pmounted=1
+fi
+
+if [ -w "/mnt/.LiveOS/overlayfs${pathspec}" ]; then
+    fodebug "setting up overlay file"
+    losetup ${loopdev} /mnt/.LiveOS/overlayfs${pathspec}
+    losetup -r ${rloopdev} /mnt/.LiveOS/overlayfs${pathspec}
+else
+    echo "findoverlay: failed to find usable overlay image, setting up non-persistenct ram overlay"
+    sleep 7
+    if ( grep -q nobwa /proc/cmdline ); then
+	mount -n -t tmpfs -o mode=0755 none /mnt/.LiveOS/overlayfs  
+    else
+	touch /dev/.special.bwa
+    fi
+
+    dd if=/dev/null of=/mnt/.LiveOS/overlayfs/dmoverlay \
+	bs=1024 count=1 seek=$((${ram_overlay_size}*1024)) 2> /dev/null
+    losetup ${loopdev} /mnt/.LiveOS/overlayfs/dmoverlay
+    losetup -r ${rloopdev} /mnt/.LiveOS/overlayfs/dmoverlay
+fi
+
+
+
+
+
+

@@ -1,0 +1,161 @@
+#!/usr/bin/perl
+#
+#############################################################################
+#
+# vreplace: a tool for string replacement in text files
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+#
+# WARNING: I trust this code for the limited usage with which I have tested 
+# it heavily.  If you can cut this down to a graceful 7 line program, please 
+# let me know :)
+#
+#
+# usage: vreplace from to [from to ...] [-- inputfile [outputfile]]
+#
+# If input and output files are not specified, stdin and stdout are used.
+# If no output file is specified, the inputfile is modified in place
+# If a to entry begins with replacefile::: it tries to open the rest of
+# the argument as a textfile, and use its text as the replacement.
+#
+# If no final to is specified, "" is implied.
+#
+
+# variables ###TODO run with -w and use strict...
+my (@lines);
+
+$numargs = $#ARGV;
+
+#
+# process any input/output filename arguments
+#
+$using_stdin=1;
+if ($numargs >= 2) {
+    #
+    # in both cases, read the entire input file into @lines
+    #
+    if ($ARGV[ $numargs - 1 ] eq "--") {
+	#
+	# case: modify in place (no output file) 
+	#
+	$infile = $ARGV[ $numargs - 0 ];
+	open(STDIN, "<$infile") or die "Can't open input file $infile $!";
+	(@lines) = <STDIN>;
+	close(STDIN);
+	open(STDOUT, ">$infile") or die "Can't open output file $outfile $!";
+	$using_stdin=0;
+	$numargs = $numargs - 2;
+    } elsif ($ARGV[ $numargs - 2 ] eq "--") {
+	#
+	# case: create output file
+	#
+	$infile = $ARGV[ $numargs - 1 ];
+	$outfile = $ARGV[ $numargs - 0 ];
+	open(STDIN, "<$infile") or die "Can't open input file $infile $!";
+	(@lines) = <STDIN>;
+	close(STDIN);
+	open(STDOUT, ">$outfile") or die "Can't open output file $outfile $!";
+	$using_stdin=0;
+	$numargs = $numargs - 3;
+    }
+}
+
+#
+# figure out how many replacement pairs there are
+#
+$numargs = $numargs + 1;
+if ( ($numargs % 2) != 0 ) {
+    # if no final to, use an implicit ""
+    $ARGV[$numargs] = "";
+    $numargs = $numargs + 1;
+} 
+$numreplaces = $numargs / 2;
+
+#
+# construct the searchterm and replaceterm arrays, ingesting special
+# "replacefile:::<filename>" if given.
+#
+for (my $i = 0; $i < $numreplaces; $i++) {
+    $searchterm[$i] = $ARGV[$i * 2];
+    $replaceterm[$i] = $ARGV[$i * 2 + 1];
+    if ( $replaceterm[$i] =~ /^replacefile:::/ ) {
+	$replacefile = $replaceterm[$i];
+	$replacefile =~ s/^replacefile::://;
+	open(REPFILE, "<${replacefile}") or die "Can't open replacement file $replacefile $!";
+	$reptext = "";
+	while (<REPFILE>) {
+	    $reptext = $reptext . $_;
+	}
+	close(REPFILE);
+	$replaceterm[$i] = $reptext;
+    }
+}
+
+#
+# iterate over each line of input
+#
+
+$done=0;
+$currentline=0;
+while (!$done) {
+
+    #
+    # get the next line of input, either from stdin, or from the buffered file
+    #
+    if ( $using_stdin ) {
+	if ($nextline = <STDIN>) {
+	    $currentline=$currentline + 1;
+	} else {
+	    $done=1;
+	}
+    } else {
+	if (@lines > $currentline) {
+	    $currentline=$currentline + 1;
+	    $nextline=$lines[$currentline - 1];
+	} else {
+	    $done=1;
+	}
+    }
+
+    #
+    # process the line of input, and print the output to STDOUT (which may
+    # be the filehandle of the outputfile)
+    #
+    if (!$done) {
+	for (my $i = 0; $i < $numreplaces; $i++) {
+	    $sterm = $searchterm[$i];
+	    $rterm = $replaceterm[$i];
+	    $nextline =~ s/$sterm/$rterm/g;
+	}
+	
+	print STDOUT $nextline;
+    }
+
+}
+
+#
+# close STDOUT, whether it is the outputfile, or stdout
+#
+close(STDOUT);

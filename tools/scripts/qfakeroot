@@ -1,0 +1,384 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# qfakeroot: a very flexible unpriveledged virtualization container tool
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+function usage {
+    echo ""
+    echo "qfakeroot \\"
+    echo "    [--help] \\"
+    echo "    [--verbose] \\"
+    echo "    [--debug] \\"
+    echo "    [--native] \\"
+    echo "    [--config=<config-file>] \\"
+    echo "    [--command=<program-to-run-as-root>] \\"
+    echo "    [[--disk_image=[ro:]<disk-image-device-or-file>]] \\"
+    echo "    [[--add_files=<file-list>]] \\"
+    echo "    [[--add_links=<link-list>]] \\"
+    echo "    [[--add_modules=<module-list>]] \\"
+    echo "    [[--add_module_groups=<module-group-list>]] \\"
+    echo "    [[--add_search_paths=<path-list>]] \\"
+    echo "    [--outputdir=<output-directory>]"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+if [ "$( whoami )" == "root" ]; then
+    native_default=1
+else
+    native_default=0
+fi
+
+
+
+if [ "x${TMPDIR}" == "x1" ]; then
+    default_vopt_tmpdir="/tmp"
+else
+    default_vopt_tmpdir="${TMPDIR}"
+fi
+
+
+vregopt help boolean 0
+vregopt verbose boolean 0 inherit
+vregopt debug boolean 0 inherit
+vregopt quiet boolean 0 inherit
+vregopt tmpdir string "${default_vopt_tmpdir}" inherit
+vregopt native boolean $native_default
+vregopt scratch string "10G"
+vregopt qflags string ""
+vregopt config string ""
+vregopt command string ""
+vregopt disk_image string ""
+vregopt add_files cumulative ""
+vregopt add_links cumulative ""
+vregopt add_modules cumulative ""
+vregopt add_module_groups cumulative ""
+vregopt outputdir string "./qfakeroot.outputdir"
+vparseopt "$@"
+
+if (( $vopt_help )); then 
+    usage clean 
+fi
+
+if [ -d $vopt_outputdir ]; then
+    die "output directory $vopt_outputdir already exists"
+fi
+
+status "initializing..."
+
+verbose "creating temporary directory..."
+export TMPDIR=${vopt_tmpdir}
+tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+if (($?)); then
+    die "failed to mktemp"
+fi
+export TMPDIR=${tmpdir}
+verbose "temporary directory is ${tmpdir}"
+
+if [ "x${vopt_disk_image}" == "x" ]; then
+    use_disk_image=0
+    qemu-img create ${tmpdir}/fqdi.img 1G
+    qdiflag="-hda ${tmpdir}/fqdi.img"
+    disk_image_readonly=1
+else
+    use_disk_image=1
+    if ( echo "$vopt_disk_image" | grep -q "^ro:" ); then
+	disk_image=$( echo "$vopt_disk_image" | sed -e 's/^ro://' )
+	disk_image_readonly=1
+	ln -s $( normalize_path $disk_image ) ${tmpdir}/disk_image
+	veva qemu-img create -b ${tmpdir}/disk_image -f qcow2 ${tmpdir}/qrodi.img
+	qdiflag="-hda ${tmpdir}/qrodi.img"
+    else
+	disk_image=$vopt_disk_image
+	disk_image_readonly=0
+	qdiflag="-hda ${disk_image}"
+    fi
+fi
+
+cat <<EOF > ${tmpdir}/qfakeroot.init
+
+PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+echo "\$0: qfakeroot initializing inside virtwrapper"
+
+ln -s /proc/mounts /etc/mtab
+
+mknod /dev/initctl p
+modprobe ata_piix
+modprobe sd_mod
+
+udevsettle --timeout=30 || :
+
+cd /
+
+mkdir /space
+
+mkfs.ext3 -v -F -O sparse_super,^has_journal /dev/sdd
+
+mount -n -t ext3 /dev/sdd /space
+
+pushd /space
+tar xvpsf /dev/sdb
+popd
+
+mkdir -p /input
+mkdir -p /space/input
+mount --bind /space/input /input
+
+mkdir -p /output
+mkdir -p /space/output
+mkdir -p /space/tmp
+mount --bind /space/output /output
+
+mkdir -p /scratch
+mkdir -p /space/scratch
+mount --bind /space/scratch /scratch
+
+if [ -b /dev/sda ]; then
+    dm-parts setup /dev/sda /space/tmp/dm-parts $disk_image_readonly /dev/qfrdi
+fi
+
+/sbin/qfakeroot.command
+
+if [ -b /dev/sda ]; then
+    dm-parts teardown /dev/sda /space/tmp/dm-parts $disk_image_readonly /dev/qfrdi
+fi
+
+pushd /output
+tar cvpsf /dev/sdc .
+popd
+
+umount /scratch
+umount /output
+umount /input
+umount /space
+
+echo -en "\n\nqfakeroot.init QEMU_DONE_IN_NEED_OF_SHUTDOWN\n\n"
+sleep 3
+echo -en "\n\nqfakeroot.init QEMU_DONE_IN_NEED_OF_SHUTDOWN\n\n"
+sleep 7
+
+exit 0
+
+EOF
+
+if [ "x${vopt_config}" == "x" ]; then
+    optional_extra_config_string=""
+else
+    optional_extra_config_string="config ${vopt_config}"
+fi
+
+cat<<SGCEOF > ${tmpdir}/qfakeroot.smirfgen.cfg
+verbose $vopt_verbose
+debug $vopt_debug
+quiet $vopt_quiet
+
+config ZyX-Live-OS/smirfgen.cfg
+$optional_extra_config_string
+
+add_files ${vopt_command}:/sbin/qfakeroot.command:755
+
+add_files ${tmpdir}/qfakeroot.init:/qfakeroot.init:755
+add_files ZyX-Live-OS/live.init:/init:755
+add_files scripts/dm-parts:/sbin/:755
+add_files /sbin/sfdisk
+add_files /usr/bin/readlink
+add_files dir:/input:755
+add_files /sbin/mkfs.ext2
+add_files /sbin/mkfs.ext3
+add_files /bin/date
+add_files /bin/tar
+add_files /bin/sleep
+add_files /sbin/shutdown
+add_files /sbin/reboot
+add_files /sbin/poweroff
+add_files /sbin/halt
+
+add_files $vopt_add_files
+add_links $vopt_add_links
+
+add_tar_dirs /input:input.tar
+
+add_modules $vopt_add_modules
+add_module_groups $vopt_add_module_groups
+SGCEOF
+
+if (($vopt_debug)); then
+    debug "about to dump ${tmpdir}/qfakeroot.smirfgen.cfg"
+    debugcat ${tmpdir}/qfakeroot.smirfgen.cfg
+    debug "done dumping ${tmpdir}/qfakeroot.smirfgen.cfg"
+fi
+
+export vopt_debug
+export vopt_verbose
+export vopt_quiet
+
+smirfgen \
+    --config=${tmpdir}/qfakeroot.smirfgen.cfg \
+    --output=${tmpdir}/qfakeroot.initramfs 
+
+
+if (($vopt_native)); then
+    
+
+    mkdir ${tmpdir}/nativechroot
+    mkdir ${tmpdir}/nativechroot/output
+    mkdir ${tmpdir}/nativechroot/scratch
+    pushd ${tmpdir}/nativechroot > /dev/null 2>&1
+    tar xpsf ${tmpdir}/qfakeroot.initramfs.input.tar
+    popd > /dev/null 2>&1
+
+    zcat ${tmpdir}/qfakeroot.initramfs | \
+	( cd ${tmpdir}/nativechroot ; cpio --extract )
+
+    mkdir -p ${tmpdir}/nativechroot/dev
+    mount --bind /dev ${tmpdir}/nativechroot/dev
+    mount --bind /dev/pts ${tmpdir}/nativechroot/dev/pts
+
+    mkdir -p ${tmpdir}/nativechroot/selinux
+    mount --bind /selinux ${tmpdir}/nativechroot/selinux
+    
+    mkdir -p ${tmpdir}/nativechroot/proc
+    mount --bind /proc ${tmpdir}/nativechroot/proc
+
+    mkdir -p ${tmpdir}/nativechroot/sys
+    mount --bind /sys ${tmpdir}/nativechroot/sys
+
+    if (( $use_disk_image )); then
+	dm-parts setup $disk_image ${tmpdir}/dm-parts $disk_image_readonly \
+	    ${tmpdir}/nativechroot/dev/qfrdi
+    fi
+
+    /usr/sbin/chroot ${tmpdir}/nativechroot /sbin/qfakeroot.command
+
+    if (( $use_disk_image )); then
+	dm-parts teardown $disk_image ${tmpdir}/dm-parts $disk_image_readonly \
+	    ${tmpdir}/nativechroot/dev/qfrdi
+    fi
+
+    umount ${tmpdir}/nativechroot/sys
+    rmdir ${tmpdir}/nativechroot/sys
+
+    umount ${tmpdir}/nativechroot/proc
+    rmdir ${tmpdir}/nativechroot/proc
+
+    umount ${tmpdir}/nativechroot/selinux
+    rmdir ${tmpdir}/nativechroot/selinux
+
+    umount ${tmpdir}/nativechroot/dev/pts
+    umount ${tmpdir}/nativechroot/dev
+    rmdir ${tmpdir}/nativechroot/dev
+
+    mv ${tmpdir}/nativechroot/output ${vopt_outputdir}
+
+else
+
+
+    veva qemu-img create ${tmpdir}/qscratch ${vopt_scratch}
+    veva qemu-img create ${tmpdir}/qoutput 777G
+
+    dd if=/dev/zero of=${tmpdir}/qfakeroot.initramfs.input.tar \
+	conv=notrunc oflag=append bs=4k count=1 > /dev/null 2>&1
+
+    touch ${tmpdir}/q.log
+
+    trap "/bin/true" SIGCHLD
+    trap "/bin/true" SIGHUP
+
+    qemu \
+	${vopt_qflags} \
+	-boot c \
+	-nographic \
+	-kernel /boot/vmlinuz-$( uname -r ) \
+	-initrd ${tmpdir}/qfakeroot.initramfs \
+	-append "debug verbose console=ttyS0 acpi=force drop=early:/qfakeroot.init" \
+	-hdd ${tmpdir}/qscratch \
+	-hdb ${tmpdir}/qfakeroot.initramfs.input.tar \
+	-hdc ${tmpdir}/qoutput \
+	${qdiflag} \
+	> ${tmpdir}/q.log 2>&1 &
+
+    qpid=$!
+
+    trap "kill $qpid ; exit 1" SIGTERM
+    trap "kill $qpid ; exit 1" SIGINT
+    
+    if ((${vopt_verbose})); then
+	debug "tailing q.log"
+	tail -f --pid=${qpid} ${tmpdir}/q.log &
+    fi
+
+    qdone=0
+    while ((!$qdone)); do
+	if ( grep -q QEMU_DONE_IN_NEED_OF_SHUTDOWN ${tmpdir}/q.log ); then
+	    debug "killing qemu subprocess once"
+	    kill -HUP $qpid > /dev/null 2>&1
+	    sleep 3
+	    debug "killing qemu subprocess again for good measure"
+	    kill -KILL $qpid > /dev/null 2>&1
+	    qdone=1
+	    trap SIGCHLD
+	    trap SIGHUP
+	    trap SIGTERM
+	    trap SIGINT
+	else
+	    sleep 7
+	fi
+    done
+    
+
+    mkdir ${tmpdir}/tmpoutput
+    pushd ${tmpdir}/tmpoutput > /dev/null 2>&1
+    veva tar xvf ${tmpdir}/qoutput
+    popd > /dev/null 2>&1
+    mv ${tmpdir}/tmpoutput ${vopt_outputdir}
+
+    if [ -f ${tmpdir}/fqdi.img ]; then rm -f ${tmpdir}/fqdi.img; fi
+    rm -f ${tmpdir}/qscratch
+    rm -rf ${tmpdir}/qoutput
+
+fi
+
+verbose "${progname}: DONE, cleaning up..."
+
+cleanup_and_exit

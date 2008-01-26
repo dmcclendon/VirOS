@@ -1,0 +1,23 @@
+========================================================================
+note, that there exist files in this directory which are direct copies 
+from the Fedora 8 distribution, and therefore presumably under GPL
+license.
+
+Specifically, the file
+
+trait-install/lixmog-patch/isolinux/initrd0.img.lixmog-expanded/init.orig
+
+is from the initrd from the Fedora-8-i386-LiveCD.iso
+(which comes from the livecd-tools package's mayflower script)
+
+likewise
+
+trait-install/lixmog-patch/isolinux/initrd0.img.lixmog-expanded/tmp/etc_rc.d_init.d_functions.orig
+
+and
+
+trait-install/lixmog-patch/isolinux/initrd0.img.lixmog-expanded/tmp/etc_rc.d_init.d_halt.orig
+
+are verbatim copies from the fedora-8 initscripts package
+
+

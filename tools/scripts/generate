@@ -1,0 +1,174 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# generate: a tool to synthesize livecds and other os system images
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+
+function usage {
+    echo ""
+    echo "${progname} \\"
+    echo "    [--help] [--quiet] [--verbose] [--debug] \\"
+    echo "    --strain=<strain> | --config=<config> \\ ### default: fz8"
+    echo "    [[--addtrait=<traitspec>]] \\"
+    echo "    [[--vxmogopts=<transmogrifier options>]] \\"
+    echo "    [--transmogrifier=<transmogrifier>] \\   ### default: zyx-live"
+    echo "    [--output=<filename>]                    ### default: ./vsys.iso"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+function cleanup_and_exit {
+    if (( $vopt_debug )); then
+	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
+    else
+	verbose "removing tmpdir, was ${tmpdir}"
+	rm -rf ${tmpdir}
+    fi
+    verbose "goodbye!"
+    exit 0
+}
+
+
+
+if [ "x${TMPDIR}" == "x1" ]; then
+    default_vopt_tmpdir="/tmp"
+else
+    default_vopt_tmpdir="${TMPDIR}"
+fi
+
+
+
+vregopt config string "f8"
+vregopt help boolean 0
+vregopt verbose boolean 0 inherit
+vregopt debug boolean 0 inherit
+vregopt quiet boolean 0 inherit
+vregopt cachedir string "" inherit
+vregopt tmpdir string "${default_vopt_tmpdir}" inherit
+
+vregopt vsysgen_output_container_size string "7G" inherit
+vregopt vsysgen_distro string "fedora-8" inherit
+vregopt vsysgen_arch string "x86" inherit
+vregopt vsysgen_install_boot_iso string "http://download.fedoraproject.org/pub/fedora/linux/releases/8/Fedora/i386/iso/Fedora-8-i386-rescuecd.iso" inherit
+vregopt vsysgen_install_boot_iso_sha1sum string "aa27d819079b8c92efa2ea58a5c0c84825f7a959" inherit
+vregopt vsysgen_distro_config string "f8.ks" inherit
+vregopt vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" inherit
+vregopt vsysgen_screencast_output string "" inherit
+
+vregopt mirrorlist string ""
+vregopt addtrait cumulative ""
+
+vregopt transmogrifier string "zyx-live"
+vregopt vxmogopts cumulative ""
+vregopt output string "./vsys.iso"
+
+vparseopt "$@"
+
+if (( $vopt_help )); then 
+    usage clean 
+fi
+
+verbose "creating temporary directory..."
+export TMPDIR=${vopt_tmpdir}
+tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+if (($?)); then
+    die "failed to mktemp"
+fi
+export TMPDIR=${tmpdir}
+verbose "temporary directory is ${tmpdir}"
+
+export vopt_debug
+export vopt_verbose
+export vopt_quiet
+
+
+export vopt_mirrorlist
+export vopt_cachedir
+
+export vopt_vsysgen_output_container_size
+export vopt_vsysgen_distro
+export vopt_vsysgen_arch
+export vopt_vsysgen_install_boot_iso
+export vopt_vsysgen_distro_config
+export vopt_vsysgen_boot_cmdline
+
+verbose "starting phase#1-synthesis at $( date )"
+
+veva synthesize --output=${tmpdir}/outimage.vsi
+
+
+export vopt_addtrait
+export vopt_mirrorlist
+
+verbose "backing up synthesized vsi at $( date )"
+
+veva cp -av --sparse=always \
+    ${tmpdir}/outimage.vsi \
+    ${tmpdir}/mutated.vsi
+
+verbose "starting phase#2-mutation at $( date )"
+
+veva mutate ${tmpdir}/mutated.vsi
+
+
+export vopt_vxmogopts
+
+verbose "starting phase#3-transmogrification at $( date )"
+
+veva transmogrify ${vopt_transmogrifier} \
+    ${tmpdir}/mutated.vsi \
+    ${vopt_output}
+
+
+verbose "processing done, cleaning up at $( date )"
+
+veva $cleanup_command
+
+cleanup_and_exit
+
+status "finished"
+
+exit 0
+

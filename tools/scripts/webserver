@@ -1,0 +1,184 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# webserver: a tool to launch a simple webserver
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+
+function usage {
+    echo ""
+    echo "${progname} \\"
+    echo "    [--help] \\"
+    echo "    [--quiet] \\"
+    echo "    [--verbose] \\"
+    echo "    [--debug] \\"
+    echo "    --port=<portnum> \\"
+    echo "    --docroot=<path/to/docroot> \\"
+    echo "    --confdir=<path/to/confdir> \\"
+    echo "    <start|stop>"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+
+if [ "x${TMPDIR}" == "x1" ]; then
+    default_vopt_tmpdir="/tmp"
+else
+    default_vopt_tmpdir="${TMPDIR}"
+fi
+
+vregopt help boolean 0
+vregopt verbose boolean 0 inherit
+vregopt debug boolean 0 inherit
+vregopt quiet boolean 0 inherit
+vregopt tmpdir string "${default_vopt_tmpdir}" inherit
+vregopt port string ""
+vregopt docroot string ""
+vregopt confdir string ""
+vparseopt "$@"
+
+if (( $vopt_help )); then 
+    usage clean 
+fi
+
+
+if [ $vopts_numargs -ne 1 ]; then 
+    debug "vopts_numargs is $vopts_numargs"
+    debug "vopts_args[1] is ${vopts_args[1]}"
+    usage
+fi
+
+mode="${vopts_args[1]}"
+
+httpdserverroot="${vopt_confdir}/webserver_conf"
+
+
+function launch_webserver {
+
+    if ( checkport ${vopt_port} ); then 
+	status "port ${vopt_port} is available"
+    else
+	die "port ${vopt_port} is not available"
+    fi
+
+    if [ ! -d ${vopt_docroot} ]; then
+	die "docroot ${vopt_docroot} is not accessable"
+    fi
+    
+    
+     if $(! mkdir -p ${httpdserverroot} > /dev/null 2>&1 ); then
+	die "could not make config dir ${httpdserverroot}"
+    fi
+    
+
+    veva mkdir ${httpdserverroot}/testdir
+    date > ${httpdserverroot}/testdir/testfile
+
+    veva cp ${httpdserverroot}/testdir/testfile ${vopt_docroot}/testfile
+    
+
+    veva mkdir -p ${httpdserverroot}
+    veva mkdir -p ${httpdserverroot}/run
+    veva mkdir -p ${httpdserverroot}/logs
+    veva mkdir -p ${httpdserverroot}/conf
+    veva mkdir -p ${httpdserverroot}/conf.d
+    veva ln -s /usr/lib/httpd/modules ${httpdserverroot}/
+    
+    status "configuring special http server..."
+    
+    veva cp ${viros_libdir}/bases/common/arap.orig.httpd.conf \
+	${httpdserverroot}/conf/httpd.conf
+    veva vreplace \
+	VSYS_SERVERROOT "${httpdserverroot}" \
+	VSYS_PORT "${vopt_port}" \
+	VSYS_DOCROOT "${vopt_docroot}" \
+	-- ${httpdserverroot}/conf/httpd.conf 
+    
+    status "starting special http server..."
+
+    cleanup_command="${cleanup_command} ; \
+	status \"status: stopping special http server...\" ; \
+	sleep 1 ; \
+	veva /usr/sbin/httpd \
+	-f ${httpdserverroot}/conf/httpd.conf -k graceful-stop ; \
+	veva /usr/sbin/httpd \
+	-f ${httpdserverroot}/conf/httpd.conf -k stop ; \
+	"
+
+    veva /usr/sbin/httpd -f ${httpdserverroot}/conf/httpd.conf 
+    sleep 3
+
+    status "testing special http server..."
+
+    veva wget -q -O ${httpdserverroot}/testdir/retrievedfile \
+	http://localhost:${vopt_port}/testfile
+
+    if $( diff -q ${httpdserverroot}/testdir/testfile ${httpdserverroot}/testdir/retrievedfile > /dev/null 2>&1 ); then
+	status "test passed: user httpd server is working correctly"
+    else
+	die "TEST FAILED: user httpd server is not working"
+    fi
+
+    return 0
+}
+
+function destroy_webserver {
+    veva /usr/sbin/httpd \
+	-f ${httpdserverroot}/conf/httpd.conf -k graceful-stop \
+	> /dev/null 2>&1
+    veva /usr/sbin/httpd \
+	-f ${httpdserverroot}/conf/httpd.conf -k stop \
+	> /dev/null 2>&1
+}
+
+
+
+if [ "$mode" = "start" ]; then
+    launch_webserver
+elif [ "$mode" = "stop" ]; then
+    destroy_webserver
+else
+    die "unknown mode $mode"
+fi
+

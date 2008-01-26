@@ -1,0 +1,22 @@
+#!/bin/bash
+
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+autologin=false
+user=none
+source ${progdir}/trait-options
+
+if [ "x${autologin}" == "xtrue" ]; then
+    cp /etc/gdm/custom.conf /tmp/zyx-live.custom.conf.$$
+    cat /tmp/zyx-live.custom.conf.$$ | \
+	grep -v "AutomaticLoginEnable=" | \
+	grep -v "AutomaticLogin=" | \
+	sed -e "s/^\[daemon\]/\[daemon\]\nAutomaticLoginEnable=true\nAutomaticLogin=${user}/" | \
+	sed -e "s/^\[debug\]/\[debug\]\nEnabled=true/" \
+	> /etc/gdm/custom.conf
+    rm -f /tmp/zyx-live.custom.conf.$$ 
+fi
+
+

@@ -1,0 +1,93 @@
+#!/bin/bash
+#
+# zyx-live: Init script for live image
+#
+# mostly taken from fedora livecd-tools script
+#
+# chkconfig: 345 00 99
+# description: Init script for live image.
+
+. /etc/init.d/functions
+
+if ! strstr "`cat /proc/cmdline`" zyx || [ "$1" != "start" ] || [ -e /.zyxlive-configured ] ; then
+    exit 0
+fi
+
+echo -en $"Initializing: ZyX LiveOS...\n"
+
+touch /.zyxlive-configured
+
+if [ -b /dev/zyx_root_base_min ]; then
+    ln -s zyx_root_base_min /dev/live-osimg
+elif [ -b /dev/zyx_root_base ]; then
+    ln -s zyx_root_base /dev/live-osimg
+fi
+
+
+for o in `cat /proc/cmdline` ; do
+    case $o in
+    ks=*)
+        ks="${o#ks=}"
+        ;;
+    xdriver=*)
+        xdriver="--set-driver=${o#xdriver=}"
+        ;;
+    esac
+done
+
+
+if strstr "`cat /proc/cmdline`" liveinst ; then
+   /usr/sbin/liveinst $ks
+fi
+if strstr "`cat /proc/cmdline`" textinst ; then
+   /usr/sbin/liveinst --text $ks
+fi
+
+
+
+
+if ( which system-config-display > /dev/null 2>&1 ); then
+
+    host_is_qemu=0
+    if [ -f /sys/block/sr0/device/model ]; then
+	if ( grep -q "^QEMU" /sys/block/sr0/device/model ); then
+	    host_is_qemu=1
+	fi
+    fi
+    
+    if [ -f /sys/block/sda/device/model ]; then
+	if ( grep -q "^QEMU" /sys/block/sda/device/model ); then
+	    host_is_qemu=1
+	fi
+    fi
+    
+    host_is_apie=0
+    if ( lspci | grep VGA | grep -q "Apollo CLE266" ); then 
+	host_is_apie=1
+    fi
+    
+    if (($host_is_qemu)); then
+	cp -f /etc/X11/xorg.conf.qemu /etc/X11/xorg.conf
+    elif (($host_is_apie)); then
+	cp -f /etc/X11/xorg.conf.apie /etc/X11/xorg.conf
+    else
+	exists system-config-display --noui --reconfig --set-depth=24 $xdriver
+    fi
+    
+fi
+
+echo "RUN_FIRSTBOOT=NO" > /etc/sysconfig/firstboot
+
+chkconfig --level 345 yum-updatesd off 2>/dev/null
+
+chkconfig --level 345 crond off 2>/dev/null
+chkconfig --level 345 atd off 2>/dev/null
+chkconfig --level 345 anacron off 2>/dev/null
+chkconfig --level 345 readahead_early off 2>/dev/null
+chkconfig --level 345 readahead_later off 2>/dev/null
+
+touch /media/.hal-mtab
+
+sed -i -e 's/hwclock/no-such-hwclock/g' /etc/rc.d/init.d/halt
+
+exit 0

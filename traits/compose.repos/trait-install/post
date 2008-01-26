@@ -1,0 +1,43 @@
+#!/bin/bash
+#
+# viros trait post-install script for trait: compose.repos
+#
+# options:
+# 
+# mode=install|uninstall
+#
+
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+mode=install
+source ${progdir}/trait-options
+
+if [ "x${mode}" == "xinstall" ]; then
+
+
+    mv /etc/yum.repos.d /etc/yum.repos.d.not.compose.repos
+    mv /etc/yum.conf /etc/yum.conf.not.compose.repos
+
+    cp -a /etc/yum.repos.d.compose.repos /etc/yum.repos.d
+    cp -a /etc/yum.conf.not.compose.repos /etc/yum.conf
+    echo "reposdir=/etc/yum.repos.d.compose.repos" \
+	>> /etc/yum.conf
+
+elif [ "x${mode}" == "xuninstall" ]; then
+
+
+    rm -rf /etc/yum.repos.d.compose.repos
+    rm -rf /etc/yum.repos.d
+    rm -f /etc/yum.conf
+
+    mv /etc/yum.repos.d.not.compose.repos /etc/yum.repos.d
+    mv /etc/yum.conf.not.compose.repos /etc/yum.conf
+
+else
+    echo "${progname}: error: fatal: unknown option mode=${mode}"
+    exit 1
+fi
+
+exit 0

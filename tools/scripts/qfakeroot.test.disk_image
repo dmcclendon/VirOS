@@ -1,0 +1,145 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# qfakeroot.test.disk_image: test rig for disk image functionality of qfr
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+function target_script_to_run_as_root {
+    export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+    mkdir /scratch/expanded
+
+    mkdir /mnt.di
+
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    find /dev -name "qfrdi*" -print -exec ls -l '{}' ';'
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    losetup -a
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    dmsetup status
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    ls -l /dev/mapper
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+    for dev in $( ls -1A /dev/qfrdi-base-p* ); do
+	sdev=$( basename $dev )
+	mount /dev/${sdev} /mnt.di
+	date >> /mnt.di/qfakeroot.test.disk_image.wuz_here.txt
+	cp -av /mnt.di /scratch/expanded/${sdev}
+	umount /mnt.di
+    done
+
+    for dev in $( ls -1A /dev/qfrdi-copy-p* ); do
+	sdev=$( basename $dev )
+	mount /dev/${sdev} /mnt.di
+	date >> /mnt.di/qfakeroot.test.disk_image.wuz_here.txt
+	cp -av /mnt.di /scratch/expanded/${sdev}
+	umount /mnt.di
+    done
+
+    pushd /scratch/expanded
+    tar cvpsf /output/out.tar ./
+    popd
+}
+
+if [ "$progname" == "qfakeroot.command" ]; then
+    target_script_to_run_as_root
+    exit 0
+fi
+
+
+
+if (( $# != 2 )); then
+    echo "usage: ${progname} <disk_image/device> <output_tar_filename>" 
+    exit 1
+fi
+
+tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+mkdir -p ${tmpdir}
+export TMPDIR=${tmpdir}
+
+if [ ! -f $1 -a ! -b $1 ]; then
+    echo "ERROR: problem with input disk image/device $1"
+    exit 1
+else
+    pushd "$( dirname $1 )" > /dev/null 2>&1
+    direalpath="$( pwd )/$( basename $1 )"
+    popd > /dev/null 2>&1
+fi
+
+if [ -f $2 ]; then
+    echo "ERROR: output file $2 already exists"
+    exit 1
+fi
+
+qfakeroot \
+    --debug --verbose \
+    --command=${progdir}/${progname} \
+    --scratch=11G \
+    --add_files="/bin/bash" \
+    --add_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
+    --add_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
+    --add_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
+    --add_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
+    --add_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
+    --add_files="$( which splitter ):/bin/splitter" \
+    --add_files="/bin/date" \
+    --add_files="/bin/mount" \
+    --add_files="/bin/umount" \
+    --add_files="/bin/basename" \
+    --add_files="/usr/bin/dirname" \
+    --add_files="/bin/cp" \
+    --add_files="/bin/mkdir" \
+    --add_files="/bin/tar" \
+    --add_files="/bin/zcat" \
+    --add_files="/bin/rm" \
+    --add_files="/bin/sh" \
+    --add_files="/bin/cpio" \
+    --add_files="/usr/bin/isoinfo" \
+    --disk_image="ro:${1}" \
+    --outputdir=${tmpdir}/qfakeroot.outputdir
+
+mv ${tmpdir}/qfakeroot.outputdir/out.tar $2
+
+rm -rf ${tmpdir}
+
+exit 0

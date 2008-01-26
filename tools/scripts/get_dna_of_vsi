@@ -1,0 +1,177 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# get_dna_of_vsi: a tool to get the Distro aNd Arch of a Virtual System Image
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+function target_script_to_run_as_root {
+    export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+    echo "qfakeroot: ${progname} starting..."
+    
+    mkdir -p /mnt/test
+    mount -o ro /dev/qfrdi-copy-p1 /mnt/test
+    if [ -f /mnt/test/etc/gzyx-release ]; then
+	if [ "$( < /mnt/test/etc/gzyx-release)" == \
+	    "G-ZyX release 0.5 (alpha)" ]; then
+	    echo "gzyx-0.5" > output/distro
+	else
+	    echo "gzyx-unknown" > output/distro
+	fi
+    elif [ -f /mnt/test/etc/fedora-release ]; then
+	if [ "$( < /mnt/test/etc/fedora-release)" == \
+	    "Fedora release 7 (Moonshine)" ]; then
+	    echo "fedora-7" > output/distro
+	elif [ "$( < /mnt/test/etc/fedora-release)" == \
+	    "Fedora release 8 (Werewolf)" ]; then
+	    echo "fedora-8" > output/distro
+	else
+	    echo "fedora-unknown" > output/distro
+	fi
+    else
+	echo "unknown" > output/distro
+    fi
+
+    /usr/sbin/chroot /mnt/test rpm -q --qf "%{Arch}\n" kernel > /output/arch
+
+    umount /mnt/test
+
+    echo "qfakeroot: ${progname}: done"
+}
+if [ "$progname" == "qfakeroot.command" ]; then
+    target_script_to_run_as_root
+    exit 0
+fi
+
+
+
+function usage {
+    echo ""
+    echo "${progname} \\"
+    echo "    [--help] \\"
+    echo "    [--quiet] \\"
+    echo "    [--verbose] \\"
+    echo "    [--debug] \\"
+    echo "    <target vsi>"
+    echo "    <outputfilename>"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+
+vregopt help boolean 0
+vregopt verbose boolean 0
+vregopt debug boolean 0
+vregopt quiet boolean 0
+vparseopt "$@"
+
+if (( $vopt_help )); then 
+    usage clean 
+fi
+
+
+if [ $vopts_numargs -ne 2 ]; then usage; fi
+
+sysimage="${vopts_args[1]}"
+output="${vopts_args[2]}"
+
+
+verbose "initializing..."
+
+sysimage=$( normalize_path "${sysimage}" )
+output=$( normalize_path "${output}" )
+
+tmpdir=$( mktemp -t -d tmp.vsys.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+mkdir -p ${tmpdir}
+export TMPDIR=${tmpdir}
+
+export vopt_debug
+export vopt_verbose
+export vopt_quiet
+
+qfakeroot \
+    --quiet \
+    --command="${progdir}/${progname}" \
+    --qflags="-m 64" \
+    --scratch=1G \
+    --add_files="/bin/bash" \
+    --add_files="bindir:/usr/bin:755" \
+    --add_files="bindir:/usr/sbin:755" \
+    --add_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
+    --add_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
+    --add_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
+    --add_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
+    --add_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
+    --add_files="$( which splitter ):/bin/splitter" \
+    --add_files="/bin/date" \
+    --add_files="/bin/mount" \
+    --add_files="/bin/umount" \
+    --add_files="/bin/basename" \
+    --add_files="/usr/bin/dirname" \
+    --add_files="/bin/cp" \
+    --add_files="/bin/mkdir" \
+    --add_files="/bin/tar" \
+    --add_files="/bin/cat" \
+    --add_files="/bin/zcat" \
+    --add_files="/bin/rm" \
+    --add_files="/bin/sh" \
+    --add_files="/usr/sbin/chroot" \
+    --disk_image="${sysimage}" \
+    --outputdir=${tmpdir}/qfakeroot.outputdir
+
+if $( echo "x${output}" | grep -q '/-$' ); then
+    echo -en "distro=" 
+    cat ${tmpdir}/qfakeroot.outputdir/distro
+    echo -en "arch="
+    cat ${tmpdir}/qfakeroot.outputdir/arch
+else
+    echo -en "distro=" >> "${output}"
+    cat ${tmpdir}/qfakeroot.outputdir/distro >> "${output}"
+    echo -en "arch=" >> "${output}"
+    cat ${tmpdir}/qfakeroot.outputdir/arch >> "${output}"
+fi
+
+rm -rf ${tmpdir}
+
+exit 0
+

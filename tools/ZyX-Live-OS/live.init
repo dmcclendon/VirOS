@@ -1,0 +1,790 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# init: ZyX LiveOS early boot initialization script
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+# Inspired by similar scripts from other LiveOS distributions, particularly
+# Fedora's mayflower, and Ubuntu's casper.
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+##
+## zyx function definitions
+##
+
+# set defaults for user accessible variables
+function set_defaults {
+    zyx="none"
+
+    debug=0
+    quiet=0
+    
+    drops=""
+    run_early=""
+    run_late=""
+    
+    locale=""
+    
+    rootfs_device=""
+    rootfs_fstype=""
+    rootfs_mount_readonly=0
+    rootfs_mount_flags=""
+    
+    media_verify=0
+    
+    init="/sbin/init"
+
+    jdc=0
+
+    # dms|ufs
+    cow_mode=dms
+
+    overlay=off
+
+    livecache=off
+
+    fatime=0
+
+    ram_overlay_size=42000
+
+    # set path
+    export PATH=/sbin:/bin:/lib/udev
+}
+
+# drop user to a shell
+function debug_mode {
+    echo ""
+    echo ""
+    echo ""
+    if [ "$1" == "panic" ]; then
+	shift
+	echo "ZyX initramfs: /init panic- unexpected problem occurred!"
+	if (( $# )); then
+	    echo "ZyX initramfs: $@"
+	fi
+    else
+	echo "ZyX initramfs: drop point $1 reached"
+    fi
+    echo "ZyX initramfs: entering debug mode ..."
+    echo ""
+    echo ""
+    echo ""
+    /bin/bash
+}
+
+# enable dropping to a bash shell in case of failed commands
+trap "debug_mode panic" EXIT SIGINT
+set -e
+
+function dropcheck {
+    for drop in $drops; do
+	drop_name=$( echo $drop | sed -e 's/:.*//' )
+	if [ "x${drop_name}" != "x${1}" ]; then return; fi
+        if ( echo $drop | grep -q ":" ); then
+            drop_prog=$( echo $drop | sed -e 's/.*:\(.*\)/\1/' )
+	    if [ -x "$drop_prog" ]; then
+		$drop_prog
+	    else
+		debug_mode panic "drop point $1 reached, but drop program $drop_prog is not a valid executable"
+	    fi
+        else
+            debug_mode $1
+	fi
+    done
+}
+
+function runphase {
+    if (( $debug )); then dropcheck "before_${1}"; fi
+    
+    eval "$@"
+
+    if (( $debug )); then dropcheck "after_${1}"; fi
+}
+
+# status output/logging wrapper
+function status {
+    if (( ! $quiet )); then
+	echo "ZyX initramfs: $@"
+    fi
+}
+
+# debug/verbose output/logging wrapper
+function debug {
+    if (( $debug )); then
+	echo "DEBUG: ZyX initramfs: $@"
+    fi
+}
+
+# set up console device
+function setup_console {
+
+    # set up minimal udev for console
+    mount -n -t tmpfs -o mode=0755 udev /dev
+    mknod /dev/console c 5 1
+
+    # redirect zyx init I/O to /dev/console
+    exec < /dev/console > /dev/console 2>&1
+}
+
+# parse options given to the kernel by the bootloader/user
+function parse_options {
+
+    for option in $( < /proc/cmdline ) ; do
+	case $option in
+	    zyx=*)
+	        zyx=${option#zyx=}
+		;;
+	    debug|verbose)
+                debug=1
+		;;
+	    quiet)
+                quiet=1
+		;;
+	    drop=*)
+                drops="$drops ${option#drop=}"
+		;;
+	    drop_early|shell)
+	        drops="$drops early"
+		;;
+	    drop_late|eshell)
+	        drops="$drops late"
+		;;
+	    run_early=*)
+	        drops="$drops early:${option#run_early=}"
+		;;
+	    run_late=*)
+	        drops="$drops late:${option#run_late=}"
+		;;
+	    locale=*)
+                locale=${option#locale=}
+		;;
+	    language=*)
+                locale=${option#language=}
+		;;
+	    lang=*)
+                locale=${option#lang=}
+		;;
+	    rootfs_device=*)
+                rootfs_device=${option#rootfs_device=}
+		;;
+	    root=*)
+                rootfs_device=${option#root=}
+		;;
+	    rootfs_fstype=*)
+                rootfs_fstype=${option#rootfs_fstype=}
+		;;
+	    rootfstype=*)
+                rootfs_fstype=${option#rootfstype=}
+		;;
+	    ro)
+                rootfs_mount_readonly=1
+		;;
+	    rw)
+                rootfs_mount_readonly=0
+		;;
+	    rootfs_mount_flags=*)
+                rootfs_mount_flags=${option#rootfs_mount_flags=}
+		;;
+	    rootflags=*)
+                rootfs_mount_flags=${option#rootflags=}
+		;;
+	    media_verify|verify|check)
+                media_verify=1
+		;;
+	    init=*)
+                init=${option#init=}
+		;;
+	    jdc=*)
+                jdc=${option#jdc=}
+		;;
+	    cow_mode=*)
+                cow_mode=${option#cow_mode=}
+		;;
+	    overlay)
+                overlay=auto
+		;;
+	    overlay=*)
+                overlay=${option#overlay=}
+		;;
+	    livecache=*)
+                livecache=${option#livecache=}
+		;;
+	    force_atime)
+                fatime=1
+		;;
+	    fatime)
+                fatime=1
+		;;
+	    ram_overlay_size=*)
+                ram_overlay_size=${option#ram_overlay_size=}
+		;;
+	    zyx_noautopanic)
+	        # disable automatic exit/panic on failed commands
+                set +e
+		;;
+        esac
+    done
+
+    # do status here in case of quiet
+    status "parsing kernel options ... done"
+}
+
+# initialize magic system filesystems (i.e. /dev, /proc, /sys)
+function setup_special_system_mounts {
+
+    # finish setting up initial /dev
+    mknod /dev/kmsg c 1 11
+    mknod /dev/null c 1 3
+
+    # make mountpoints for other special filesystems
+    mkdir /dev/pts
+    mkdir --mode=1777 /dev/shm
+
+    if [ "x${cow_mode}" == "xdms" ]; then
+	mkdir /dev/mapper
+	mknod /dev/mapper/control c 10 63
+    fi
+
+    # create links for basic stuff
+    ln -s /proc/self/fd /dev/fd
+    ln -s fd/0 /dev/sdin
+    ln -s fd/1 /dev/stdout
+    ln -s fd/2 /dev/stderr
+
+    # mount proc filesystem
+    mount -n -t proc proc /proc
+
+    # mount sys filesystem
+    mount -n -t sysfs sysfs /sys
+}
+
+function load_some_drivers {
+
+    modprobe loop max_loop=42
+
+    if [ "x${cow_mode}" == "xdms" ]; then
+	modprobe dm_snapshot
+    fi
+
+    # due to bugs? with udev, just load some drivers 
+    modprobe sr_mod
+
+}
+
+
+# start hotplug
+function start_hotplug {
+    status "starting hotplug"
+
+    echo "" > /proc/sys/kernel/hotplug
+}
+
+# use root filesystem information from /etc/fstab if available and not
+# overridden by the user via kernel options
+function parse_fstab {
+    if [ ! -f /etc/fstab ]; then return; fi
+
+    status "parsinge fstab"
+
+    if (($fatime)); then
+	sed -i -e 's/noatime/atime/g' /etc/fstab
+    fi
+
+    # set rootfs variables, unless the user has overridden them
+
+    while read device mountpoint fstype options dontcare; do
+	if [ "$device" == "/" ]; then
+	    if [ "x${rootfs_device}" == "x" ]; then
+		rootfs_device=$device
+	    fi
+	    if [ "x${rootfs_fstype}" == "x" ]; then
+		rootfs_fstype=$fstype
+	    fi
+	    if [ "x${rootfs_mount_flags}" == "x" ]; then
+		rootfs_mount_flags=$options
+	    fi
+	fi
+    done < /etc/fstab
+}
+
+
+# debugging dump of variables
+function debug_show_opts {
+    debug "post-parsed variable values"
+
+    debug "debug is $debug"
+    debug "quiet is $quiet"
+
+    debug "drops is $drops"
+    debug "run_early is $run_early"
+    debug "run_late is $run_late"
+
+    debug "locale is $locale"
+
+    debug "rootfs_device is $rootfs_device"
+    debug "rootfs_fstype is $rootfs_fstype"
+    debug "rootfs_mount_readonly is $rootfs_mount_readonly"
+    debug "rootfs_mount_flags is $rootfs_mount_flags"
+
+    debug "media_verify is $media_verify"
+
+    debug "init is $init"
+
+    debug "jdc is $jdc"
+
+    debug "cow_mode is $cow_mode"
+
+    debug "overlay is $overlay"
+
+    debug "livecache is $livecache"
+}
+
+function configure_udev {
+    status "configuring udev"
+
+    wait_for_udev_root=1
+    rootfs_mount_device="/dev/root"
+
+    # todo: better verbose output
+    case $rootfs_device in
+	ISOLABEL=*)
+            isolabel=${rootfs_device#ISOLABEL=}
+	    # TODO: research ATTRS{media} possibilities
+	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
+KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="root"
+KERNEL=="sr[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="root"
+KERNEL=="scd[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="root"
+KERNEL=="pcd[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="root"
+SLREOF
+            ;;
+	/dev/disk/by-label/*)
+	    label=${rootfs_device#/dev/disk/by-label/}
+	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
+SUBSYSTEM=="block", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="root"
+SLREOF
+	    ;;
+	LABEL=*)
+            label=${rootfs_device#LABEL=}
+	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
+SUBSYSTEM=="block", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="root"
+SLREOF
+            ;;
+	/dev/disk/by-id/*)
+	    uuid=${rootfs_device#/dev/disk/by-id/}
+	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
+SUBSYSTEM=="block", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="root"
+SLREOF
+	    ;;
+        UUID=*)
+	    uuid=${rootfs_device#UUID=}
+	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
+SUBSYSTEM=="block", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="root"
+SLREOF
+	    ;;
+	/dev/*)
+            wait_for_udev_root=0
+	    ln -s $rootfs_device /dev/root
+            ;;
+	*)
+	    rootfs_mount_device=$rootfs_device
+	    ;;
+    esac
+
+    if (( $debug )); then
+	if [ -f /etc/udev/rules.d/00-zyx_liveos.rules ]; then
+	    debug "created /etc/udev/rules.d/00-zyx_liveos.rules"
+	    debug "<begin debug rules dump>"
+	    cat /etc/udev/rules.d/00-zyx_liveos.rules
+	    debug "<end debug rules dump>"
+	else
+	    debug "did not create /etc/udev/rules.d/00-zyx_liveos.rules"
+	fi
+    fi
+
+    echo 'udev_log="error"' > /etc/udev/udev.conf
+
+    # rules for loading modules 
+    cat <<MPREOF >> /etc/udev/rules.d/10-modprobe.rules
+ACTION=="add", SUBSYSTEM=="?*", ENV{MODALIAS}=="?*", RUN+="/sbin/modprobe \$env{MODALIAS}"
+ACTION=="add", SUBSYSTEM=="scsi_device" RUN+="/sbin/modprobe sg"
+ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="0|7|14", RUN+="/sbin/modprobe sd_mod"
+ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="[45]", RUN+="/sbin/modprobe sr_mod"
+MPREOF
+
+}
+
+function start_udev {
+    status "starting udev"
+
+    status "launching udev daemon"
+    /sbin/udevd --daemon
+
+    status "launching udevtrigger to create device nodes"
+    /sbin/udevtrigger
+
+    status "waiting for udev to settle"
+    /sbin/udevsettle --timeout=30 || status "udev is still unsettled"
+}
+
+function wait_for_udev_rootfs {
+    status "waiting for udev to provide rootfs device"
+
+    if (( ! $wait_for_udev_root )); then
+	if [ ! -b $rootfs_mount_device ]; then
+            debug_mode panic "cannot find the root filesystem device: ${rootfs_mount_device}, if you can make it exist manually, you can then exit this shell to continue booting"
+	fi
+    elif [ ! -b $rootfs_mount_device ]; then
+	udev_extra_time=90
+	status "giving udev an additional $udev_extra_time seconds to try and find the root filesystem device: $rootfs_mount_device"
+	while (( $udev_extra_time > 0 )); do
+	    sleep 1
+	    if [ -b "$rootfs_mount_device" ]; then
+		udev_extra_time=0
+	    else
+		if (( ! $quiet )); then echo -n "."; fi
+		udev_extra_time=$(( $udev_extra_time - 1 ))
+	    fi
+	done
+    fi
+
+    if [ ! -b $rootfs_mount_device ]; then
+        debug_mode panic "cannot find the root filesystem device: ${rootfs_mount_device}, if you can make it exist manually, you can then exit this shell to continue booting"
+    fi
+}
+
+function run_media_verify {
+    if (( ! $media_verify )); then return; fi
+
+    status "running media verification"
+
+    if [ "x${rootfs_fstype}" != "xiso9660" ]; then
+	debug_mode panic "media_verify has been requested, but the root filesystem type is not iso9660.\n media_verify currently only supports iso9660 filesystems."
+	return
+    fi
+
+    if [ ! -x /bin/checkisomd5 ]; then
+	debug_mode panic "media_verify has been requested, but the checkisomd5 tool was not found in the initramfs.  You may exit the debug mode shell, if you wish to continue booting WITHOUT checkisomd5 media verification."
+	return
+    fi
+
+    status "verifying iso9660 media integrity"
+    status "note: this succeeding does not mean that the media is guaranteed authentic, just that the media thinks of itself as intact and complete"
+   if ( ! /bin/checkisomd5 --verbose /dev/root ); then
+       echo "Would you like to continue DESPITE verification failure?"
+       echo "Type 'yes' to continue or control+alt+delete to reboot."
+       read answer
+       if [ "x${answer}" != "xyes" ]; then debug_mode panic; fi
+   fi
+}
+
+function mount_prime_rootfs {
+    status "mounting prime root filesystem"
+
+    if [ "x${rootfs_fstype}" == "x" ]; then rootfs_fstype="auto"; fi
+
+    if (( $rootfs_mount_readonly )); then
+	addflag="ro"
+    else
+	addflag="rw"
+    fi
+
+    if [ "x${rootfs_mount_flags}" == "x" ]; then
+	rootfs_mount_flags=$addflag
+    else
+	rootfs_mount_flags="${rootfs_mount_flags},${addflag}"
+    fi
+
+    if ( ! mount -n -t $rootfs_fstype -o $rootfs_mount_flags \
+	$rootfs_mount_device /prime_rootfs ); then
+	debug_mode panic "Failed to mount prime root filesystem device $rootfs_mount_device on /prime_rootfs with options ${rootfs_mount_flags}.  If you can do this manually, you can exit this debug shell and continue booting"
+    fi
+}
+
+function prep_cow_rootfs {
+    status "preparing copy-on-write root filesystem"
+
+    if [ "$cow_mode" != "dms" ]; then 
+	debug_mode panic "sorry, only dms cow_mode is currently supported"
+    fi
+
+    # format notes:
+    # /boot/isolinux(cd/dvd) | /boot/syslinux(usb)
+    # /boot/LiveOS/zyx/${version} or
+    # /boot/LiveOS/zyx/part1_of_${version} ...
+    # where $version comes from /proc/cmdline zyx= aka $zyx
+    
+    if [ -e /prime_rootfs/boot/LiveOS/zyx/${zyx}.squashfs.parts ]; then
+	debug_mode panic "split container filesystems are not yet supported"
+    elif [ -e /prime_rootfs/boot/LiveOS/zyx/${zyx}.squashfs.img ]; then
+	zyx_root_container_loopdev=$( losetup -f )
+	losetup -r ${zyx_root_container_loopdev} \
+	    /prime_rootfs/boot/LiveOS/zyx/${zyx}.squashfs.img
+    else
+	debug_mode panic "could not find container filesystem image"
+    fi
+
+    mount -n -t squashfs -o ro \
+	${zyx_root_container_loopdev} \
+	 /container_rootfs
+
+    if [ -e /container_rootfs/boot/LiveOS/zyx/${zyx}.ext3.img ]; then
+	zyx_root_base_loopdev=$( losetup -f )
+	losetup -r ${zyx_root_base_loopdev} \
+	    /container_rootfs/boot/LiveOS/zyx/${zyx}.ext3.img
+
+    else
+	debug_mode panic "could not find contained filesystem image"
+    fi
+
+    mkdir -p /mnt/.LiveOS/overlayfs
+    zyx_root_overlay_loopdev=$( losetup -f )
+    touch /fakefile
+    losetup $zyx_root_overlay_loopdev /fakefile
+    zyx_root_overlay_rloopdev=$( losetup -f )
+    losetup -d $zyx_root_overlay_loopdev 
+    rm -f /fakefile
+    if [ "x${overlay}" != "xoff" ]; then
+        /sbin/findoverlay "$zyx" "$overlay" \
+	    $zyx_root_overlay_loopdev \
+	    $zyx_root_overlay_rloopdev \
+	    $debug $ram_overlay_size
+    else
+
+#
+# OPEN DM-SNAPSHOT BUG (bug #4XXXXX)
+#      
+	if ( grep -q nobwa /proc/cmdline ); then
+            mount -n -t tmpfs -o mode=0755 none /mnt/.LiveOS/overlayfs
+	else
+	    touch /dev/.special.bwa
+	fi
+
+	dd if=/dev/null of=/mnt/.LiveOS/overlayfs/dmoverlay \
+	    bs=1024 count=1 seek=$((${ram_overlay_size}*1024)) > /dev/null 2>&1
+
+	losetup $zyx_root_overlay_loopdev /mnt/.LiveOS/overlayfs/dmoverlay
+	losetup -r $zyx_root_overlay_rloopdev /mnt/.LiveOS/overlayfs/dmoverlay
+
+     fi
+
+
+    dmsetup create zyx-liveos-rw --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8"
+
+    rm -f /dev/root
+    ln -s /dev/mapper/zyx-liveos-rw /dev/root
+}
+
+function mount_final_rootfs {
+    status "mounting final root filesystem"
+
+    if [ "$cow_mode" != "dms" ]; then 
+	debug_mode panic "sorry, only dms cow_mode is currently supported"
+    fi
+
+    # woohoo- mount the cow root filesytem
+    mount -n -t ext3 /dev/mapper/zyx-liveos-rw /sysroot
+
+    ##
+    ## keep constituent parts of the rootfs visible to the final LiveOS
+    ##
+    debug "movemounting prime_rootfs"
+    mkdir -p /sysroot/mnt/.LiveOS/prime_rootfs
+    mount --move /prime_rootfs /sysroot/mnt/.LiveOS/prime_rootfs
+    echo "/mnt/.LiveOS/prime_rootfs" >> /dev/.fstab.live.special
+
+    debug "movemounting container_rootfs"
+    mkdir -p /sysroot/mnt/.LiveOS/container_rootfs
+    mount --move /container_rootfs /sysroot/mnt/.LiveOS/container_rootfs
+    echo "/mnt/.LiveOS/container_rootfs" >> /dev/.fstab.live.special
+
+    debug "mounting and movemounting precow_rootfs"
+    mkdir -p /sysroot/mnt/.LiveOS/precow_rootfs
+    dmsetup create zyx-liveos-ro --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) linear $zyx_root_base_loopdev 0"
+    mount -n -t ext3 -o ro /dev/mapper/zyx-liveos-ro /precow_rootfs
+    mount --move /precow_rootfs /sysroot/mnt/.LiveOS/precow_rootfs
+
+# note: this isn't actually possible
+# note: nash's switchroot doesn't use pivotmount, it uses a movemount to /
+#    mkdir -p /sysroot/mnt/.LiveOS/initramfs
+#    mount --bind / /sysroot/mnt/.LiveOS/initramfs
+
+#
+# OPEN DM-SNAPSHOT BUG (bug #4XXXXX) (bwa=bugworkaround)
+#      
+
+    mkdir -p /sysroot/mnt/.LiveOS/overlayfs
+    if [ ! -f /dev/.special.bwa ]; then
+	mount --move /mnt/.LiveOS/overlayfs /sysroot/mnt/.LiveOS/overlayfs
+	echo "/mnt/.LiveOS/overlayfs" >> /dev/.fstab.live.special
+    else
+	rm -f /dev/.special.bwa
+    fi
+}
+
+function tweak_rootfs {
+    status "tweaking root filesystem for live session"
+
+    #
+    # functions and halt need to be patched for clean liveos rootfs shutdown
+    #
+
+    if [ ! -f /sysroot/etc/rc.d/init.d/functions.zyx_live_patched ]; then
+	mv /sysroot/etc/rc.d/init.d/functions \
+	    /sysroot/etc/rc.d/init.d/functions.orig
+	mv /etc_rc.d_init.d_functions.zyx_live \
+	    /sysroot/etc/rc.d/init.d/functions 
+	touch /sysroot/etc/rc.d/init.d/functions.zyx_live_patched 
+    fi
+
+    if [ ! -f /sysroot/etc/rc.d/init.d/halt.zyx_live_patched ]; then
+	mv /sysroot/etc/rc.d/init.d/halt \
+	    /sysroot/etc/rc.d/init.d/halt.orig
+	mv /etc_rc.d_init.d_halt.zyx_live \
+	    /sysroot/etc/rc.d/init.d/halt 
+	touch /sysroot/etc/rc.d/init.d/halt.zyx_live_patched 
+    fi
+
+    if (($fatime)); then
+	sed -i -e 's/noatime/atime/g' /sysroot/etc/fstab
+    fi
+
+    if [ "x${locale}" != "x" ]; then
+	echo "LANG=${locale}" > /sysroot/etc/sysconfig/i18n
+    fi
+
+    if [ "x${isolabel}" != "x" ]; then
+	cat <<SLUREOF >> /sysroot/etc/udev/rules.d/50-udev.rules
+KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+KERNEL=="sr[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+KERNEL=="scd[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+KERNEL=="pcd[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+SLUREOF
+    fi
+
+    if [ "x${label}" != "x" ]; then
+	cat <<SLUREOF >> /sysroot/etc/udev/rules.d/50-udev.rules
+KERNEL=="hd[a-z]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
+KERNEL=="hd[a-z][0-9]*", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
+KERNEL=="sd[a-z]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
+KERNEL=="sd[a-z][0-9]*", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
+SLUREOF
+    fi
+
+    if [ "x${uuid}" != "x" ]; then
+	cat <<SLUREOF >> /sysroot/etc/udev/rules.d/50-udev.rules
+KERNEL=="hd[a-z]", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
+KERNEL=="hd[a-z][0-9]*", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
+KERNEL=="sd[a-z]", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
+KERNEL=="sd[a-z][0-9]*", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
+SLUREOF
+    fi
+
+    cat <<SLUREOF >> /sysroot/etc/udev/rules.d/50-udev.rules
+KERNEL=="${zyx_root_container_loopdev#/dev/}" SYMLINK+="zyx_root_container"
+KERNEL=="${zyx_root_base_loopdev#/dev/}" SYMLINK+="zyx_root_base"
+KERNEL=="${zyx_root_overlay_loopdev#/dev/}" SYMLINK+="zyx_root_overlay"
+KERNEL=="${zyx_root_overlay_rloopdev#/dev/}" SYMLINK+="zyx_root_overlay_readonly"
+SLUREOF
+
+    mount -n -t ext3 -o remount,ro /dev/mapper/zyx-liveos-rw /sysroot
+}
+
+function exit_initramfs {
+    status "exiting initramfs, jumping to the real /sbin/init"
+
+    if [ "x${init}" == "x/sbin/init" ]; then
+	passopts=$( < /proc/cmdline )
+    else
+	passopts=""
+    fi
+
+    if [ ! -x "/sysroot/${init}" ]; then
+	debug_mode panic "requested init: $init is not executable"
+    else 
+	kill $( pidof udevd )
+
+	if ( grep -q qnash /proc/cmdline ); then
+	    sed -i -e 's/nash/nash\ \-\-quiet/' /sbin/nash_run_init
+	fi
+
+	exec /sbin/nash_run_init
+    fi
+}
+
+
+##
+## end function definitions / begin zyx's main
+##
+
+runphase set_defaults
+
+runphase setup_console
+
+runphase setup_special_system_mounts
+
+runphase parse_options
+
+runphase parse_fstab
+
+runphase debug_show_opts
+
+runphase start_hotplug
+
+runphase configure_udev
+
+runphase load_some_drivers
+
+runphase start_udev
+
+dropcheck early
+
+runphase wait_for_udev_rootfs
+
+runphase run_media_verify
+
+runphase mount_prime_rootfs
+
+runphase prep_cow_rootfs
+
+runphase mount_final_rootfs
+
+runphase tweak_rootfs
+
+dropcheck late
+
+runphase exit_initramfs
+
+debug_mode panic "failed to exit initramfs"
+
+##
+## zyx's end
+##
+
+##
+## only notes/comments past here
+##
+
+# bashquestion: is 'if [ "x${foo}" != "x" ]; then...' a useless use of x?
+#   perhaps you only use the x if you don't quote it.

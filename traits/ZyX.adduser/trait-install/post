@@ -1,0 +1,18 @@
+#!/bin/bash
+
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+username=guest
+usercomment="Guest User"
+source ${progdir}/trait-options
+
+useradd -c "$usercomment" $username
+passwd -d $username > /dev/null
+
+if [ -e /usr/share/zyx/face-icon.png ] ; then
+    cp /usr/share/zyx/face-icon.png /home/${username}/.face
+    chown ${username}:${username} /home/${username}/.face
+fi
+

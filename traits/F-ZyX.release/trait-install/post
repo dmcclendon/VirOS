@@ -1,0 +1,21 @@
+#!/bin/bash
+
+
+
+tfile=$( echo /usr/lib/firefox-*/greprefs/all-redhat.js )
+mv ${tfile} /tmp/stupidfile
+cat /tmp/stupidfile | grep -v "fedoraproject" > ${tfile}
+rm -f /tmp/stupidfile
+
+tfile=$( echo /usr/lib/firefox-*/defaults/pref/all-redhat.js )
+mv ${tfile} /tmp/stupidfile
+cat /tmp/stupidfile | grep -v "fedoraproject" > ${tfile}
+rm -f /tmp/stupidfile
+
+cp /usr/share/F-ZyX/firefox/firefox-branding.js \
+    /usr/lib/firefox-*/defaults/pref/firefox-branding.js
+
+cp /usr/share/F-ZyX/firefox/bookmarks.html \
+    /usr/lib/firefox-*/defaults/profile/bookmarks.html    
+
+cp /usr/share/F-ZyX/firefox/browserconfig.properties \

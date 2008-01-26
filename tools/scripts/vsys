@@ -1,0 +1,114 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# viros: command frontend for the VirOS System Imaging Toolset
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+viros_prefix=/usr
+
+
+if [ -f "$( dirname $( readlink -e $0 ) )/libvsys.sh" ]; then
+    source "$( dirname $( readlink -e $0 ) )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+function usage {
+    echo ""
+    echo "${progname} \\"
+    echo "    [--help] [--quiet] [--verbose] [--debug] \\"
+    echo "    [--config=<config>] \\"
+    echo "    <viros-command> \\"
+    echo "    [[<viros-command-options>]] "
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+function cleanup_and_exit {
+    if (( $vopt_debug )); then
+	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
+    else
+	verbose "removing tmpdir, was ${tmpdir}"
+	rm -rf ${tmpdir}
+    fi
+    verbose "goodbye!"
+    exit 0
+}
+
+
+if [ -f ${progdir}/../../info/AUTHORS ]; then
+
+    pushd ${progdir}/../.. > /dev/null 2>&1
+    instdir=$( pwd )
+    popd > /dev/null 2>&1
+
+    export viros_scripts_dir="${instdir}/tools/scripts"
+else
+    export viros_scripts_dir="${progdir}"
+fi
+
+
+
+if [ $# -lt 1 ]; then usage; fi
+
+vcommand="$1"
+
+if [ ! -x "${viros_scripts_dir}/${vcommand}" ]; then
+    scriptname=$( ls -1A ${viros_scripts_dir}/${vcommand}* | grep -v "~$" 2>&1 )
+    if (($?)); then
+	usage
+    fi
+else
+    scriptname=$( ls -1A ${viros_scripts_dir}/${vcommand} | grep -v "~$" 2>&1 )
+    if (($?)); then
+	usage
+    fi
+fi
+
+if [ ! -x "$scriptname" ]; then
+    status ""
+    status "viros: '${vcommand}' is not a valid viros command or unambiguous abbreviation"
+    status ""
+    status "type 'viros help' for a list of valid commands and more information"
+    status ""
+    exit 1
+fi
+
+shift
+
+exec ${scriptname} "$@"
+
+die "problem executing command '${scriptname}'"
+

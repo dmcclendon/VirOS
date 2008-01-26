@@ -1,0 +1,477 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# mutate: a tool for adding traits to Vir(OS/tual) System Images
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+function target_script_to_run_as_root {
+
+
+    export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/input/bin:/input/sbin"
+
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "STATUS: viros mutate - STARTING"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+    if [ -f /input/mutateopts ]; then
+	source /input/mutateopts
+    fi
+
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "STATUS: viros mutate - creating swap"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+    swapk=$(( $( cat /proc/meminfo  | grep MemTotal | awk '{print $2}' ) * 2 ))
+    dd if=/dev/zero of=/scratch/qswap \
+	bs=1k count=$(( $swapk )) > /dev/null 2>&1
+
+    mkswap /scratch/qswap
+    swapon /scratch/qswap
+
+    cat /proc/meminfo
+
+    cat /proc/swaps
+    
+    echo "STATUS: viros mutate - done creating swap - XXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+    echo "STATUS: viros mutate - initializing selinux XXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+    mkdir /selinux
+    mount -t selinuxfs selinuxfs /selinux
+    
+    echo "STATUS: viros mutate - initializing networking XXXXXXXXXXXXXXXXXXXXXXXX"
+    ifconfig eth0 10.0.2.42 broadcast 10.0.2.255 netmask 255.255.255.0
+    route add default gw 10.0.2.2
+
+    echo "STATUS: viros mutate - initializing target disk mountpoints XXXXXXXXXXX"
+    mkdir /target
+    mount /dev/qfrdi-base-p1 /target
+
+    mkdir /target/mutate.scratch
+    mount --bind /scratch /target/mutate.scratch
+
+    mount --bind /dev /target/dev
+    mount --bind /dev/pts /target/dev/pts
+    mount --bind /selinux /target/selinux
+    mount --bind /proc /target/proc
+    mount --bind /sys /target/sys
+
+    
+    echo "STATUS: viros mutate - applying traits XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    trait_num=0
+    for trait in $( < /input/traitlist ); do
+	trait_num=$(( $trait_num + 1 ))
+
+	echo "STATUS: viros mutate - applying trait number $trait_num : $trait XXXXXX"
+	if ( grep -q "no_mutate_prepost=1" \
+	    /input/options.${trait}.${trait_num} ); then
+	    runprepost=0
+	else
+	    runprepost=1
+	fi
+
+	mkdir /target/trait-expanded
+	mkdir /target/trait-expanded/trait-install
+
+	cp /input/vreplace /target/trait-expanded/trait-install/
+	cp /input/vmirmog /target/trait-expanded/trait-install/
+
+	if [ -f /input/webserver.cfg ]; then
+	    source /input/webserver.cfg
+	    cp /input/webserver.cfg \
+		/target/trait-expanded/trait-install/webserver.cfg
+	fi
+	if [ -x /input/base-trait-pre ]; then
+	    if (( $runprepost )); then
+		wget -O /target/tmp/mutate.vsys.mirrorlist.cfg \
+		    http://${mutate_webserver_ip}:${mutate_webserver_port}/mirrors/${mirror_listconfig}
+		cp /input/base-trait-pre \
+		    /target/trait-expanded/trait-install/base-trait-pre
+		chroot /target /trait-expanded/trait-install/base-trait-pre
+	    fi
+	fi
+
+	pushd /target/trait-expanded
+
+	tar xpsf /input/trait.${trait}.${trait_num}.tar
+	cp /input/options.${trait}.${trait_num} ./trait-install/trait-options
+
+	if [ -x /target/trait-expanded/trait-install/pre ]; then
+	    echo "STATUS: viros mutate - running trait pre script for $trait_num : $trait"
+	    chroot /target /trait-expanded/trait-install/pre
+	fi
+
+	chroot /target chown -R root:root /trait-expanded
+
+	pushd /target/trait-expanded
+	tar -cpsf - . | \
+	    ( cd /target ; tar xpsf - )
+	rm -rf /target/trait-install
+	popd
+
+	if [ -x /target/trait-expanded/trait-install/post ]; then
+	    echo "STATUS: viros mutate - running trait post script for $trait_num : $trait"
+	    chroot /target /trait-expanded/trait-install/post
+	fi
+
+	popd
+
+	if [ -x /input/base-trait-post ]; then
+	    if (( $runprepost )); then
+		cp /input/base-trait-post \
+		    /target/trait-expanded/trait-install/base-trait-post
+		chroot /target /trait-expanded/trait-install/base-trait-post
+	    fi
+	fi
+	rm -rf /target/trait-expanded
+
+    done
+
+    umount /target/sys
+    umount /target/proc
+    umount /target/selinux
+    umount /target/dev/pts
+    umount /target/dev
+
+    echo "STATUS: viros mutate - disabling swap - XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    swapoff /scratch/qswap
+    rm -f /scratch/qswap
+
+    umount /target/mutate.scratch
+    rmdir /target/mutate.scratch
+
+    umount /target
+    rmdir /target
+
+    echo "qfakeroot: ${progname}: done"
+}
+if [ "$progname" == "qfakeroot.command" ]; then
+    target_script_to_run_as_root
+    exit 0
+fi
+
+
+function usage {
+    echo ""
+    echo "${progname} \\"
+    echo "    [--help] \\"
+    echo "    [--quiet] \\"
+    echo "    [--verbose] \\"
+    echo "    [--debug] \\"
+    echo "    [--mirrorlist=</path/to/vsys.mirrorlist.cfg>] \\"
+    echo "    [[--addtrait=<traitspec>]] \\"
+    echo "    <target.vsi>"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+
+if [ "x${TMPDIR}" == "x1" ]; then
+    default_vopt_tmpdir="/tmp"
+else
+    default_vopt_tmpdir="${TMPDIR}"
+fi
+
+export LIBVOPT_IGNORE_UNKNOWN_OPTIONS=true
+vregopt help boolean 0
+vregopt config string ""
+vregopt verbose boolean 0 inherit
+vregopt debug boolean 0 inherit
+vregopt quiet boolean 0 inherit
+vregopt mirrorlist string "" inherit
+vregopt mutateopts cumulative "" inherit
+vregopt addtrait cumulative "" inherit
+vregopt tmpdir string "${default_vopt_tmpdir}" inherit
+vparseopt "$@"
+
+if (( $vopt_help )); then 
+    usage clean 
+fi
+
+debug "in mutate ml is ${vopt_mirrorlist}"
+
+
+verbose "creating temporary directory..."
+export TMPDIR=${vopt_tmpdir}
+tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+if (($?)); then
+    die "failed to mktemp"
+fi
+export TMPDIR=${tmpdir}
+verbose "temporary directory is ${tmpdir}"
+
+export vopt_debug
+export vopt_verbose
+export vopt_quiet
+
+touch ${tmpdir}/qfakeroot.config
+
+
+debug "vopts_numargs is $vopts_numargs ${vopts_args[1]} xxx ${vopts_args[2]} yyy"
+
+if [ $vopts_numargs -ne 1 ]; then usage; fi
+
+target=$( normalize_path "${vopts_args[1]}" )
+
+if [ ! -f "${target}" -a ! -b "${target}" ]; then
+    die "error: could not find target system image: ${target}"
+fi
+
+num_traits=0
+
+splitter "$vopt_addtrait" | \
+    grep -v "^\s*$" > $tmpdir/traitlistnopts
+while read line; do
+    num_traits=$(( $num_traits + 1 ))
+    traits[$num_traits]=$line
+done < $tmpdir/traitlistnopts
+
+for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
+    trait=${traits[$i]}
+
+
+    trait_base="$( echo "$trait" | sed -e 's/\:\:.*//' )"
+    trait_opts="$( echo "$trait" | sed -e "s/^${trait_base}//" )"
+
+    echo ${trait_base} >> ${tmpdir}/traitlist
+
+    if (($viros_devenv)); then
+	traits_dir=${viros_devdir}/traits
+    else
+	traits_dir=${viros_prefix}/lib/viros/traits
+    fi
+
+    if [ -d "${trait_base}" ]; then
+	trait_dir=$( normalize_path "${trait_base}" )
+    elif [ -d "${traits_dir}/${trait_base}" ]; then
+	trait_dir=$( normalize_path "${traits_dir}/${trait_base}" )
+    else
+	die "could not find trait ${trait_base}"
+    fi
+
+    if [ -f ${trait_dir}/trait-install/qfakeroot.config ]; then
+	cat ${trait_dir}/trait-install/qfakeroot.config \
+	    >> ${tmpdir}/qfakeroot.config
+    fi
+
+    pushd ${trait_dir} > /dev/null 2>&1
+    tar cf ${tmpdir}/trait.${trait_base}.${i}.tar .
+    popd > /dev/null 2>&1
+
+    echo "add_files ${tmpdir}/trait.${trait_base}.${i}.tar:/input/trait.${trait_base}.${i}.tar" >> ${tmpdir}/qfakeroot.config
+
+    ( eval echo '${trait_opts}' ) | sed -e 's/:/\n/g' > ${tmpdir}/options.${trait_base}.${i}
+
+    echo "add_files ${tmpdir}/options.${trait_base}.${i}:/input/options.${trait_base}.${i}" >> ${tmpdir}/qfakeroot.config
+    
+done
+
+if ((! $num_traits)); then
+    status "no traits specified to be added"
+    usage
+fi
+
+echo -en ${vopt_mutateopts} > ${tmpdir}/mutateopts
+
+
+if [ "x${vopt_mirrorlist}" != "x" ]; then
+    if [ ! -f "${vopt_mirrorlist}" ]; then
+	die "specified mirrorlist ${mirrorlist} is not a file"
+    else
+	mirror_docroot=$( dirname $( normalize_path ${vopt_mirrorlist} ) )
+	mirror_listconfig=$( basename ${vopt_mirrorlist} )
+    fi
+
+    vsys_mutate_httpdport=$( findfreeport \
+	$viros_arap_portmin $viros_arap_portmax )
+    retval=$?
+    if (($retval)); then
+	die "could not find available port for private httpd server"
+    fi
+
+    status "vsys_mutate_httpdport is $vsys_mutate_httpdport"
+
+    echo "mutate_webserver_ip=10.0.2.2" > ${tmpdir}/webserver.cfg
+    echo "mutate_webserver_port=${vsys_mutate_httpdport}" \
+	>> ${tmpdir}/webserver.cfg
+    echo "mirror_listconfig=${mirror_listconfig}" \
+	>> ${tmpdir}/webserver.cfg
+
+    echo "add_files ${tmpdir}/webserver.cfg:/input/webserver.cfg" \
+	>> ${tmpdir}/qfakeroot.config
+
+    status "starting dedicated webserver"
+
+    mkdir -p ${tmpdir}/webserver
+    mkdir -p ${tmpdir}/webserver_docroot
+    ln -s ${mirror_docroot} ${tmpdir}/webserver_docroot/mirrors
+    veva webserver \
+	--port=${vsys_mutate_httpdport} \
+	--docroot=${tmpdir}/webserver_docroot \
+	--confdir=${tmpdir}/webserver \
+	start
+    
+    cleanup_command="${cleanup_command} ; \
+	status \"stopping mutate private http server...\" ; \
+	veva webserver \
+	--port=${vsys_mutate_httpdport} \
+	--docroot=${mirror_docroot} \
+	--confdir=${tmpdir}/webserver \
+	stop \
+	"
+fi
+
+
+verbose "NOT running get_dna_of_vsi in the name of developtment speed"
+distro="gzyx-0.5"
+arch="i686"
+
+
+if (($viros_devenv)); then
+    mutatedir="${viros_devdir}/bases/${distro}/${arch}/mutate"
+else
+    mutatedir="/usr/lib/viros/bases/${distro}/${arch}/mutate"
+fi
+
+verbose "mutatedir is ${mutatedir}"
+
+if [ -x ${mutatedir}/pre ]; then
+    verbose "adding base-trait-pre to qfakeroot.config"
+    echo "add_files ${mutatedir}/pre:/input/base-trait-pre:755" \
+	>> ${tmpdir}/qfakeroot.config
+else
+    verbose "NOT adding base-trait-pre to qfakeroot.config"
+fi
+
+if [ -x ${mutatedir}/post ]; then
+    echo "add_files ${mutatedir}/post:/input/base-trait-post:755" \
+	>> ${tmpdir}/qfakeroot.config
+fi
+
+
+
+touch ${tmpdir}/qfr.log
+
+qfakeroot \
+    --command="${progdir}/${progname}" \
+    --qflags="-m ${viros_mutate_qmem}" \
+    --scratch=20G \
+    --add_modules="ne2k_pci 8139cp 8139too" \
+    --add_files="/bin/bash" \
+    --add_files="bindir:/usr/bin:755" \
+    --add_files="bindir:/usr/sbin:755" \
+    --add_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
+    --add_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
+    --add_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
+    --add_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
+    --add_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
+    --add_files="$( which splitter ):/bin/splitter" \
+    --add_files="${viros_scripts_dir}/vreplace:/input/vreplace" \
+    --add_files="${viros_scripts_dir}/vmirmog:/input/vmirmog" \
+    --add_files="/bin/date" \
+    --add_files="/bin/mount" \
+    --add_files="/bin/umount" \
+    --add_files="/bin/basename" \
+    --add_files="/usr/bin/dirname" \
+    --add_files="/sbin/mkswap" \
+    --add_files="/usr/bin/awk" \
+    --add_files="/sbin/swapon" \
+    --add_files="/sbin/swapoff" \
+    --add_files="/bin/cp" \
+    --add_files="/bin/mkdir" \
+    --add_files="/bin/tar" \
+    --add_files="/bin/cat" \
+    --add_files="/bin/zcat" \
+    --add_files="/bin/rm" \
+    --add_files="/bin/sh" \
+    --add_files="/bin/chown" \
+    --add_files="/usr/bin/which" \
+    --add_files="/usr/bin/tee" \
+    --add_files="/usr/sbin/chroot" \
+    --add_files="/usr/bin/find" \
+    --add_files="/bin/ping" \
+    --add_files="/bin/ps" \
+    --add_files="/sbin/fuser" \
+    --add_files="/usr/bin/wget" \
+    --add_files="${tmpdir}/mutateopts:/input/mutateopts" \
+    --add_files="${tmpdir}/traitlist:/input/traitlist" \
+    --config="${tmpdir}/qfakeroot.config" \
+    --disk_image="${target}" \
+    --outputdir=${tmpdir}/qfakeroot.outputdir \
+    --debug --verbose \
+    > ${tmpdir}/qfr.log 2>&1 &
+qfrpid=$!
+echo "$qfrpid" > ${tmpdir}/qfr.pid
+
+cleanup_command="${cleanup_command} ; \
+    status \"status: terminating qfr...\" ; \
+    kill ${qfrpid} ; sleep 3 ; kill -KILL ${qfrpid} \
+    "
+
+if (($vopt_debug)); then
+    tail -f --lines=9999 --pid=$qfrpid ${tmpdir}/qfr.log | \
+	tee -a ${tmpdir}/debug.log
+else
+    tail -f --lines=9999 --pid=$qfrpid ${tmpdir}/qfr.log | \
+	statuslogger \
+	${tmpdir}/debug.log \
+	"mutate progress" \
+	${viros_mutate_statuslogger_divfactor}
+fi
+
+
+
+if (($vopt_debug)); then
+    debug "NOT REMOVING tmpdir ${tmpdir}"
+else
+    verbose "cleaning up tmpdir ${tmpdir}"
+    rm -rf ${tmpdir}
+fi
+
+veva $cleanup_command
+
+status "done"
+
+exit 0
+

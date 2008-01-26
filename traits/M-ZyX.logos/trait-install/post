@@ -1,0 +1,4 @@
+#!/bin/bash
+
+rpm -e --nodeps fedora-logos
+yum -y install generic-logos

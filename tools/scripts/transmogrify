@@ -1,0 +1,281 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# transmogrify: a tool for converting Vir(OS/tual) System Images into other 
+#               formats such as LiveCDs.
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+
+
+viros_prefix=/usr
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+function target_script_to_run_as_root {
+
+
+    export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/input/bin:/input/sbin"
+
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "STATUS: viros transmogrify - STARTING"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "STATUS: viros transmogrify - creating swap"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+    swapk=$(( $( cat /proc/meminfo  | grep MemTotal | awk '{print $2}' ) * 2 ))
+    dd if=/dev/zero of=/scratch/qswap \
+	bs=1k count=$(( $swapk )) > /dev/null 2>&1
+
+    mkswap /scratch/qswap
+    swapon /scratch/qswap
+
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo "STATUS: viros transmogrify - swap active"
+    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+    mkdir /vxmog.input.copy
+    mount /dev/qfrdi-copy-p1 /vxmog.input.copy
+
+    mkdir /vxmog.input.copy/vxmog.input
+    mount /dev/qfrdi-base-p1 /vxmog.input.copy/vxmog.input
+
+    pushd /input
+    tar xvf vxmog.tar
+    popd
+
+    mkdir /vxmog.input.copy/input
+    mount --bind /input /vxmog.input.copy/input
+
+    mkdir /vxmog.input.copy/output
+    mount --bind /output /vxmog.input.copy/output
+    
+
+    /input/transmogrify
+
+    umount /vxmog.input.copy/output
+    rmdir /vxmog.input.copy/output
+    umount /vxmog.input.copy/input
+    rmdir /vxmog.input.copy/input
+
+    umount /vxmog.input.copy/vxmog.input
+    rmdir /vxmog.input.copy/vxmog.input
+
+    umount /vxmog.input.copy
+    rmdir /vxmog.input.copy
+
+    echo "qfakeroot: ${progname}: done"
+}
+if [ "$progname" == "qfakeroot.command" ]; then
+    target_script_to_run_as_root
+    exit 0
+fi
+
+
+function usage {
+    echo ""
+    echo "${progname} \\"
+    echo "    [--help] \\"
+    echo "    [--quiet] \\"
+    echo "    [--verbose] \\"
+    echo "    [--debug] \\"
+    echo "    [[--vxmogopts=<vxmog option list>]] \\"
+    echo "    <transmogrifier> \\"
+    echo "    <input> \\"
+    echo "    <output>"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+
+
+if [ "x${TMPDIR}" == "x1" ]; then
+    default_vopt_tmpdir="/tmp"
+else
+    default_vopt_tmpdir="${TMPDIR}"
+fi
+
+export LIBVOPT_IGNORE_UNKNOWN_OPTIONS=true
+vregopt help boolean 0
+vregopt config string ""
+vregopt verbose boolean 0 inherit
+vregopt debug boolean 0 inherit
+vregopt quiet boolean 0 inherit
+vregopt vxmogopts cumulative "" inherit
+vregopt tmpdir string "${default_vopt_tmpdir}" inherit
+vparseopt "$@"
+
+if (( $vopt_help )); then 
+    usage clean 
+fi
+
+
+if [ $vopts_numargs -ne 3 ]; then usage; fi
+
+transmogrifier="${vopts_args[1]}"
+input="${vopts_args[2]}"
+output="${vopts_args[3]}"
+
+if [ ! -f "${input}" -a ! -b "${input}" ]; then
+    die "error: could not find input system image: ${input}"
+fi
+
+
+verbose "initializing..."
+
+input=$( normalize_path "${input}" )
+output=$( normalize_path "${output}" )
+
+verbose "creating temporary directory..."
+export TMPDIR=${vopt_tmpdir}
+tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+if (($?)); then
+    die "failed to mktemp"
+fi
+export TMPDIR=${tmpdir}
+verbose "temporary directory is ${tmpdir}"
+
+export vopt_debug
+export vopt_verbose
+export vopt_quiet
+
+
+verbose "NOT running get_dna_of_vsi in the name of developtment speed"
+distro="gzyx-0.5"
+arch="i686"
+
+verbose "vsi distro appears to be ${distro}, vsi arch appears to be ${arch}"
+
+if (($viros_devenv)); then
+    xmogdir="${viros_devdir}/bases/${distro}/${arch}/vxmogs/${transmogrifier}"
+else
+    xmogdir="/usr/lib/viros/bases/${distro}/${arch}/vxmogs/${transmogrifier}"
+fi
+
+verbose "xmogdir is ${xmogdir}"
+
+pushd ${xmogdir} > /dev/null 2>&1
+tar cf ${tmpdir}/vxmog.tar .
+popd > /dev/null 2>&1
+
+echo -en "${vopt_vxmogopts}" > ${tmpdir}/vxmogopts
+
+
+touch ${tmpdir}/qfr.log
+
+qfakeroot \
+    --quiet \
+    --command="${progdir}/${progname}" \
+    --qflags="-m ${viros_transmogrify_qmem}" \
+    --scratch=${viros_transmogrify_scratch} \
+    --add_files="/bin/bash" \
+    --add_files="bindir:/usr/bin:755" \
+    --add_files="bindir:/usr/sbin:755" \
+    --add_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
+    --add_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
+    --add_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
+    --add_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
+    --add_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
+    --add_files="$( which splitter ):/bin/splitter" \
+    --add_files="/bin/date" \
+    --add_files="/bin/mount" \
+    --add_files="/bin/umount" \
+    --add_files="/bin/basename" \
+    --add_files="/usr/bin/dirname" \
+    --add_files="/sbin/mkswap" \
+    --add_files="/usr/bin/awk" \
+    --add_files="/sbin/swapon" \
+    --add_files="/sbin/swapoff" \
+    --add_files="/bin/cp" \
+    --add_files="/bin/mkdir" \
+    --add_files="/bin/tar" \
+    --add_files="/bin/cat" \
+    --add_files="/bin/zcat" \
+    --add_files="/bin/rm" \
+    --add_files="/bin/sh" \
+    --add_files="/usr/bin/which" \
+    --add_files="/usr/bin/tee" \
+    --add_files="/usr/sbin/chroot" \
+    --config="${xmogdir}/qfakeroot.config" \
+    --add_files="${tmpdir}/vxmog.tar:/input/vxmog.tar" \
+    --add_files="${tmpdir}/vxmogopts:/input/vxmogopts" \
+    --disk_image="ro:${input}" \
+    --outputdir=${tmpdir}/qfakeroot.outputdir \
+    --debug --verbose \
+    >> ${tmpdir}/qfr.log 2>&1 &
+qfrpid=$!
+echo "$qfrpid" > ${tmpdir}/qfr.pid
+
+cleanup_command="${cleanup_command} ; \
+    status \"status: terminating qfr...\" ; \
+    kill ${qfrpid} ; sleep 3 ; kill -KILL ${qfrpid} \
+    "
+
+if (($vopt_debug)); then
+    tail -f --lines=9999 --pid=$qfrpid ${tmpdir}/qfr.log | \
+	tee -a ${tmpdir}/debug.log
+else
+    tail -f --lines=9999 --pid=$qfrpid ${tmpdir}/qfr.log | \
+	statuslogger \
+	${tmpdir}/debug.log \
+	"transmogrify progress" \
+	${viros_transmogrify_statuslogger_divfactor}
+fi
+
+
+
+numoutputfiles=$( ls -1A ${tmpdir}/qfakeroot.outputdir | wc -l )
+if [ $numoutputfiles -eq 1 ]; then
+    mv ${tmpdir}/qfakeroot.outputdir/* ${output}
+else
+    mkdir -p ${output}
+    mv ${tmpdir}/qfakeroot.outputdir ${output}
+fi
+
+
+
+veva $cleanup_command
+
+cleanup_and_exit
+
+status "finished"
+
+exit 0
+

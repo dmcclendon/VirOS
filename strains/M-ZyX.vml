@@ -1,0 +1,63 @@
+####
+####
+#### VirOS System Image Generation Configuration
+####
+####
+
+##
+## global configuration
+##
+
+#mirrorlist /var/mirrors/qrap.mirrors.txt 
+cachedir ~/.viros/cachedir
+
+##
+## phase 1 configuration - synthesis
+##
+
+###vsysgen_output_container_size 7G
+###vsysgen_distro fedora-8
+###vsysgen_arch x86
+###vsysgen_install_boot_iso "http://download.fedoraproject.org/pub/fedora/linux/releases/8/Fedora/i386/iso/Fedora-8-i386-rescuecd.iso"
+###vsysgen_install_boot_iso_sha1sum "aa27d819079b8c92efa2ea58a5c0c84825f7a959"
+###vsysgen_distro_config string "f8.ks" inherit
+###vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" 
+
+vsysgen_distro_config M-ZyX.ks
+
+##
+## phase 2 configuration - mutation
+##
+
+addtrait compose.repos::no_mutate_prepost=1:mode=install 
+
+addtrait ZyX.brand::distroname="M-ZyX":distroversion="0.1"
+addtrait ZyX.live
+addtrait ZyX.adduser::username="guest":usercomment="Guest User"
+addtrait ZyX.livecd-iso-to-disk
+addtrait M-ZyX.release
+addtrait M-ZyX.logos
+
+addtrait compose.repos::no_mutate_prepost=1:mode=uninstall 
+
+##
+## phase 3 configuration - transmogrification
+##
+
+vxmogopts bootloader=isolinux
+vxmogopts bootloader_append="ram_overlay_size=1024 qnash"
+vxmogopts bootloader_splash=/usr/share/ZyX/splash/isolinux.jpg
+
+vxmogopts bootloader_isolinux_menu_margin=15
+vxmogopts bootloader_isolinux_menu_width=60
+vxmogopts bootloader_isolinux_menu_rows=4
+vxmogopts bootloader_isolinux_menu_tabmsgrow=11
+vxmogopts bootloader_isolinux_menu_cmdlinerow=11
+vxmogopts bootloader_isolinux_menu_startrow=2
+vxmogopts bootloader_isolinux_menu_endrow=17
+vxmogopts bootloader_isolinux_menu_timeoutrow=13
+
+vxmogopts fs_label=M-ZyX
+vxmogopts selinux=0
+vxmogopts prelink=0
+vxmogopts md5verify=0

@@ -1,0 +1,212 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# dm-parts: a tool to generate partition devices for a disk image
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+
+
+cowsizemegs=$(( 42 * 1024 ))
+
+
+starttime="$( date +%Y%m%d%H%M%S )"
+rundir="$( pwd )"
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+rundir=$( pwd )
+mypid=$$
+
+
+function die {
+    echo "${progname}: FATAL ERROR: $@"
+    exit 1
+}
+
+function verbose {
+    echo "" > /dev/null
+}
+
+
+function usage {
+    echo ""
+    echo "usage: dm-parts \\"
+    echo "    <setup|teardown> \\"
+    echo "    <disk:pathstring> \\"
+    echo "    <cowpath:pathstring> \\"
+    echo "    <readonly:boolean:1|0> \\"
+    echo "    <device-prefix:pathstring>"
+    echo ""
+    echo " e.g. dm-parts setup /dev/sdd /tmp 1 /dev/mydisk"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+if [ $# -ne 5 ]; then usage; fi
+
+mode=$1
+disk=$2
+cowdir=$3
+readonly=$4
+devprefix=$5
+
+devname=$( basename $devprefix )
+devdir=$( dirname $devprefix )
+
+
+if [ ! -f $disk -a ! -b $disk ]; then
+    echo "${progname}: disk image/device $disk not found"
+    exit 1
+fi
+
+
+
+if [ "x${mode}" == "xsetup" ]; then
+    verbose "creating device mapper device partition device nodes"
+
+    mkdir -p ${cowdir}
+    mkdir -p $( dirname ${devprefix} )
+
+    if [ -b $disk ]; then
+	touch ${cowdir}/dm-parts.readwrite
+	ln -s $disk "${devprefix}-real"
+    else
+	touch ${cowdir}/dm-parts.readonly
+	disk_loop_device=$( losetup -f )
+	if (($readonly)); then
+	    losetup -r $disk_loop_device $disk
+	else
+	    losetup $disk_loop_device $disk
+	fi
+
+	ln -s $disk_loop_device "${devprefix}-real"
+    fi
+
+    dd if=/dev/null of=${cowdir}/dm-parts.copycow \
+	bs=1k count=1 seek=$(( 1024 * $cowsizemegs ))
+    disk_copy_cowdev=$( losetup -f )
+    losetup $disk_copy_cowdev ${cowdir}/dm-parts.copycow
+    ln -s $disk_copy_cowdev "${devprefix}-copy-cowdev"
+    dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-copy-cowdev p 8" "dm-parts-${devname}-copy"
+    ln -s /dev/mapper/"dm-parts-${devname}-copy" "${devprefix}-copy"
+
+    if (($readonly)); then
+	dd if=/dev/null of=${cowdir}/dm-parts.cow \
+	    bs=1k count=1 seek=$(( 1024 * $cowsizemegs ))
+	disk_cowdev=$( losetup -f )
+	losetup $disk_cowdev ${cowdir}/dm-parts.cow
+	ln -s $disk_cowdev "${devprefix}-cowdev"
+	dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-cowdev p 8" "dm-parts-${devname}-base"
+    else
+	dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot-origin ${devprefix}-real" "dm-parts-${devname}-base"
+    fi
+    ln -s "/dev/mapper/dm-parts-${devname}-base" "${devprefix}-base"
+
+    pushd ${devdir}
+    sfdisk -ld ${devname}-real | grep "start=" > ${cowdir}/dm-parts.sfo
+    popd
+
+    while read va vb vc vd ve vf vg vh; do
+	verbose "sfdisk line parsing: va $va vb $vb vc $vc vd $vd ve $ve vf $vf vg $vg vh $vh"
+	part=${va#${devname}-real}
+
+	partnum=$part
+	verbose "partnum is $partnum"
+
+	if ( echo $vd | grep -q ',$' ); then
+	    startsec=$( echo $vd | sed -e 's/,$//' )
+	    verbose "startsec is $startsec"
+	else
+	    die "problem parsing starting sector"
+	fi
+
+	if ( echo $vf | grep -q ',$' ); then
+	    size=$( echo $vf | sed -e 's/,$//' )
+	    verbose "size is $size"
+	else
+	    die "problem parsing size"
+	fi
+
+	if (($size)); then
+	    verbose "setting up devicemapper table 0 $size linear ${devprefix}-base $startsec" "${devname}-base-p${partnum}"
+	    dmsetup create --table "0 $size linear ${devprefix}-base $startsec" "${devname}-base-p${partnum}"
+	    ln -s "/dev/mapper/${devname}-base-p${partnum}" "${devprefix}-base-p${partnum}"
+
+	    verbose "setting up devicemapper table 0 $size linear ${devprefix}-copy $startsec" "${devname}-copy-p${partnum}"
+	    dmsetup create --table "0 $size linear ${devprefix}-copy $startsec" "${devname}-copy-p${partnum}"
+	    ln -s "/dev/mapper/${devname}-copy-p${partnum}" "${devprefix}-copy-p${partnum}"
+	fi
+    
+    done <  ${cowdir}/dm-parts.sfo
+
+elif [ "x${mode}" == "xteardown" ]; then
+    verbose "removing device mapper device partition device nodes"
+
+
+    devprefixdir=$( dirname ${devprefix} )
+    devname=$( basename ${devprefix} )
+    parts="$( find ${devprefixdir} -mindepth 1 -maxdepth 1 -name "${devname}-base-p*" -print ) $( find ${devprefixdir} -mindepth 1 -maxdepth 1 -name "${devname}-copy-p*" -print )"
+    for dev in $parts; do
+	dmname=$( basename $( readlink $dev ) )
+	dmsetup remove $dmname
+	rm -f ${devprefixdir}/${devname}
+    done
+
+    dmsetup remove dm-parts-${devname}-base
+    rm -f ${devprefix}-base
+    if [ -L ${devprefix}-cowdev ]; then
+	disk_cowdev=$( readlink ${devprefix}-cowdev )
+	losetup -d $disk_cowdev
+	rm -f ${devprefix}-cowdev
+	rm -f ${cowdir}/dm-parts.cow
+    fi
+
+    dmsetup remove dm-parts-${devname}-copy
+    rm -f ${devprefix}-copy
+    disk_copy_cowdev=$( readlink ${devprefix}-copy-cowdev )
+    losetup -d $disk_copy_cowdev
+    rm -f ${devprefix}-copy-cowdev
+    rm -f ${cowdir}/dm-parts.copycow
+
+
+    if [ -f ${cowdir}/dm-parts.readonly ]; then
+	disk_loop_device=$( readlink ${devprefix}-real )
+	losetup -d ${disk_loop_device}
+    fi
+    rm -f ${devprefix}-real
+
+else
+    usage
+fi
+
+
+exit 0

@@ -1,0 +1,603 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# lixmog: a tool for transmogrifying LiveISOs
+#
+#############################################################################
+#
+# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+
+viros_prefix=/usr
+
+
+function vnuke {
+    if (($vopt_debug)); then
+	rm -rvf "$@"
+    else
+	rm -rf "$@"
+    fi
+}
+
+
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+
+function minimize2fs {
+    echo "todo"
+}
+
+function strip_whitespace {
+    output=$( echo "$@" | sed -e 's/^\s*//' | sed -e 's/\s*$//' )
+    echo -en "${output}"
+}
+
+
+
+function prog_handle_lixmogpatch {
+    export TMPDIR="/tmp"
+
+    targetfile=$( echo "$1" | sed -e 's/\.lixmog-patch$//' )
+    targetfile_filename=$( basename "${targetfile}" )
+    targetfile_dirpath=$( normalize_path $( dirname "${targetfile}" ) )
+    pushd "${targetfile_dirpath}"
+    status "${targetfile_filename}" "${targetfile_filename}.lixmog-patch"
+    patch "${targetfile_filename}" "${targetfile_filename}.lixmog-patch"
+    vnuke "${targetfile_filename}.lixmog-patch"
+    touch "${targetfile_filename}.lixmog-patched"
+    popd
+}
+if [ "x${LIXMOG_FINDPATCHMODE}" == "x1" ]; then
+    prog_handle_lixmogpatch "$@"
+    exit 0
+fi
+
+function prog_handle_lixmogdelete {
+    export TMPDIR="/tmp"
+
+    targetdelete="$1"
+    targetfile=$( echo "$targetdelete" | sed -e 's/.lixmog-delete$//' )
+    
+    target_file_dirpath=$( normalize_path $( dirname "$targetfile" ) )
+    target_file_name=$( basename "$targetfile" )
+    pushd "${target_file_dirpath}"
+    vnuke "${targetfile}"
+    vnuke "${targetfile}.lixmog-delete"
+    touch "${targetfile}.lixmogdeleted"
+    popd
+    
+}
+if [ "x${LIXMOG_FINDDELETEMODE}" == "x1" ]; then
+    prog_handle_lixmogdelete "$@"
+    exit 0
+fi
+
+function target_script_to_run_as_root {
+    export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+    if [ -f /input/lixmogopts ]; then
+	debug "sourcing /input/lixmogopts"
+	source /input/lixmogopts
+    else
+	debug "not sourcing /input/lixmogopts"
+    fi
+
+
+    need_to_rebuild_rootfs=0
+    need_to_rebuild_containerfs=0
+    need_to_rebuild_initramfs=0
+
+    debug "traitlist is"
+    debugcat /input/traitlist
+    debug "that was traitlist"
+
+    trait_num=0
+    for trait in $( < /input/traitlist ); do
+	trait_num=$(( $trait_num + 1 ))
+
+	mkdir /scratch/traits
+	mkdir /scratch/trait-expanded
+	mkdir /scratch/trait-expanded/trait-install
+
+	pushd /scratch/trait-expanded
+	tar xpsf /input/trait.${trait}.${trait_num}.tar
+	cp /input/options.${trait}.${trait_num} ./trait-install/trait-options
+	popd
+
+	chown -R 0:0 /scratch/trait-expanded
+
+
+	if [ -d /scratch/trait-expanded/trait-install/lixmog-patch/isolinux/initrd0.img.lixmog-expanded ]; then
+	    need_to_rebuild_initramfs=1
+	fi
+
+	if [ -d /scratch/trait-expanded/trait-install/lixmog-patch/LiveOS/squashfs.img.lixmog-expanded ]; then
+	    need_to_rebuild_containerfs=1
+	    if [ -d /scratch/trait-expanded/trait-install/lixmog-patch/LiveOS/squashfs.img/LiveOS/ext3fs.img.lixmog-expanded ]; then
+		need_to_rebuild_rootfs=1
+	    fi
+	fi
+
+	debug "staging trait $trait"
+	if [ -x /scratch/trait-expanded/trait-install/post ]; then
+	    cp /scratch/trait-expanded/trait-install/post \
+		/scratch/traits/lixmog-post.${trait_num}.post
+	fi
+	pushd /scratch/trait-expanded/trait-install/lixmog-patch
+	tar -cpsf - . | \
+	    ( cd /scratch/traits ; tar xvpsf - )
+	popd
+	debug "done staging trait $trait"
+
+	vnuke /scratch/trait-expanded
+
+    done
+
+    mkdir /scratch/expanded
+    mkdir /scratch/expanded/isometa
+    mkdir /scratch/expanded/isofs
+
+    isoinfo -d -i /input/live.iso > /scratch/expanded/isometa/isoinfo-d
+
+    fslabel=$( isoinfo -d -i /input/live.iso  | grep "Volume id:" | sed -e 's/^Volume\sid:\s//' )
+
+    mkdir /mnt.isofs
+    mount -n -o loop /input/live.iso /mnt.isofs
+
+    pushd /mnt.isofs
+    tar \
+	--sparse -cpsf - . | \
+	( cd /scratch/expanded/isofs ; tar --sparse -xvpsf - )
+    popd
+
+    umount -n -d /mnt.isofs
+    rmdir /mnt.isofs
+
+    possible_containerfs_files="/LiveOS/squashfs.img"
+    containerfs_file=""
+    for candidate in $possible_containerfs_files; do
+	if [ -f "/scratch/expanded/isofs/${candidate}" ]; then
+	    containerfs_file="${candidate}"
+	fi
+    done
+	
+    if [ "x${containerfs_file}" != "x" ]; then
+	mkdir -p "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded"
+	mkdir /mnt.containerfs
+	mount -n -t squashfs -o loop \
+	    "/scratch/expanded/isofs/${containerfs_file}" \
+	    /mnt.containerfs
+
+	ls -l "/scratch/expanded/isofs/${containerfs_file}" \
+	    > "/scratch/expanded/isofs/${containerfs_file}.lixmog-metadata"
+	    
+	pushd /mnt.containerfs
+	tar \
+	    --sparse -cpsf - . | \
+	    ( cd "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded" ; \
+	    tar --sparse -xvpsf - )
+	popd
+
+	umount -n -d /mnt.containerfs
+    fi
+
+    possible_rootfs_files="/LiveOS/ext3fs.img"
+    rootfs_file="no_rootfs_file"
+    for candidate in $possible_rootfs_files; do
+        if [ -f "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${candidate}" ]; then
+            rootfs_file="${candidate}"
+            rootfs_filename="/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${candidate}" 
+        elif [ -f "/scratch/expanded/isofs/${candidate}" ]; then
+            rootfs_file="${candidate}"
+            rootfs_filename="/scratch/expanded/isofs/${candidate}" 
+	fi
+    done
+
+    debug "about to check for rootfs_file $rootfs_file"
+        
+    if [ "x${rootfs_file}" != "xno_rootfs_file" ]; then
+
+	debug "about to mkdir -p /scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}.lixmog-expanded"
+
+        mkdir -p "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}.lixmog-expanded"
+
+        mkdir /mnt.rootfs
+	cp -av --sparse=always \
+	    "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}" \
+	    /scratch/rootfsfile
+        mount -n -o loop \
+	    /scratch/rootfsfile \
+	    /mnt.rootfs
+
+	debug "about to ls /mnt.rootfs"
+	ls -l /mnt.rootfs
+
+        ls -l "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}" \
+            > "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}.lixmog-metadata"
+            
+        pushd /mnt.rootfs
+        tar \
+            --sparse -cpsf - . | \
+            ( cd "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}.lixmog-expanded/" ; tar --sparse -xvpsf - )
+        popd
+        
+        if (($vopt_debug)); then
+	    find /mnt.rootfs/ -mindepth 1 -maxdepth 1 -exec rm -rvf '{}' ';'
+            debug "mnt.rootfs should be empty now"
+            ls -1A /mnt.rootfs
+	else
+	    find /mnt.rootfs/ -mindepth 1 -maxdepth 1 -exec rm -rf '{}' ';'
+	fi
+	
+    fi
+
+    status "about to expand initramfs if necessary: $need_to_rebuild_initramfs"
+    possible_initramfs_files="/isolinux/initrd0.img"
+    initramfs_file="no_initramfs_file"
+    for candidate in $possible_initramfs_files; do
+	if [ -f "/scratch/expanded/isofs/${candidate}" ]; then
+	    initramfs_file="${candidate}"
+	fi
+    done
+	
+    echo "DEBUG: before check, initramfs_file is ${initramfs_file}"
+    if [ "x${initramfs_file}" != "xno_initramfs_file" ]; then
+	mkdir -p "/scratch/expanded/isofs/${initramfs_file}.lixmog-expanded"
+
+	
+	ls -l "/scratch/expanded/isofs/${initramfs_file}" \
+	    > "/scratch/expanded/isofs/${initramfs_file}.lixmog-metadata"
+	    
+	pushd "/scratch/expanded/isofs/${initramfs_file}.lixmog-expanded"
+	zcat "/scratch/expanded/isofs/${initramfs_file}" | cpio --extract
+	popd
+    fi
+
+
+    debug "pushing staged traits"
+    pushd /scratch/traits
+    tar -cpsf - . | \
+	( cd /scratch/expanded/isofs ; tar xvpsf - )
+    popd
+    debug "done pushing staged traits"
+
+    debug "phase: apply .lixmog-patch"
+    pushd /scratch/expanded/isofs
+    find . -type f -name "*.lixmog-patch" -print \
+	-exec echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX env LIXMOG_FINDPATCHMODE=1 \
+	${progdir}/${progname} '{}' ';'
+    find . -type f -name "*.lixmog-patch" -print \
+	-exec env LIXMOG_FINDPATCHMODE=1 \
+	${progdir}/${progname} '{}' ';'
+    find . -type f -name "*.lixmog-delete" -print \
+	-exec env LIXMOG_FINDDELETEMODE=1 \
+	${progdir}/${progname} '{}' ';'
+    popd
+    debug "phase done: apply .lixmog-patch"
+    
+    debug "phase: running trait post scripts"
+
+    for postscript in "$( ls -1A /scratch/expanded/isofs/lixmog-post.*.post  | sed -e 's/.*\///' )"; do
+	debug "postscript is $postscript"
+	eval "/scratch/expanded/isofs/${postscript}"
+	rm -rvf "/scratch/expanded/isofs/${postscript}"
+    done
+    debug "phase done: running trait post scripts"
+
+    status "about to put initramfs back together, if needed: $need_to_rebuild_initramfs"
+    if (($need_to_rebuild_initramfs)); then
+	if [ "x${initramfs_file}" != "xno_initramfs_file" ]; then
+	    status "really about to put initramfs back together"
+	    
+	    pushd /scratch/expanded/isofs
+	    
+	    status "nuking .lixmog-metadata file"
+	    vnuke "./${initramfs_file}.lixmog-metadata"
+	    
+	    status "creating new cpio"
+	    pushd "/scratch/expanded/isofs/${initramfs_file}.lixmog-expanded"
+	    ( echo nash-find . | /sbin/nash --force --quiet ) | \
+		cpio -H newc --quiet -o \
+		> "/scratch/expanded/isofs/${initramfs_file}.ungzipped"
+	    popd
+	    status "nuking old .lixmog-expanded directory"
+	    status "fyi: /scratch/expanded/isofs/${initramfs_file}.lixmog-expanded"
+	    vnuke "/scratch/expanded/isofs/${initramfs_file}.lixmog-expanded"
+	    
+	    status "compressing"
+	    gzip -9 "/scratch/expanded/isofs${initramfs_file}.ungzipped" 
+
+	    status "nuking original initramfs"
+	    vnuke "/scratch/expanded/isofs/${initramfs_file}"
+
+	    mv "/scratch/expanded/isofs${initramfs_file}.ungzipped.gz" \
+		"/scratch/expanded/isofs/${initramfs_file}"
+	fi
+    fi
+
+    if (($need_to_rebuild_rootfs)); then
+	
+	echo "DEBUG: creating ext3 filesystem image for rootfs"
+	pushd "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}.lixmog-expanded"
+	tar -cpsf - . | \
+	    ( cd /mnt.rootfs ; tar xvpsf - )
+	popd
+	umount -n -d /mnt.rootfs
+	vnuke "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}.lixmog-expanded"
+	
+	echo "DEBUG: NOT YET resizing rootfs to minimal and back"
+
+	echo "DEBUG: moving modified ext3fs into containerfs source"
+	mkdir -p $( dirname "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}" )
+	rm -f "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}"
+	mv /scratch/rootfsfile \
+	    "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}"
+
+    else
+	umount -n -d /mnt.rootfs
+    fi
+
+    vnuke "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded/${rootfs_file}.lixmog-expanded"
+
+
+	
+    if (($need_to_rebuild_containerfs)); then
+	echo "DEBUG: making squashed filesystem..."
+	pushd /scratch/expanded/isofs
+	vnuke "./${containerfs_file}" 
+	mksquashfs "./${containerfs_file}.lixmog-expanded" "./${containerfs_file}"
+	popd
+    fi
+    vnuke "/scratch/expanded/isofs/${containerfs_file}.lixmog-expanded"
+
+    echo "DEBUG: mode is ${mode}, checking for f8..."
+    if [ "x${mode}" == "xf8" ]; then
+	echo "DEBUG: f8 mode"
+	
+	mkisofs -o "/output/${fslabel}.iso" \
+	    -b isolinux/isolinux.bin \
+	    -c isolinux/boot.cat \
+	    -no-emul-boot \
+	    -boot-load-size 4 \
+            -boot-info-table \
+	    -J -r -hide-rr-moved -hide-joliet-trans-tbl \
+	    -V "${fslabel}" /scratch/expanded/isofs
+
+	status "implanting md5sum into iso"
+	implantisomd5 "/output/${fslabel}.iso" 
+    fi
+
+}
+
+if [ "$progname" == "qfakeroot.command" ]; then
+    target_script_to_run_as_root
+    exit 0
+fi
+
+function usage {
+    echo ""
+    echo "${progname} \\"
+    echo "    [--help] \\"
+    echo "    [--quiet] \\"
+    echo "    [--verbose] \\"
+    echo "    [--debug] \\"
+    echo "    [--mode=<default:f8>] \\"
+    echo "    [[--addtrait=<traitspec>]] \\"
+    echo "    [--output=<filename>] \\"
+    echo "    <target.iso>"
+    echo ""
+
+    if [ "x${1}" == "xclean" ]; then
+	exit 0
+    else 
+	exit 1
+    fi
+}
+
+
+
+if [ "x${TMPDIR}" == "x" ]; then 
+    export TMPDIR=/tmp
+fi
+
+
+if [ "x${TMPDIR}" == "x1" ]; then
+    default_vopt_tmpdir="/tmp"
+else
+    default_vopt_tmpdir="${TMPDIR}"
+fi
+
+
+vregopt help boolean 0
+vregopt verbose boolean 0 inherit
+vregopt debug boolean 0 inherit
+vregopt quiet boolean 0 inherit
+vregopt native boolean $native_default
+vregopt tmpdir string "${default_vopt_tmpdir}" inherit
+vregopt addtrait cumulative ""
+vregopt lixmogopts cumulative ""
+vregopt mode string "f8"
+vregopt output string ""
+vregopt scratch string "10G"
+vregopt qflags string ""
+vregopt config string ""
+vregopt add_files cumulative ""
+vregopt add_links cumulative ""
+vparseopt "$@"
+
+if (( $vopt_help )); then usage clean; fi
+
+if (( $vopts_numargs != 1 )); then usage; fi
+
+
+export TMPDIR="${vopt_tmpdir}"
+
+tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+mkdir -p "${tmpdir}"
+export TMPDIR=${vopt_tmpdir}
+
+
+
+if [ ! -f ${vopts_args[1]} ]; then
+    echo "ERROR: problem with input iso ${vopts_args[1]}"
+    exit 1
+else
+    pushd "$( dirname ${vopts_args[1]} )" > /dev/null 2>&1
+    isorealpath="$( pwd )/$( basename ${vopts_args[1]} )"
+    popd > /dev/null 2>&1
+fi
+
+if [ "x${vopt_output}" == "x" ]; then
+    outputiso="${isorealpath}.lixmog"
+else
+    outputiso="${vopt_output}"
+fi
+    
+if [ -f ${outputiso} ]; then
+    echo "ERROR: output file ${outputiso} already exists"
+    exit 1
+else
+    veva touch ${outputiso}
+fi
+
+
+num_traits=0
+for trait in "${vopt_addtrait}"; do
+
+
+    num_traits=$(( $num_traits + 1 ))
+    
+    trait_base=$( echo "$trait" | sed -e 's/\:\:.*//' )
+    trait_base=$( strip_whitespace "${trait_base}" )
+    trait_opts=$( echo "$trait" | sed -e "s/^${trait_base}//" )
+    trait_opts=$( strip_whitespace "${trait_opts}" )
+    
+    echo ${trait_base} >> ${tmpdir}/traitlist
+
+    if (($viros_devenv)); then
+	traits_dir=${viros_devdir}/traits
+    else
+	traits_dir=/usr/lib/viros/traits
+    fi
+    
+    if [ -d "${trait_base}" ]; then
+	trait_dir=$( normalize_path "${trait_base}" )
+    elif [ -d "${traits_dir}/${trait_base}" ]; then
+	trait_dir=$( normalize_path "${traits_dir}/${trait_base}" )
+    else
+	debug "trait_base is ${trait_base}"
+	debug "traits_dir is ${traits_dir}"
+	debug "trait_dir is ${trait_dir}"
+	die "could not find trait ${trait_base}"
+    fi
+    
+    if [ -f ${trait_dir}/trait-install/qfakeroot.config ]; then
+	cat ${trait_dir}/trait-install/qfakeroot.config \
+	    >> ${tmpdir}/qfakeroot.config
+    fi
+    
+    pushd ${trait_dir} > /dev/null 2>&1
+    tar cf ${tmpdir}/trait.${trait_base}.${num_traits}.tar .
+    popd > /dev/null 2>&1
+    
+    echo "add_files ${tmpdir}/trait.${trait_base}.${num_traits}.tar:/input/trait.${trait_base}.${num_traits}.tar" >> ${tmpdir}/qfakeroot.config
+    
+    echo "${trait_opts}" | sed -e 's/:/\n/g' > ${tmpdir}/options.${trait_base}.${num_traits}
+    
+    echo "add_files ${tmpdir}/options.${trait_base}.${num_traits}:/input/options.${trait_base}.${num_traits}" >> ${tmpdir}/qfakeroot.config
+    
+done
+
+if ((! $num_traits)); then
+    status "no traits specified to be added"
+    usage
+fi
+
+vopt_lixmogopts="${vopt_lixmogopts} mode=${vopt_mode}"
+echo -en "${vopt_lixmogopts}" > ${tmpdir}/lixmogopts
+
+
+
+export vopt_verbose
+export vopt_debug
+export vopt_quiet
+
+qfakeroot \
+    --command=${progdir}/${progname} \
+    --scratch=11G \
+    --add_files="/bin/bash" \
+    --add_files="/bin/chown" \
+    --add_files="/bin/mount" \
+    --add_files="/bin/umount" \
+    --add_files="/bin/basename" \
+    --add_files="/usr/bin/dirname" \
+    --add_files="/bin/cp" \
+    --add_files="/bin/mkdir" \
+    --add_files="/bin/tar" \
+    --add_files="/bin/zcat" \
+    --add_files="/usr/bin/gzip" \
+    --add_files="/usr/bin/patch" \
+    --add_files="/bin/rm" \
+    --add_files="/bin/ls" \
+    --add_files="/bin/sh" \
+    --add_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
+    --add_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
+    --add_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
+    --add_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
+    --add_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
+    --add_files="$( which splitter ):/bin/splitter" \
+    --add_files="/bin/cpio" \
+    --add_files="/usr/sbin/chroot" \
+    --add_files="/usr/bin/isoinfo" \
+    --add_files="/usr/bin/mkisofs" \
+    --add_files="/sbin/mksquashfs" \
+    --add_files="/usr/bin/implantisomd5" \
+    --add_files="${tmpdir}/lixmogopts:/input/lixmogopts" \
+    --add_files="${isorealpath}:/input/live.iso" \
+    --add_files="${tmpdir}/traitlist:/input/traitlist" \
+    --config="${tmpdir}/qfakeroot.config" \
+    --outputdir=${tmpdir}/qfakeroot.outputdir
+
+firstoutput="$( ls -1A ${tmpdir}/qfakeroot.outputdir | head -1 )"
+
+if [ -f "${tmpdir}/qfakeroot.outputdir/${firstoutput}" ]; then
+    mv "${tmpdir}/qfakeroot.outputdir/${firstoutput}" "${outputiso}"
+fi
+
+if (($vopt_debug)); then
+    echo "debug: lixmog NOT cleaning up tmpdir ${tmpdir}"
+else
+    echo "lixmog cleaning up tmpdir ${tmpdir}"
+    vnuke "${tmpdir}"
+fi
+
+exit 0
+
