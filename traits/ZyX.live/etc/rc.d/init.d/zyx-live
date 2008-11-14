@@ -9,6 +9,54 @@
 
 . /etc/init.d/functions
 
+services_disabled="\
+yum-updatesd
+crond
+atd
+anacron
+readahead_early
+readahead_later
+"
+
+function unwind {
+    if [ -e /.zyxlive-configured ]; then
+	if [ -f /etc/gdm/custom.conf.pre-zyx-live ]; then
+	    rm -f /etc/gdm/custom.conf
+	    mv /etc/gdm/custom.conf.pre-zyx-live \
+		/etc/gdm/custom.conf
+	fi
+
+	if [ -f /etc/X11/xorg.conf.pre-zyx-live ]; then
+	    rm -f /etc/X11/xorg.conf 
+	    mv /etc/X11/xorg.conf.pre-zyx-live \
+		/etc/X11/xorg.conf 
+	fi
+
+	rm -f /etc/sysconfig/firstboot
+	if [ -f /etc/sysconfig/firstboot.pre-zyx-live ]; then
+	    mv /etc/sysconfig/firstboot.pre-zyx-live \
+		/etc/sysconfig/firstboot 
+	fi
+
+	for service in ${services_disabled}; do
+	    if [ -f /var/tmp/zyx-live-disabled.${service} ]; then
+		rm -f /var/tmp/zyx-live-disabled.${service}
+		chkconfig --level 345 ${service} on
+	    fi
+	done
+
+	mv /etc/rc.d/init.d/halt.pre-zyx-live \
+	    cp -a /etc/rc.d/init.d/halt
+
+	rm -f /.zyxlive-configured 
+    fi
+}
+
+if [ "$1" == "unwind" ]; then
+    unwind
+    exit 0
+fi
+
 if ! strstr "`cat /proc/cmdline`" zyx || [ "$1" != "start" ] || [ -e /.zyxlive-configured ] ; then
     exit 0
 fi
@@ -43,10 +91,20 @@ if strstr "`cat /proc/cmdline`" textinst ; then
    /usr/sbin/liveinst --text $ks
 fi
 
+if strstr "`cat /proc/cmdline`" hhuey ; then
+    cp -a /etc/gdm/custom.conf /etc/gdm/custom.conf.pre-zyx-live
+    sed -i -e 's/^TimedLogin=.*$/TimedLogin=kablui/g' /etc/gdm/custom.conf
+fi
+
+
 
 
 
 if ( which system-config-display > /dev/null 2>&1 ); then
+    if [ -f /etc/X11/xorg.conf ]; then
+	mv /etc/X11/xorg.conf \
+	    /etc/X11/xorg.conf.pre-zyx-live
+    fi
 
     host_is_qemu=0
     if [ -f /sys/block/sr0/device/model ]; then
@@ -68,26 +126,32 @@ if ( which system-config-display > /dev/null 2>&1 ); then
     
     if (($host_is_qemu)); then
 	cp -f /etc/X11/xorg.conf.qemu /etc/X11/xorg.conf
+	restorecon /etc/X11/xorg.conf 
     elif (($host_is_apie)); then
 	cp -f /etc/X11/xorg.conf.apie /etc/X11/xorg.conf
+	restorecon /etc/X11/xorg.conf 
     else
-	exists system-config-display --noui --reconfig --set-depth=24 $xdriver
+	system-config-display --noui --reconfig --set-depth=24 $xdriver
     fi
     
 fi
 
+if [ -f /etc/sysconfig/firstboot ]; then
+    mv /etc/sysconfig/firstboot \
+	/etc/sysconfig/firstboot.pre-zyx-live
+fi
 echo "RUN_FIRSTBOOT=NO" > /etc/sysconfig/firstboot
 
-chkconfig --level 345 yum-updatesd off 2>/dev/null
-
-chkconfig --level 345 crond off 2>/dev/null
-chkconfig --level 345 atd off 2>/dev/null
-chkconfig --level 345 anacron off 2>/dev/null
-chkconfig --level 345 readahead_early off 2>/dev/null
-chkconfig --level 345 readahead_later off 2>/dev/null
+for service in ${services_disabled}; do
+    if ( chkconfig --list ${service} 2>&1 | grep -q "3:on" ); then
+	touch /var/tmp/zyx-live-disabled.${service}
+	chkconfig --level 345 ${service} off 2>/dev/null
+    fi
+done
 
 touch /media/.hal-mtab
 
+cp -a /etc/rc.d/init.d/halt /etc/rc.d/init.d/halt.pre-zyx-live
 sed -i -e 's/hwclock/no-such-hwclock/g' /etc/rc.d/init.d/halt
 
 exit 0

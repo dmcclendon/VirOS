@@ -116,7 +116,12 @@ function launch_specvnc {
         "
 
 
-    vncname="VirOS_Synthesis_Monitor    "
+
+    if [ "x${viros_stupid_vncname}" == "x" ]; then
+	vncname="VirOS___Synthesis___Monitor    "
+    else
+	vncname="${viros_stupid_vncname}"
+    fi
     vevastupid env HOME=${specvnc_confdir} vncserver :${specvnc_display} \
 	-name "${vncname}" \
 	-depth 16 \

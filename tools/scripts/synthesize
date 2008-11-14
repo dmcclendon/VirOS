@@ -90,11 +90,11 @@ vregopt cachedir string "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 
 vregopt vsysgen_output_container_size string "7G" inherit
-vregopt vsysgen_distro string "fedora-8" inherit
+vregopt vsysgen_distro string "fedora-9" inherit
 vregopt vsysgen_arch string "x86" inherit
-vregopt vsysgen_install_boot_iso string "http://download.fedoraproject.org/pub/fedora/linux/releases/8/Fedora/i386/iso/Fedora-8-i386-rescuecd.iso" inherit
-vregopt vsysgen_install_boot_iso_sha1sum string "aa27d819079b8c92efa2ea58a5c0c84825f7a959" inherit
-vregopt vsysgen_distro_config string "f8.ks" inherit
+vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/9/Fedora/i386/iso/Fedora-9-i386-netinst.iso" inherit
+vregopt vsysgen_install_boot_iso_sha1sum string "3b1df20ece05d64c34dd9c64400975b74eded0f2" inherit
+vregopt vsysgen_distro_config string "f9.ks" inherit
 vregopt vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" inherit
 vregopt vsysgen_screencast_output string "" inherit
 
@@ -110,7 +110,13 @@ fi
 outputfile=$( normalize_path "${vopt_output}" )
 
 
-vsysgen_distro_configfile=$( vfindfile ${vopt_vsysgen_distro_config} "ks cfg" ". ${LIBVOPT_CONFIGS_PATHS} ${vopt_add_search_paths}" )
+if [ -f "${vopt_vsysgen_distro_config}" ]; then
+    vsysgen_distro_configfile=$( normalize_path "${vopt_vsysgen_distro_config}" )
+else
+    vsysgen_distro_configfile=$( vfindfile ${vopt_vsysgen_distro_config} "ks cfg" ". ${LIBVOPT_CONFIGS_PATHS} ${vopt_add_search_paths}" )
+fi
+
+debug "vsysgen_distro_configfile is ${vsysgen_distro_configfile}"
 
 
 if [ -f "$outputfile" ]; then
@@ -168,9 +174,9 @@ if [ "$boot_iso_sha1sum" != "${vopt_vsysgen_install_boot_iso_sha1sum}" ]; then
     die "install boot iso image ${vopt_cachedir}/${boot_iso_basename} has the wrong sha1sum $boot_iso_sha1sum which does not match the expected ${vopt_vsysgen_install_boot_iso_sha1sum} .  Please try removing this file so that it is downloaded again"
 fi
 
-veva cp -a ${viros_bases_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpre ${tmpdir}/runpre
+veva cp -a ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpre ${tmpdir}/runpre
 
-veva cp -a ${viros_bases_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpost ${tmpdir}/runpost
+veva cp -a ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpost ${tmpdir}/runpost
 
 mkdir -p ${vhttpdroot}
 
@@ -189,7 +195,7 @@ status "creating target system image"
 
 debug "creating build copy of OS installation configuration"
 ksflatten --output=${tmpdir}/uos.cfg ${vsysgen_distro_configfile} 
-veva cp -a ${viros_bases_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/kswrap.cfg ${tmpdir}/kswrap.cfg
+veva cp -a ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/kswrap.cfg ${tmpdir}/kswrap.cfg
 pushd ${tmpdir} > /dev/null 2>&1
 user_req_rootfs_size=$( cat uos.cfg | grep "^part" | sed -e 's/.*\-\-size\=\([^\s]*\)\s.*/\1/' )
 user_req_rootfs_bytes_per_inode=$( cat uos.cfg | grep "^part" | sed -e 's/.*\-\-bytes\-per\-inode\=\([^\s]*\)\s.*/\1/' )
@@ -243,15 +249,15 @@ veva cp ${tmpdir}/os.cfg  ${vhttpdroot}/os.cfg
 veva qemu-img create ${tmpdir}/outimage.vsi ${vopt_vsysgen_output_container_size}
 
 
-isoinfo -x /isolinux/isolinux.cfg \
+isoinfo -R -x /isolinux/isolinux.cfg \
     -i ${vopt_cachedir}/${boot_iso_basename} \
     > ${tmpdir}/inst.bootloaderconfig
 
-isoinfo -x /isolinux/vmlinuz \
+isoinfo -R -x /isolinux/vmlinuz \
     -i ${vopt_cachedir}/${boot_iso_basename} \
     > ${tmpdir}/inst.kernel
 
-isoinfo -x /isolinux/initrd.img \
+isoinfo -R -x /isolinux/initrd.img \
     -i ${vopt_cachedir}/${boot_iso_basename} \
     > ${tmpdir}/inst.initrd
 

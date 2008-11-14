@@ -4,7 +4,6 @@ Section "ServerLayout"
 	Identifier     "single head configuration"
 	Screen      0  "Screen0" 0 0
 	InputDevice    "Keyboard0" "CoreKeyboard"
-	InputDevice    "VMMouse" "CorePointer"
 EndSection
 
 Section "InputDevice"
@@ -12,13 +11,6 @@ Section "InputDevice"
 	Driver      "kbd"
 	Option	    "XkbModel" "pc105"
 	Option	    "XkbLayout" "us"
-EndSection
-
-Section "InputDevice"
-	Identifier  "VMMouse"
-	Driver      "vmmouse"
-	Option	    "Device" "/dev/input/mice"
-	Option	    "Emulate3Buttons" "yes"
 EndSection
 
 Section "Monitor"

@@ -1,7 +1,7 @@
 #[dmc]
 #name=dmc for Fedora $releasever - $basearch
 #failovermethod=priority
-#baseurl=http://filteredperception.org/vrepo/fedora/8/i386
+#baseurl=http://filteredperception.org/vrepo/fedora/9/i386
 #enabled=1
 #gpgcheck=1
 #gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY.dmc

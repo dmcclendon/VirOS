@@ -8,11 +8,20 @@ progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
 
 lokkit -f --quiet --nostart --enabled
 
-cp -a /etc/inittab /etc/inittab.stock
-cat /etc/inittab.stock | \
-    sed -e 's/^\([123]\):2345:respawn/\#\1:2345:respawn/' | \
-    sed -e 's/rc\.sysinit/rc\.sysinit\.zyx/' \
-    > /etc/inittab
+cp /boot/grub/grub.conf  /boot/grub/grub.conf.stock
+cat /boot/grub/grub.conf.stock | \
+    sed -e 's/^\(\s*kernel.*\)$/\1 acpi=force/' \
+    > /boot/grub/grub.conf
+
+
+
+mkdir -p /var/trash/etc/event.d
+cp -a /etc/event.d/rcS /var/trash/etc/event.d/
+sed -i \
+    -e 's/rc\.sysinit/init\.d\/rc\.sysinit\.zyx/' \
+    /etc/event.d/rcS
+
+mv /etc/event.d/tty[1-3] /var/trash/etc/event.d/
 
 cat <<EOF >> /etc/rc.d/rc.local
 

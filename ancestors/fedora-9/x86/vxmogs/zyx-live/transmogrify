@@ -50,6 +50,10 @@ selinux=0
 
 md5verify=0
 
+bootloader_sdmc_mode=0
+
+bootloader_hhuey_mode=0
+
 prelink=0
 
 timestamps="199912211221.42"
@@ -68,7 +72,7 @@ bootloader_isolinux_menu_width="80"
 bootloader_isolinux_menu_rows="5"
 bootloader_isolinux_menu_tabmsgrow="11"
 bootloader_isolinux_menu_cmdlinerow="11"
-bootloader_isolinux_menu_startrow="1"
+bootloader_isolinux_menu_vshift="20"
 bootloader_isolinux_menu_endrow="17"
 bootloader_isolinux_menu_timeoutrow="13"
 
@@ -140,10 +144,20 @@ else
 	> ${targetroot}/etc/selinux/config
 fi
 
-cp ${targetroot}/etc/modprobe.conf ${targetroot}/etc/modprobe.conf.qemu
-echo -en "\n" > ${targetroot}/etc/modprobe.conf
+if [ -f ${targetroot}/etc/modprobe.conf ]; then
+    cp ${targetroot}/etc/modprobe.conf ${targetroot}/etc/modprobe.conf.qemu
+    echo -en "\n" > ${targetroot}/etc/modprobe.conf
+fi
+
+
 rm -f ${targetroot}/etc/sysconfig/network-scripts/ifcfg-eth0
 rm -f ${targetroot}/boot/initrd*
+rm -f ${targetroot}/etc/X11/xorg.conf
+rm -f ${targetroot}/etc/sysconfig/hwconf
+rm -f ${targetroot}/etc/lvm/cache/.cache
+rm -f ${targetroot}/etc/blkid/blkid.tab
+rm -f ${targetroot}/etc/blkid/blkid.tab.old
+
 
 if (( $prelink )); then
     verbose "running prelink, this will take awhile"
@@ -180,6 +194,8 @@ verbose "cleaninug up /var/log..."
 rm -vf ${targetroot}/var/log/*vrun* 
 rm -vf ${targetroot}/var/log/*vsys*
 
+verbose "cleaninug up /tmp..."
+rm -vf ${targetroot}/tmp/*
 
 verbose "configuring target bootloader"
 
@@ -191,9 +207,19 @@ cp ${targetroot}/boot/vmlinuz-${use_kernel_version} \
 mv ${targetroot}/boot/initrd-${use_kernel_version}.zyx.img \
     ${targetisodir}/boot/initrd.1
 
-sed -i -e 's/Ok,\ booting\ the\ kernel\./\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ /' \
+rm -f ${targetroot}/boot/initrd-*
+for kernel in $( ls -1A ${targetroot}/boot/vmlinuz-* ); do
+    rm -f ${kernel}
+    ln -s /mnt/.LiveOS/prime_rootfs/boot/vmlinuz.1 ${kernel}
+done
+
+sed -i -e 's/Booting\ the\ kernel\./\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ /' \
     ${targetisodir}/boot/vmlinuz.1
-sed -i -e  's/Uncompressing\ Linux\.\.\./\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ /' \
+sed -i -e 's/Parsing\ ELF\.\.\./\ \ \ \ \ \ \ \ \ \ \ \ \ \ /' \
+    ${targetisodir}/boot/vmlinuz.1
+sed -i -e 's/done\./\ \ \ \ \ /' \
+    ${targetisodir}/boot/vmlinuz.1
+sed -i -e  's/Decompressing\ Linux\.\.\./\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ /' \
     ${targetisodir}/boot/vmlinuz.1
 
 
@@ -246,6 +272,24 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 	isolinux_verify_entry=""
     fi
 
+    if (( $bootloader_sdmc_mode )); then
+	isolinux_sdmc_entry="label sdmc
+  menu label Try SuperDeviceMapperCaching
+  kernel /boot/vmlinuz.1
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg sdmc_megs=16 "
+    else
+	isolinux_sdmc_entry=""
+    fi
+
+    if (( $bootloader_hhuey_mode )); then
+	isolinux_hhuey_entry="label hhuey
+  menu label Try K.A.B.L.U.I.
+  kernel /boot/vmlinuz.1
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg hhuey "
+    else
+	isolinux_hhuey_entry=""
+    fi
+
     cat <<EOF> ${targetisodir}/boot/isolinux/isolinux.cfg
 default vesamenu.c32
 timeout $(( ${bootloader_timeout} * 10 ))
@@ -255,7 +299,7 @@ menu width  ${bootloader_isolinux_menu_width}
 menu rows  ${bootloader_isolinux_menu_rows}
 menu tabmsgrow  ${bootloader_isolinux_menu_tabmsgrow}
 menu cmdlinerow ${bootloader_isolinux_menu_cmdlinerow}
-menu startrow ${bootloader_isolinux_menu_startrow} 
+menu vshift ${bootloader_isolinux_menu_vshift} 
 menu endrow ${bootloader_isolinux_menu_endrow}
 menu timeoutrow ${bootloader_isolinux_menu_timeoutrow}
 
@@ -273,6 +317,8 @@ label linux
   menu label Boot ${fs_label} LiveOS
   kernel /boot/vmlinuz.1
   append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append}
+${isolinux_hhuey_entry}
+${isolinux_sdmc_entry}
 ${isolinux_verify_entry}
 label safe
   menu label Boot Safe/Text/Rescue Mode
@@ -315,11 +361,30 @@ mount -t ext3 ${loopdevice} /scratch/target
 verbose "after mount target, df is"
 df -h
 
-/input/bin/top -d 30 -b &
+top -d 30 -b &
 
 pushd ${targetroot}
 
-( tar --one-file-system ${tarsel} -S -cpsf - . | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - ) ) 
+if [ -d ./VirOS.prime_rootfs ]; then
+    mv ./VirOS.prime_rootfs/* ${targetisodir}/
+    rmdir ./VirOS.prime_rootfs 
+fi
+
+if [ -f ./var/log/viros.boot.afiles.sorted_by_size.txt ]; then
+    mv ./var/log/viros.boot.afiles.sorted_by_size.txt /scratch/sortlist
+    rm -f ./var/log/viros.*
+    while read filename; do
+	echo "XMOG STATUS: sort copying ${filename}"
+	tar ${tarsel} -S --no-recursion -cpsf - ./${filename} | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - ) 
+    done < /scratch/sortlist
+    tar ${tarsel} -S --no-recursion -cpsf - ./lib/modules | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - )
+    tar ${tarsel} -S --no-recursion -cpsf - ./usr/lib/xorg/modules | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - )
+    rsync -avuHX ./usr/lib/xorg/modules/ /scratch/target/usr/lib/xorg/modules
+    rsync -avuHX ./lib/modules/ /scratch/target/lib/modules
+    rsync -avuHX ./ /scratch/target
+else
+    ( tar --one-file-system ${tarsel} -S -cpsf - . | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - ) ) 
+fi
 
 verbose "tar done" 
 popd

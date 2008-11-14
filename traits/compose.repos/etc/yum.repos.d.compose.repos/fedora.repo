@@ -3,7 +3,7 @@ name=Fedora $releasever - $basearch
 failovermethod=priority
 #baseurl=http://download.fedora.redhat.com/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/
 #mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch
-baseurl=http://mirrors1.kernel.org/fedora/releases/8/Everything/i386/os/
+baseurl=http://mirrors1.kernel.org/fedora/releases/9/Everything/i386/os/
 enabled=1
 gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora file:///etc/pki/rpm-gpg/RPM-GPG-KEY

@@ -96,6 +96,9 @@ function target_script_to_run_as_root {
     umount /vxmog.input.copy
     rmdir /vxmog.input.copy
 
+    swapoff /scratch/qswap
+    rm -f /scratch/qswap
+
     echo "qfakeroot: ${progname}: done"
 }
 if [ "$progname" == "qfakeroot.command" ]; then
@@ -178,15 +181,15 @@ export vopt_quiet
 
 
 verbose "NOT running get_dna_of_vsi in the name of developtment speed"
-distro="gzyx-0.5"
+distro="gzyx-0.6"
 arch="i686"
 
 verbose "vsi distro appears to be ${distro}, vsi arch appears to be ${arch}"
 
 if (($viros_devenv)); then
-    xmogdir="${viros_devdir}/bases/${distro}/${arch}/vxmogs/${transmogrifier}"
+    xmogdir="${viros_devdir}/ancestors/${distro}/${arch}/vxmogs/${transmogrifier}"
 else
-    xmogdir="/usr/lib/viros/bases/${distro}/${arch}/vxmogs/${transmogrifier}"
+    xmogdir="/usr/lib/viros/ancestors/${distro}/${arch}/vxmogs/${transmogrifier}"
 fi
 
 verbose "xmogdir is ${xmogdir}"

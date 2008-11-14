@@ -24,7 +24,7 @@ EndSection
 
 Section "Device"
 	Identifier  "Videocard0"
-	Driver      "via"
+	Driver      "openchrome"
 EndSection
 
 Section "Screen"
@@ -33,6 +33,8 @@ Section "Screen"
 	Monitor    "Monitor0"
 	DefaultDepth     24
 	SubSection "Display"
+	# couldn't get viewport to do what I want
+#		Viewport   0 0
 		Viewport   0 0
 		Depth     24
 		Modes    "1024x768" "800x600" "640x480"

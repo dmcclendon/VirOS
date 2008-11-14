@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.5.2008_01_26
+Version:	0.5.2008_11_14
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -50,17 +50,14 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
-* Mon Jan 28 2008 Douglas McClendon <dmc@viros.org> - 0.5.20080126
+* Fri Nov 07 2008 Douglas McClendon <dmc@viros.org> - 0.5.20081107
+- maintenence release - f9 compat
+- trait splice/unsplice replaces addtrait
+- bases renamed to ancestors
+
+* Fri Feb 29 2008 Douglas McClendon <dmc@viros.org> - 0.5.20080229
 - further extensive and rapid development.  
-
-* Thu Jan 24 2008 Douglas McClendon <dmc@viros.org> - 0.5.20080125
-- further extensive and rapid development.  
-
-* Thu Jan 24 2008 Douglas McClendon <dmc@viros.org> - 0.5.20080124
-- first public rpm release expected to work for on-line tutorial purposes
-
-* Tue Jan 22 2008 Douglas McClendon <dmc@viros.org> - 0.5.20080122
-- second public rpm release, progress still too fast to track in detail
+- (interim changelogs deleted)
 
 * Mon Jan 07 2008 Douglas McClendon <dmc@viros.org> - 0.5.20080107
 - initial rpm-ified release

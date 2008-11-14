@@ -56,8 +56,6 @@ function set_defaults {
     
     init="/sbin/init"
 
-    jdc=0
-
     # dms|ufs
     cow_mode=dms
 
@@ -68,6 +66,10 @@ function set_defaults {
     fatime=0
 
     ram_overlay_size=42000
+
+#    sdmc_megs=96
+    sdmc_megs=0
+#    sdmc_megs=auto
 
     # set path
     export PATH=/sbin:/bin:/lib/udev
@@ -148,6 +150,36 @@ function setup_console {
     exec < /dev/console > /dev/console 2>&1
 }
 
+# initialize magic system filesystems (i.e. /dev, /proc, /sys)
+function setup_special_system_mounts {
+
+    # finish setting up initial /dev
+    mknod /dev/kmsg c 1 11
+    mknod /dev/null c 1 3
+
+    # make mountpoints for other special filesystems
+    mkdir /dev/pts
+    mkdir --mode=1777 /dev/shm
+
+    if [ "x${cow_mode}" == "xdms" ]; then
+	mkdir /dev/mapper
+	mknod /dev/mapper/control c 10 63
+    fi
+
+    # create links for basic stuff
+    ln -s /proc/self/fd /dev/fd
+    ln -s fd/0 /dev/sdin
+    ln -s fd/1 /dev/stdout
+    ln -s fd/2 /dev/stderr
+
+    # mount proc filesystem
+    mount -n -t proc proc /proc
+
+    # mount sys filesystem
+    mount -n -t sysfs sysfs /sys
+
+}
+
 # parse options given to the kernel by the bootloader/user
 function parse_options {
 
@@ -216,8 +248,8 @@ function parse_options {
 	    init=*)
                 init=${option#init=}
 		;;
-	    jdc=*)
-                jdc=${option#jdc=}
+	    sdmc_megs=*)
+                sdmc_megs=${option#sdmc_megs=}
 		;;
 	    cow_mode=*)
                 cow_mode=${option#cow_mode=}
@@ -247,37 +279,26 @@ function parse_options {
         esac
     done
 
-    # do status here in case of quiet
-    status "parsing kernel options ... done"
-}
-
-# initialize magic system filesystems (i.e. /dev, /proc, /sys)
-function setup_special_system_mounts {
-
-    # finish setting up initial /dev
-    mknod /dev/kmsg c 1 11
-    mknod /dev/null c 1 3
-
-    # make mountpoints for other special filesystems
-    mkdir /dev/pts
-    mkdir --mode=1777 /dev/shm
-
-    if [ "x${cow_mode}" == "xdms" ]; then
-	mkdir /dev/mapper
-	mknod /dev/mapper/control c 10 63
+    # calculate dynamic sdmc_megs default value based on
+    # available memory
+    if [ "x${sdmc_megs}" == "xauto" ]; then
+	debug "calculating dynamic sdmc cache size"
+	sys_megs=$(( $( cat /proc/meminfo | grep MemTotal | sed -e 's/^MemTotal:\ //' | sed -e 's/\ kB.*//' ) / 1024 ))
+	debug "system memory size is $sys_megs mb"
+	if (( $sys_megs < 128 )); then
+	    sdmc_megs=0
+	elif (( $sys_megs < 192 )); then
+	    sdmc_megs=$(( $sys_megs - 128 ))
+	elif (( $sys_megs < 384 )); then
+	    sdmc_megs=$(( $sys_megs / 3 ))
+	else
+	    sdmc_megs=128
+	fi
+	debug "calculated sdmc cache size is $sdmc_megs mb"
     fi
 
-    # create links for basic stuff
-    ln -s /proc/self/fd /dev/fd
-    ln -s fd/0 /dev/sdin
-    ln -s fd/1 /dev/stdout
-    ln -s fd/2 /dev/stderr
-
-    # mount proc filesystem
-    mount -n -t proc proc /proc
-
-    # mount sys filesystem
-    mount -n -t sysfs sysfs /sys
+    # do status here in case of quiet
+    status "parsing kernel options ... done"
 }
 
 function load_some_drivers {
@@ -352,7 +373,7 @@ function debug_show_opts {
 
     debug "init is $init"
 
-    debug "jdc is $jdc"
+    debug "sdmc_megs is $sdmc_megs"
 
     debug "cow_mode is $cow_mode"
 
@@ -541,13 +562,34 @@ function prep_cow_rootfs {
 	zyx_root_container_loopdev=$( losetup -f )
 	losetup -r ${zyx_root_container_loopdev} \
 	    /prime_rootfs/boot/LiveOS/zyx/${zyx}.squashfs.img
+	if (($sdmc_megs)); then
+	    status "Super Device Mapper Caching ${sdmc_megs} megabytes..."
+	    dd if=/prime_rootfs/boot/LiveOS/zyx/${zyx}.squashfs.img \
+		of=/sdmc bs=1M count=$sdmc_megs \
+		> /dev/.sdmc.log 2>&1
+	    zyx_root_container_sdmc_loopdev=$( losetup -f )
+	    losetup -r ${zyx_root_container_sdmc_loopdev} \
+		/sdmc
+	    rm -f /sdmc
+	    secsize_sdmc=$( blockdev --getsize ${zyx_root_container_sdmc_loopdev} )
+	    echo "0 ${secsize_sdmc} linear ${zyx_root_container_sdmc_loopdev} 0" > /dev/.sdmc_table
+	    echo "${secsize_sdmc} $(( $( blockdev --getsize ${zyx_root_container_loopdev} ) - ${secsize_sdmc} )) linear ${zyx_root_container_loopdev} ${secsize_sdmc}" >> /dev/.sdmc_table
+	    dmsetup create zyx-container-sdmc /dev/.sdmc_table
+	    rm -f /dev/.sdmc_table
+	fi
     else
 	debug_mode panic "could not find container filesystem image"
     fi
 
-    mount -n -t squashfs -o ro \
-	${zyx_root_container_loopdev} \
-	 /container_rootfs
+    if (($sdmc_megs)); then
+	mount -n -t squashfs -o ro \
+	    /dev/mapper/zyx-container-sdmc \
+	    /container_rootfs
+    else
+	mount -n -t squashfs -o ro \
+	    ${zyx_root_container_loopdev} \
+	    /container_rootfs
+    fi
 
     if [ -e /container_rootfs/boot/LiveOS/zyx/${zyx}.ext3.img ]; then
 	zyx_root_base_loopdev=$( losetup -f )

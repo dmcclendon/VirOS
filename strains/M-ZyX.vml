@@ -8,7 +8,6 @@
 ## global configuration
 ##
 
-#mirrorlist /var/mirrors/qrap.mirrors.txt 
 cachedir ~/.viros/cachedir
 
 ##
@@ -18,8 +17,8 @@ cachedir ~/.viros/cachedir
 ###vsysgen_output_container_size 7G
 ###vsysgen_distro fedora-8
 ###vsysgen_arch x86
-###vsysgen_install_boot_iso "http://download.fedoraproject.org/pub/fedora/linux/releases/8/Fedora/i386/iso/Fedora-8-i386-rescuecd.iso"
-###vsysgen_install_boot_iso_sha1sum "aa27d819079b8c92efa2ea58a5c0c84825f7a959"
+###vsysgen_install_boot_iso "http://download.fedoraproject.org/pub/fedora/linux/releases/9/Fedora/i386/iso/Fedora-9-i386-netinst.iso" 
+###vsysgen_install_boot_iso_sha1sum "3b1df20ece05d64c34dd9c64400975b74eded0f2"
 ###vsysgen_distro_config string "f8.ks" inherit
 ###vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" 
 
@@ -29,16 +28,17 @@ vsysgen_distro_config M-ZyX.ks
 ## phase 2 configuration - mutation
 ##
 
-addtrait compose.repos::no_mutate_prepost=1:mode=install 
+traits splice-compose.repos::no_mutate_prepost=1:mode=install 
 
-addtrait ZyX.brand::distroname="M-ZyX":distroversion="0.1"
-addtrait ZyX.live
-addtrait ZyX.adduser::username="guest":usercomment="Guest User"
-addtrait ZyX.livecd-iso-to-disk
-addtrait M-ZyX.release
-addtrait M-ZyX.logos
+traits splice-ZyX.brand::distroname="M-ZyX":distroversion="0.1"
+traits splice-ZyX.live
+traits splice-ZyX.adduser::username="guest":usercomment="Guest User"
+traits splice-ZyX.livecd-iso-to-disk
+traits splice-M-ZyX.release
+traits splice-M-ZyX.logos
+traits splice-restorecon
 
-addtrait compose.repos::no_mutate_prepost=1:mode=uninstall 
+traits splice-compose.repos::no_mutate_prepost=1:mode=uninstall 
 
 ##
 ## phase 3 configuration - transmogrification

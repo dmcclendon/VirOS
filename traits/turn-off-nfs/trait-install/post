@@ -1,0 +1,11 @@
+#!/bin/bash
+
+chkconfig --del nfs
+chkconfig --del nfslock
+chkconfig --del rpcbind
+chkconfig --del rpcgssd
+chkconfig --del rpcidmapd
+chkconfig --del rpcsvcgssd
+
+
+

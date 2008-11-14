@@ -187,7 +187,7 @@ init_crypto() {
 	    && /usr/bin/rhgb-client --ping ; then
 	    /usr/bin/rhgb-client --quit
 	fi
-	if cryptsetup isLuks "$src" 2>/dev/null; then
+	if [ -z "$makeswap" ] && cryptsetup isLuks "$src" 2>/dev/null ; then
 	    if key_is_random "$key"; then
 		echo $"$dst: LUKS requires non-random key, skipping"
 		ret=1
@@ -222,10 +222,6 @@ init_crypto() {
     done < /etc/crypttab
     return $ret
 }
-
-if [ -x /sbin/setsysfont -a -c /dev/tty1 ]; then
-   /sbin/setsysfont < /dev/tty1 > /dev/tty1 2>/dev/null
-fi
 
 echo -en "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
 echo -en "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
@@ -267,47 +263,9 @@ echo -en "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 echo -en "\n\n\n\n\n\n\n"
 
 
-update_boot_stage RCclock
-ARC=0
-SRM=0
-UTC=0
-
-if [ -f /etc/sysconfig/clock ]; then
-   . /etc/sysconfig/clock
-
-   if [ "${CLOCKMODE}" = "GMT" ]; then
-      UTC=true
-   elif [ "${CLOCKMODE}" = "ARC" ]; then
-      ARC=true
-   fi
-fi
-
-CLOCKDEF=""
-CLOCKFLAGS="$CLOCKFLAGS --hctosys"
-
-case "$UTC" in
-    yes|true)	CLOCKFLAGS="$CLOCKFLAGS --utc"
-		CLOCKDEF="$CLOCKDEF (utc)" ;;
-    no|false)	CLOCKFLAGS="$CLOCKFLAGS --localtime"
-		CLOCKDEF="$CLOCKDEF (localtime)" ;;
-esac
-case "$ARC" in
-    yes|true)	CLOCKFLAGS="$CLOCKFLAGS --arc"
-		CLOCKDEF="$CLOCKDEF (arc)" ;;
-esac
-case "$SRM" in
-    yes|true)	CLOCKFLAGS="$CLOCKFLAGS --srm"
-		CLOCKDEF="$CLOCKDEF (srm)" ;;
-esac
-
-[ -x /sbin/hwclock ] && /sbin/hwclock $CLOCKFLAGS
-
-action $"Setting clock $CLOCKDEF: `date`" /bin/true
-
 if [ -n "$LOGLEVEL" ]; then
 	/bin/dmesg -n $LOGLEVEL
 fi
-
 
 cmdline=$(cat /proc/cmdline)
 
@@ -344,6 +302,7 @@ if [ -f /etc/rc.modules ]; then
 	/etc/rc.modules
 fi
 
+
 if ( which system-config-display > /dev/null 2>&1 ); then
 
     host_is_qemu=0
@@ -363,6 +322,13 @@ if ( which system-config-display > /dev/null 2>&1 ); then
     if ( lspci | grep VGA | grep -q "Apollo CLE266" ); then 
 	host_is_apie=1
     fi
+
+    host_is_tool=0
+    if ( ls /dev/disk/by-id/ata-IBM-DTLA-307045_YMEYMN21591 > /dev/null 2>&1 ); then 
+	if ( ls /dev/disk/by-id/ata-WDC_WD2500SB-01KBC0_WD-WCAL78579336 > /dev/null 2>&1 ); then 
+	host_is_tool=1
+	fi
+    fi
     
     if (($host_is_qemu)); then
 	mkdir -p /dev/.zyxrhgb/temp
@@ -373,6 +339,12 @@ if ( which system-config-display > /dev/null 2>&1 ); then
     elif (($host_is_apie)); then
 	mkdir -p /dev/.zyxrhgb/temp
 	cp -f /etc/X11/xorg.conf.apie /dev/.zyxrhgb/xorg.conf
+	mount -n --bind  /dev/.zyxrhgb /etc/rhgb
+	restorecon /etc/rhgb/xorg.conf
+	restorecon /etc/rhgb/temp
+    elif (($host_is_tool)); then
+	mkdir -p /dev/.zyxrhgb/temp
+	cp -f /etc/X11/xorg.conf.tool /dev/.zyxrhgb/xorg.conf
 	mount -n --bind  /dev/.zyxrhgb /etc/rhgb
 	restorecon /etc/rhgb/xorg.conf
 	restorecon /etc/rhgb/temp
@@ -393,42 +365,8 @@ fi
 update_boot_stage RCkernelparam
 sysctl -e -p /etc/sysctl.conf >/dev/null 2>&1
 
-if [ -x /bin/loadkeys ]; then
- KEYTABLE=
- KEYMAP=
- if [ -f /etc/sysconfig/console/default.kmap ]; then
-  KEYMAP=/etc/sysconfig/console/default.kmap
- else
-  if [ -f /etc/sysconfig/keyboard ]; then
-    . /etc/sysconfig/keyboard
-  fi
-  if [ -n "$KEYTABLE" -a -d "/lib/kbd/keymaps" ]; then
-     KEYMAP="$KEYTABLE.map"
-  fi
- fi
- if [ -n "$KEYMAP" ]; then 
-  if [ -n "$KEYTABLE" ]; then
-    echo -n $"Loading default keymap ($KEYTABLE): "
-  else
-    echo -n $"Loading default keymap: "
-  fi
-  LOADKEYS=loadkeys
-  if [ "${LANG}" != "${LANG%%.UTF-8}" -o "${LANG}" != "${LANG%%.utf8}" ]; then
-  	LOADKEYS="loadkeys -u"
-  fi
-  $LOADKEYS $KEYMAP < /dev/tty0 > /dev/tty0 2>/dev/null && \
-     success $"Loading default keymap" || failure $"Loading default keymap"
-  echo
- fi
-fi
-
 update_boot_stage RChostname
 action $"Setting hostname ${HOSTNAME}: " hostname ${HOSTNAME}
-
-update_boot_stage RCraid
-if [ -f /etc/mdadm.conf ]; then
-    /sbin/mdadm -A -s --auto=yes
-fi
 
 if ! __fgrep "device-mapper" /proc/devices >/dev/null 2>&1 ; then
 	modprobe dm-mod >/dev/null 2>&1
@@ -468,9 +406,16 @@ if [ -c /dev/mapper/control ]; then
 		done
 	fi
 	
-	if [ -x /sbin/lvm.static ]; then
-		action $"Setting up Logical Volume Management:" /sbin/lvm.static vgchange -a y --ignorelockingfailure
+	if [ -x /sbin/lvm ]; then
+		action $"Setting up Logical Volume Management:" /sbin/lvm vgchange -a y --ignorelockingfailure
 	fi
+fi
+
+if [ -f /etc/crypttab ]; then
+    s=$"Starting disk encryption:"
+    echo "$s"
+    init_crypto 0 && success "$s" || failure "$s"
+    echo
 fi
 
 if [ -f /fastboot ] || strstr "$cmdline" fastboot ; then
@@ -687,11 +632,26 @@ if [ -z "$fastboot" -a "$READONLY" != "yes" ]; then
 	fi
 fi
 
+remount_needed() {
+  local state oldifs
+  [ "$READONLY" = "yes" ] && return 1
+  state=`LC_ALL=C awk '/ \/ / && ($3 !~ /rootfs/) { print $4 }' /proc/mounts`
+  oldifs=$IFS
+  IFS=","
+  for opt in $state ; do
+  	if [ "$opt" = "rw" ]; then
+		IFS=$oldifs
+		return 1
+	fi
+  done
+  IFS=$oldifs
+  return 0
+}
 
 update_boot_stage RCmountfs
-state=`LC_ALL=C awk '/ \/ / && ($3 !~ /rootfs/) { print $4 }' /proc/mounts`
-[ "$state" != "rw" -a "$READONLY" != "yes" ] && \
+if remount_needed ; then
   action $"Remounting root filesystem in read-write mode: " mount -n -o remount,rw /
+fi
 
 if [ -n "$SELINUX_STATE" ]; then
    restorecon /etc/mtab /etc/ld.so.cache /etc/blkid/blkid.tab /etc/resolv.conf >/dev/null 2>&1
@@ -768,14 +728,14 @@ if [ -f /.unconfigured ]; then
     if [ -x /usr/bin/passwd ]; then 
         /usr/bin/passwd root
     fi
-    if [ -x /usr/sbin/netconfig ]; then
-	/usr/sbin/netconfig
+    if [ -x /usr/sbin/system-config-network-tui ]; then
+	/usr/sbin/system-config-network-tui
     fi
     if [ -x /usr/sbin/timeconfig ]; then
 	/usr/sbin/timeconfig
     fi
-    if [ -x /usr/sbin/authconfig ]; then
-	/usr/sbin/authconfig --nostart
+    if [ -x /usr/sbin/authconfig-tui ]; then
+	/usr/sbin/authconfig-tui --nostart
     fi
     if [ -x /usr/sbin/ntsysv ]; then
 	/usr/sbin/ntsysv --level 35
@@ -796,23 +756,8 @@ rm -f /fastboot /fsckoptions /forcefsck /.autofsck /forcequotacheck /halt \
 _NEED_XFILES=
 [ -f /var/run/utmpx -o -f /var/log/wtmpx ] && _NEED_XFILES=1
 
-for afile in /var/lock/* /var/run/* ; do
-	if [ -d "$afile" ]; then
-	   case "$afile" in
-		*/news|*/mon)	;;
-		*/sudo)		rm -f $afile/*/* ;;
-		*/vmware)	rm -rf $afile/*/* ;;
-		*/samba)	rm -rf $afile/*/* ;;
-		*/screen)	rm -rf $afile/* ;;
-		*/cvs)		rm -rf $afile/* ;;
-		*/dovecot)	rm -f $afile/*/* ;;
-		*/cups)		rm -f $afile/*/* ;;
-		*)		rm -f $afile/* ;;
-	   esac
-	else
-	   rm -f $afile
-	fi
-done
+rm -rf /var/lock/cvs/* /var/run/screen/*
+find -L /var/lock /var/run ! -type d -exec rm -f {} \;
 rm -f /var/lib/rpm/__db* &> /dev/null
 rm -f /var/gdm/.gdmfifo &> /dev/null
 
@@ -867,6 +812,7 @@ if [ -x /usr/sbin/system-config-network-cmd ]; then
   fi
 fi
 
+[ -f /var/log/dmesg ] && mv -f /var/log/dmesg /var/log/dmesg.old
 dmesg -s 131072 > /var/log/dmesg
 
 touch /.autofsck &> /dev/null
@@ -896,7 +842,10 @@ if ( which system-config-display > /dev/null 2>&1 ); then
 	cp -f /etc/X11/xorg.conf.qemu /etc/X11/xorg.conf
 	restorecon /etc/X11/xorg.conf
     elif (($host_is_apie)); then
-	cp -f /etc/X11/xorg.conf.qemu /etc/X11/xorg.conf
+	cp -f /etc/X11/xorg.conf.apie /etc/X11/xorg.conf
+	restorecon /etc/X11/xorg.conf
+    elif (($host_is_tool)); then
+	cp -f /etc/X11/xorg.conf.tool /etc/X11/xorg.conf
 	restorecon /etc/X11/xorg.conf
     fi
 fi

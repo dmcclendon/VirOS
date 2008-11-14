@@ -27,7 +27,7 @@
 #
 #############################################################################
 
-echo "STATUS: viros mutate pre - fedora-7/x86 - STARTING XXXXXXXXXXXXXXXXXXXX"
+echo "STATUS: viros mutate pre - fedora-9/x86 - STARTING XXXXXXXXXXXXXXXXXXXX"
 
 if [ -f /trait-expanded/trait-install/webserver.cfg ]; then
     source /trait-expanded/trait-install/webserver.cfg
@@ -49,5 +49,5 @@ cp -a /etc/yum.reposdir.unmutated ${reposdir}
 
 rm -f /tmp/mutate.vsys.mirrorlist.cfg
 
-echo "STATUS: viros mutate pre - fedora-7/x86 - EXITING XXXXXXXXXXXXXXXXXXXXX"
+echo "STATUS: viros mutate pre - fedora-9/x86 - EXITING XXXXXXXXXXXXXXXXXXXXX"
 

@@ -86,15 +86,9 @@ if [ $# -lt 1 ]; then usage; fi
 vcommand="$1"
 
 if [ ! -x "${viros_scripts_dir}/${vcommand}" ]; then
-    scriptname=$( ls -1A ${viros_scripts_dir}/${vcommand}* | grep -v "~$" 2>&1 )
-    if (($?)); then
-	usage
-    fi
+    scriptname=$( find ${viros_scripts_dir} -name "${vcommand}*" -print | grep -v "~$" )
 else
-    scriptname=$( ls -1A ${viros_scripts_dir}/${vcommand} | grep -v "~$" 2>&1 )
-    if (($?)); then
-	usage
-    fi
+    scriptname="${viros_scripts_dir}/${vcommand}" 
 fi
 
 if [ ! -x "$scriptname" ]; then

@@ -1,4 +1,4 @@
-####
+o
 ####
 #### VirOS System Image Generation Configuration
 ####
@@ -15,31 +15,49 @@ cachedir ~/.viros/cachedir
 ##
 
 ###vsysgen_output_container_size 7G
-###vsysgen_distro fedora-8
+###vsysgen_distro fedora-9
 ###vsysgen_arch x86
-###vsysgen_install_boot_iso "http://download.fedoraproject.org/pub/fedora/linux/releases/8/Fedora/i386/iso/Fedora-8-i386-rescuecd.iso"
-###vsysgen_install_boot_iso_sha1sum "aa27d819079b8c92efa2ea58a5c0c84825f7a959"
-###vsysgen_distro_config string "f8.ks" inherit
+###vsysgen_install_boot_iso "http://download.fedoraproject.org/pub/fedora/linux/releases/9/Fedora/i386/iso/Fedora-9-i386-rescuecd.iso"
+###vsysgen_install_boot_iso_sha1sum "3b1df20ece05d64c34dd9c64400975b74eded0f2" 
+###vsysgen_distro_config string "f9.ks" inherit
 ###vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" 
+
+vsysgen_distro_config F-ZyX.ks
 
 ##
 ## phase 2 configuration - mutation
 ##
 
-addtrait ZyX.brand::distroname="F-ZyX":distroversion="0.8"
-addtrait ZyX.live
-addtrait ZyX.adduser::username="guest":usercomment="Guest User"
-addtrait ZyX.gdm::autologin=true:user=guest
-addtrait ZyX.autostartff::user=guest
-addtrait rliveinst
-addtrait ZyX.livecd-iso-to-disk
-addtrait ZyX.anaconda_package_removal_bug
-addtrait F-ZyX.release
-#addtrait viros
-addtrait F-ZyX.logos
+traits splice-compose.repos::no_mutate_prepost=1:mode=install 
 
+# for space
+traits splice-software::erase=isdn4k-utils
+traits splice-software::erase=smolt
+# guaranteed better than numeric is just a splash screen that
+# says how to install and use openoffice 
+traits splice-software::erase=gnumeric
+traits splice-software::install=patch
 
+traits splice-genericize-gdm
+traits splice-ZyX.brand::distroname="F-ZyX":distroversion="0.9"
+traits splice-ZyX.live
+traits splice-ZyX.livecd-iso-to-disk
+traits splice-turn-off-nfs
+traits splice-rliveinst
+traits splice-ZyX.adduser::username="guest":usercomment="Guest User"
+traits splice-ZyX.gdm::autologin=true:user=guest
+traits splice-ZyX.autostartff::user=guest
+traits splice-F-ZyX.release
+traits splice-F-ZyX.logos
+traits splice-F-ZyX.cleanup
 
+# use this if you care about booting the mutated vsi with selinux enabled
+#traits splice-restorecon
+
+# use this to generate an interesting log of installed packages
+#traits splice-sysinfo
+
+traits splice-compose.repos::no_mutate_prepost=1:mode=uninstall 
 
 
 ##
@@ -47,7 +65,20 @@ addtrait F-ZyX.logos
 ##
 
 vxmogopts bootloader=isolinux
-vxmogopts bootloader_append="ram_overlay_size=1024 qnash"
+vxmogopts bootloader_append="ram_overlay_size=1024 qnash rhgb"
+
+
+# experiment to get autoticker up 2 rows
+vxmogopts bootloader_isolinux_menu_margin=20
+vxmogopts bootloader_isolinux_menu_width=78
+vxmogopts bootloader_isolinux_menu_rows=6
+vxmogopts bootloader_isolinux_menu_tabmsgrow=12
+vxmogopts bootloader_isolinux_menu_cmdlinerow=12
+vxmogopts bootloader_isolinux_menu_endrow=18
+vxmogopts bootloader_isolinux_menu_timeoutrow=14
+# verified that this is the now upstream solution for toprow (was startrow)
+vxmogopts bootloader_isolinux_menu_vshift=3
+
 
 vxmogopts fs_label=F-ZyX
 vxmogopts selinux=1

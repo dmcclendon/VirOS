@@ -127,7 +127,7 @@ function launch_webserver {
     
     status "configuring special http server..."
     
-    veva cp ${viros_libdir}/bases/common/arap.orig.httpd.conf \
+    veva cp ${viros_libdir}/ancestors/common/arap.orig.httpd.conf \
 	${httpdserverroot}/conf/httpd.conf
     veva vreplace \
 	VSYS_SERVERROOT "${httpdserverroot}" \

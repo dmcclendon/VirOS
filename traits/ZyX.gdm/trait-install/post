@@ -16,6 +16,29 @@ if [ "x${autologin}" == "xtrue" ]; then
 	sed -e "s/^\[daemon\]/\[daemon\]\nAutomaticLoginEnable=true\nAutomaticLogin=${user}/" | \
 	sed -e "s/^\[debug\]/\[debug\]\nEnabled=true/" \
 	> /etc/gdm/custom.conf
+
+    if (! grep -q "\[daemon\]" /etc/gdm/custom.conf); then
+	cp /tmp/zyx-live.custom.conf.$$ /etc/gdm/custom.conf
+	cat << EOF >> /etc/gdm/custom.conf
+
+[daemon]
+TimedLoginEnable=true
+TimedLogin=${user}
+TimedLoginDelay=11
+EOF
+    fi
+
+    if (! grep -q "\[debug\]" /etc/gdm/custom.conf); then
+	cp /tmp/zyx-live.custom.conf.$$ /etc/gdm/custom.conf
+	cat << EOF >> /etc/gdm/custom.conf
+
+[debug]
+Enabled=true
+EOF
+    fi
+
+
+
     rm -f /tmp/zyx-live.custom.conf.$$ 
 fi
 

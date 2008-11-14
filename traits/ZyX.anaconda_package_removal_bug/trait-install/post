@@ -1,8 +1,5 @@
 #!/bin/bash
 
-/sbin/chkconfig --add zyx-live
-
-lokkit -f --quiet --nostart --enabled
 rpm -e --nodeps aspell-af
 rpm -e --nodeps aspell-ar
 rpm -e --nodeps aspell-bg

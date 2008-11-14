@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# VirOS trait: F-ZyX.cleanup
+#
+
+echo "STATUS: removing fedora-release-notes"
+rpm -e --nodeps fedora-release-notes
+
+echo "STATUS: cleaning yum cache"
+rm -rvf /var/cache/yum/*
+
+echo "STATUS: cleaning /tmp"
+rm -rvf /tmp/*
+
+echo "STATUS: cleaning misc"
+rm -f /root/vsys.runpost.log
+
+
+echo "STATUS: removing orig kernel"
+echo "NOTE: should fail if not using f9 updates"
+rpm -e kernel-2.6.25-14.fc9

@@ -27,20 +27,20 @@ all clean install uninstall: $(SUBDIRS)
 
 all_also:
 	ln -s ./tools/scripts/vsys ./viros
-	ln -s fedora-8 ./bases/gzyx-0.5
+	ln -s fedora-9 ./ancestors/gzyx-0.6
 	ln -s M-ZyX.vml ./strains/min.vml
 	ln -s M-ZyX.vml ./strains/minimal.vml
 
 clean_also:
 	rm -vf ./viros
-	rm -vf ./bases/gzyx-0.5
+	rm -vf ./ancestors/gzyx-0.6
 	rm -vf ./strains/min.vml
 	rm -vf ./strains/minimal.vml
 
 install_also:
 	mkdir -p $(PREFIX)/lib/viros/ 
 	cp -rv \
-		./bases \
+		./ancestors \
 		./fitness \
 		./strains \
 		./traits \
@@ -92,9 +92,8 @@ rpm:
 
 vrepostuff:
 	make rpm
-	cp -av viros-$(VERSION)-$(RELEASE).i386.rpm ./vrepo/fedora/8/i386/
-	cp -av viros-$(VERSION)-$(RELEASE).src.rpm ./vrepo/fedora/8/SRPMS/
+	cp -av viros-$(VERSION)-$(RELEASE).i386.rpm ./vrepo/fedora/9/i386/
+	cp -av viros-$(VERSION)-$(RELEASE).src.rpm ./vrepo/fedora/9/SRPMS/
 	cp -av viros-$(VERSION).tar.bz2 ./vrepo/tarballs/
-	createrepo ./vrepo/fedora/8/i386
-	createrepo ./vrepo/fedora/8/SRPMS
-	createrepo ./vrepo/fedora/8/noarch
+	createrepo ./vrepo/fedora/9/i386
+	createrepo ./vrepo/fedora/9/SRPMS

@@ -4,8 +4,8 @@ progname="$( basename $0 )"
 progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
     pwd ; popd > /dev/null 2>&1 ) )
 
-username=guest
-usercomment="Guest User"
+username=zguest
+usercomment="ZyX Guest User"
 source ${progdir}/trait-options
 
 useradd -c "$usercomment" $username
@@ -16,3 +16,6 @@ if [ -e /usr/share/zyx/face-icon.png ] ; then
     chown ${username}:${username} /home/${username}/.face
 fi
 
+mkdir -p /home/${username}/.config/autostart
+echo "X-GNOME-Autostart-enabled=false" >> /home/${username}/.config/autostart/gpk-update-icon.desktop
+chown -R ${username}:${username} /home/${username}/.config

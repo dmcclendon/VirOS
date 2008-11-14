@@ -117,8 +117,8 @@ function vevastupid {
 
     for (( i=1 ; $i <= $# ; i=$(( $i + 1 )) )); do
 	eval "datcopy[$i]=\$$i"
-	if ( echo "${datcopy[$i]}" | grep -q "VirOS_Synthesis_Monitor" ); then
-	    datcopy[$i]="\"$( echo ${datcopy[$i]} | sed -e 's/VirOS_Synthesis_Monitor/VirOS\ Synthesis\ Monitor/')\""
+	if ( echo "${datcopy[$i]}" | grep -q "___" ); then
+	    datcopy[$i]="\"$( echo ${datcopy[$i]} | sed -e 's/___/\ /g' )\""
 	fi
     done
 

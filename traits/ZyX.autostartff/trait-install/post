@@ -13,8 +13,29 @@ cat <<EOF>  /home/${user}/.config/autostart/firefox.desktop
 Name=Firefox
 Encoding=UTF-8
 Version=1.0
-Exec=firefox
+Exec=/home/${user}/.kablui/runff
 EOF
 chmod 755 /home/${user}/.config/autostart/firefox.desktop
 
+mkdir -p /home/${user}/.kablui
+cat <<EOF>  /home/${user}/.kablui/runff
+
+xdone=0
+while ((! \$xdone)); do
+    if ( ps auwwxf | grep -q "clock-applet" ); then
+        if ( ps auwwxf | grep -q "gnome-power-manager" ); then
+            xdone=1
+        else
+            sleep 1
+        fi
+    else
+        sleep 1
+    fi
+done
+firefox >> /home/${user}/.kablui/runff.log 2>&1 &
+
+EOF
+chmod 755 /home/${user}/.kablui/runff
+
 chown -R ${user}:${user} /home/${user}
+

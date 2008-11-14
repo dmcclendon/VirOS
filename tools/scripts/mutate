@@ -92,6 +92,13 @@ function target_script_to_run_as_root {
     mount --bind /proc /target/proc
     mount --bind /sys /target/sys
 
+    source /target/etc/selinux/config
+    echo "STATUS: about to really initialize selinux, x is $SELINUX y XXXXXXXXXXXXX"
+    if [ "x${SELINUX}" == "xpermissive" -o "x${SELINUX}" == "xenforcing" ]; then
+	echo "STATUS: about to really really initialize selinux, x is $SELINUX y XXXXXXXXXXXXX"
+	chroot /target /usr/sbin/load_policy
+	chroot /target /usr/sbin/setenforce permissive
+    fi
     
     echo "STATUS: viros mutate - applying traits XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     trait_num=0
@@ -119,8 +126,10 @@ function target_script_to_run_as_root {
 	fi
 	if [ -x /input/base-trait-pre ]; then
 	    if (( $runprepost )); then
-		wget -O /target/tmp/mutate.vsys.mirrorlist.cfg \
-		    http://${mutate_webserver_ip}:${mutate_webserver_port}/mirrors/${mirror_listconfig}
+		if [ "x${mutate_webserver_ip}" != "x" ]; then
+		    wget -O /target/tmp/mutate.vsys.mirrorlist.cfg \
+			http://${mutate_webserver_ip}:${mutate_webserver_port}/mirrors/${mirror_listconfig}
+		fi
 		cp /input/base-trait-pre \
 		    /target/trait-expanded/trait-install/base-trait-pre
 		chroot /target /trait-expanded/trait-install/base-trait-pre
@@ -195,7 +204,7 @@ function usage {
     echo "    [--verbose] \\"
     echo "    [--debug] \\"
     echo "    [--mirrorlist=</path/to/vsys.mirrorlist.cfg>] \\"
-    echo "    [[--addtrait=<traitspec>]] \\"
+    echo "    [[--traits=<traitspec>]] \\"
     echo "    <target.vsi>"
     echo ""
 
@@ -221,7 +230,7 @@ vregopt debug boolean 0 inherit
 vregopt quiet boolean 0 inherit
 vregopt mirrorlist string "" inherit
 vregopt mutateopts cumulative "" inherit
-vregopt addtrait cumulative "" inherit
+vregopt traits cumulative "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 vparseopt "$@"
 
@@ -260,11 +269,35 @@ fi
 
 num_traits=0
 
-splitter "$vopt_addtrait" | \
+splitter "$vopt_traits" | \
     grep -v "^\s*$" > $tmpdir/traitlistnopts
 while read line; do
-    num_traits=$(( $num_traits + 1 ))
-    traits[$num_traits]=$line
+    if ( echo $line | grep -q "^splice-" ); then
+	splice_trait=$( echo $line | sed -e 's/^splice-//' )
+	num_traits=$(( $num_traits + 1 ))
+	traits[$num_traits]=$splice_trait
+    elif ( echo $line | grep -q "^unsplice-" ); then
+	unsplice_trait=$( echo $line | sed -e 's/^unsplice-//' )
+	shrinkit=0
+
+	for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
+	    if ((${shrinkit})); then
+		if [ $i -ne ${num_traits} ]; then
+		    traits[$i]=${traits[$((i + 1))]}
+		fi
+	    else
+		if [ "${traits[$i]}" == "${unsplice_trait}" ]; then
+		    shrinkit=1
+		    traits[$i]=${traits[$((i + 1))]}
+		fi
+	    fi
+	done
+	if ((${shrinkit})); then
+	    num_traits=$(( $num_traits - 1 ))
+	fi
+    else
+	die "error: trait must be either splice- or unsplice-, was $line"
+    fi
 done < $tmpdir/traitlistnopts
 
 for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
@@ -364,14 +397,14 @@ fi
 
 
 verbose "NOT running get_dna_of_vsi in the name of developtment speed"
-distro="gzyx-0.5"
+distro="gzyx-0.6"
 arch="i686"
 
 
 if (($viros_devenv)); then
-    mutatedir="${viros_devdir}/bases/${distro}/${arch}/mutate"
+    mutatedir="${viros_devdir}/ancestors/${distro}/${arch}/mutate"
 else
-    mutatedir="/usr/lib/viros/bases/${distro}/${arch}/mutate"
+    mutatedir="/usr/lib/viros/ancestors/${distro}/${arch}/mutate"
 fi
 
 verbose "mutatedir is ${mutatedir}"

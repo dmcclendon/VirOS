@@ -54,7 +54,7 @@ if [ -f "${progdir}/libvopt.sh" ]; then
     viros_devdir=$( ( pushd ${progdir}/../.. > /dev/null 2>&1 ; \
 	pwd ; popd > /dev/null 2>&1 ) )
     viros_libdir=${viros_devdir}
-    viros_bases_dir=${viros_devdir}/bases
+    viros_ancestors_dir=${viros_devdir}/ancestors
     export PATH="${viros_devdir}/tools/bin:${viros_devdir}/tools/scripts:${PATH}"
     export LIBVOPT_CONFIGS_PATHS="${viros_devdir} ${viros_devdir}/strains ${viros_devdir}/tools ${LIBVOPT_CONFIGS_PATHS}"
 elif [ -f ${viros_prefix}/lib/viros/scripts/libvopt.sh ]; then
@@ -65,7 +65,7 @@ elif [ -f ${viros_prefix}/lib/viros/scripts/libvopt.sh ]; then
     viros_scripts_dir=${viros_prefix}/lib/viros/scripts
     viros_devenv=0
     viros_libdir=${viros_prefix}/lib/viros
-    viros_bases_dir=${viros_prefix}/lib/viros/bases
+    viros_ancestors_dir=${viros_prefix}/lib/viros/ancestors
     export PATH="${viros_prefix}/lib/viros/tools/bin:${viros_prefix}/lib/viros/tools/scripts:${PATH}"
     export LIBVOPT_CONFIGS_PATHS="${viros_prefix}/lib/viros ${viros_prefix}/lib/viros/strains ${LIBVOPT_CONFIGS_PATHS}"
 else

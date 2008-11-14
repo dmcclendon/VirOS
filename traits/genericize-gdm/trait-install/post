@@ -1,0 +1,5 @@
+#!/bin/bash
+
+patch \
+    /usr/share/gdm/gdm-greeter-login-window.glade \
+    /trait-expanded/trait-install/usr.share.gdm.gdm-greeter-login-window.glade.patch

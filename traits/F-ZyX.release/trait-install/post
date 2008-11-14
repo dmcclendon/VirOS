@@ -1,21 +1,35 @@
 #!/bin/bash
 
+ZYXTYPE="F"
+
+firefox_dir=$( ls -d /usr/lib/firefox-* | tail -1 ) 
+if [ ! -d "${firefox_dir}" ]; then
+    echo "fatal: firefox directory does not seem to exist - ${firefox_dir}"
+fi
 
 
-tfile=$( echo /usr/lib/firefox-*/greprefs/all-redhat.js )
-mv ${tfile} /tmp/stupidfile
-cat /tmp/stupidfile | grep -v "fedoraproject" > ${tfile}
-rm -f /tmp/stupidfile
 
-tfile=$( echo /usr/lib/firefox-*/defaults/pref/all-redhat.js )
-mv ${tfile} /tmp/stupidfile
-cat /tmp/stupidfile | grep -v "fedoraproject" > ${tfile}
-rm -f /tmp/stupidfile
 
-cp /usr/share/F-ZyX/firefox/firefox-branding.js \
-    /usr/lib/firefox-*/defaults/pref/firefox-branding.js
+mv ${firefox_dir}/defaults/preferences/all-redhat.js \
+    /tmp/tmpfile
+cat /tmp/tmpfile | sed -e 's/\"http.*fedoraproject.*\"/file\:\/\/\//' \
+    > ${firefox_dir}/defaults/preferences/all-redhat.js 
+rm -f /tmp/tmpfile
 
-cp /usr/share/F-ZyX/firefox/bookmarks.html \
-    /usr/lib/firefox-*/defaults/profile/bookmarks.html    
+cp -av /usr/share/${ZYXTYPE}-ZyX/firefox/firefox-branding.js \
+    ${firefox_dir}/defaults/preferences/firefox-branding.js
 
-cp /usr/share/F-ZyX/firefox/browserconfig.properties \
+mv ${firefox_dir}/defaults/profile/bookmarks.html \
+    ${firefox_dir}/defaults/profile/pre-zyx-bookmarks.html 
+
+cp -av /usr/share/${ZYXTYPE}-ZyX/firefox/bookmarks.html \
+    ${firefox_dir}/defaults/profile/bookmarks.html 
+
+cp -av /usr/share/${ZYXTYPE}-ZyX/firefox/browserconfig.properties \
+    ${firefox_dir}/browserconfig.properties
+
+cp -av /usr/share/${ZYXTYPE}-ZyX/firefox/old-homepage-default.properties \
+    ${firefox_dir}/old-homepage-default.properties
+
+cp -av /usr/share/${ZYXTYPE}-ZyX/firefox/prefs.js \
+    ${firefox_dir}/defaults/profile/prefs.js

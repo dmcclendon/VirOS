@@ -47,8 +47,6 @@ function usage {
     echo "                 --vhttpdroot=<DocumentRoot> \\"
     echo "                 --vhttpdport=<HttpdPort> \\"
     echo "                 --recvideo=<screencast_output_prefix> \\"
-    echo "                 --reaperport=<ReaperPort> \\"
-    echo "                 --reapercookie=<HexReaperCookie> \\"
     echo "                 --callback=<CallbackProgram> \\"
     echo "                 <Normal QEMU Options...>"
     echo ""
@@ -95,6 +93,7 @@ vsys_qrap_vhttpdroot=""
 vsys_qrap_recaudio=""
 vsys_qrap_recvideo=""
 vsys_qrap_callback=""
+vsys_qrap_reaper=""
 
 vopt_tmpdir=${default_vopt_tmpdir}
 verbose "creating temporary directory..."
@@ -126,6 +125,7 @@ while (echo "$1" | grep -q "^--"); do
 	"$precomopt" = "vhttpdroot" -o \
         "$precomopt" = "recvideo" -o \
         "$precomopt" = "callback" -o \
+        "$precomopt" = "reaper" -o \
         "$precomopt" = "testopt" \
 	]; then
         eval "vsys_qrap_${precomopt}='${precomopt_val}'"
@@ -294,21 +294,47 @@ while (($#)); do
     shift
 done
 
-if (($vopt_debug)); then
-    qemu $vopt_qopts -serial stdio "${qargs[@]}" 2>&1 | tee -a ${qoutputfile} &
-    vsys_qemu_pid=$!
-else
-    qemu $vopt_qopts -serial stdio "${qargs[@]}" 2>&1 >> ${qoutputfile} &
-    vsys_qemu_pid=$!
-fi
+qemu $vopt_qopts -pidfile ${tmpdir}/qpid.txt -serial stdio "${qargs[@]}" 2>&1 >> ${qoutputfile} &
+qrap_qemu_pid=$!
 
 cleanup_command="${cleanup_command} ; \
     status \"status: killing qemu...\" ; \
-    sleep 1 ; kill ${vsys_qemu_pid} ; sleep 2 ; kill -KILL ${vsys_qemu_pid} \
+    sleep 1 ; kill ${qrap_qemu_pid} ; sleep 2 ; kill -KILL ${qrap_qemu_pid} \
     "
 
+if (($vopt_debug)); then
+    tail -f --pid=${qrap_qemu_pid} ${qoutputfile} &
+fi
+
+if [ "x${vsys_qrap_reaper}" != "x" ]; then
+    qdone=0
+    while ((!$qdone)); do
+	if ( grep -q QEMU_DONE_IN_NEED_OF_SHUTDOWN ${qoutputfile} ); then
+	    sleep 77
+	    debug "killing qemu subprocess once"
+	    kill -HUP $qrap_qemu_pid > /dev/null 2>&1
+	    sleep 3
+	    debug "killing qemu subprocess again for good measure"
+	    kill -KILL $qrap_qemu_pid > /dev/null 2>&1
+	    qdone=1
+	    trap SIGCHLD
+	    trap SIGHUP
+	    trap SIGTERM
+	    trap SIGINT
+	else
+	    if ( ps $qrap_qemu_pid > /dev/null 2>&1 ); then
+		sleep 7
+	    else
+		debug "qemu exited without the help of qreaper"
+		qdone=1
+	    fi
+	fi
+    done
+fi
+
+
 status "status: waiting for qemu to exit..."
-wait $vsys_qemu_pid
+wait $qrap_qemu_pid
 
 status "cleaning up..."
 debug "cleanup_command is $cleanup_command..."

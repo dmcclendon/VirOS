@@ -11,9 +11,9 @@ VirOS Known Bugs
 - at least once, the f8 rescue iso oopsed before doing much, though there
   had been "-m 256 -m 320" on the qemu cmdline.  That is fixed now, but
   I suspect that reflects either a kernel bug irrespective of the qemu
-  cmdline, or a qemu bug.
+  cmdline, or a qemu bug.  Maybe has to do with use of acpi=froce (div bug?)
 
-TESTING M-ZyX currently has unclean shutdown on /mnt/.LiveOS/overlayfs not mounted
-  blablabla
+- viros command frontend still attempts abbreviation, but currently does
+  this less than successfully (at least when no match is found)
 
 

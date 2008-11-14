@@ -84,7 +84,7 @@ vregopt debug boolean 0 inherit
 vregopt quiet boolean 0 inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 vregopt native boolean $native_default
-vregopt scratch string "10G"
+vregopt scratch string "24G"
 vregopt qflags string ""
 vregopt config string ""
 vregopt command string ""
@@ -126,7 +126,9 @@ else
 	disk_image=$( echo "$vopt_disk_image" | sed -e 's/^ro://' )
 	disk_image_readonly=1
 	ln -s $( normalize_path $disk_image ) ${tmpdir}/disk_image
-	veva qemu-img create -b ${tmpdir}/disk_image -f qcow2 ${tmpdir}/qrodi.img
+	veva qemu-img create \
+	    -b $( readlink -e ${tmpdir}/disk_image ) \
+	    -f qcow2 ${tmpdir}/qrodi.img
 	qdiflag="-hda ${tmpdir}/qrodi.img"
     else
 	disk_image=$vopt_disk_image
@@ -185,7 +187,7 @@ if [ -b /dev/sda ]; then
 fi
 
 pushd /output
-tar cvpsf /dev/sdc .
+tar --sparse -cvpsf /dev/sdc .
 popd
 
 umount /scratch
@@ -265,7 +267,7 @@ if (($vopt_native)); then
     mkdir ${tmpdir}/nativechroot/output
     mkdir ${tmpdir}/nativechroot/scratch
     pushd ${tmpdir}/nativechroot > /dev/null 2>&1
-    tar xpsf ${tmpdir}/qfakeroot.initramfs.input.tar
+    tar --sparse -xpsf ${tmpdir}/qfakeroot.initramfs.input.tar
     popd > /dev/null 2>&1
 
     zcat ${tmpdir}/qfakeroot.initramfs | \
@@ -331,7 +333,7 @@ else
 	-nographic \
 	-kernel /boot/vmlinuz-$( uname -r ) \
 	-initrd ${tmpdir}/qfakeroot.initramfs \
-	-append "debug verbose console=ttyS0 acpi=force drop=early:/qfakeroot.init" \
+	-append "debug verbose console=ttyS0 acpi=off drop=early:/qfakeroot.init" \
 	-hdd ${tmpdir}/qscratch \
 	-hdb ${tmpdir}/qfakeroot.initramfs.input.tar \
 	-hdc ${tmpdir}/qoutput \

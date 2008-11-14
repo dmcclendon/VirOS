@@ -12,9 +12,17 @@ cat ${progdir}/trait-options
 
 source ${progdir}/trait-options
 
+if [ "x${update}" == "xyes" ]; then
+    echo "${progname}: updating system software ..."
+    yum -y --enablerepo=updates --disablerepo=updates-newkey update yum
+    yum -y --enablerepo=updates --disablerepo=updates-newkey update
+    yum -y update
+    echo "${progname}: done updating system software."
+fi
+
 if [ "x${install}" != "x" ]; then
     echo "${progname}: installing software: $install"
-    yum --enablerepo=atrpms -y install $install
+    yum -y install $install
     echo "${progname}: done installing software: $install"
 fi
 

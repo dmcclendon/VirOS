@@ -131,6 +131,20 @@ function vshowargs {
 function vparseopt {
     vopts_numargs=0
 
+    defconfig=""
+    for (( i=1 ; $i <= ${vopts_numopts} ; i=$(( $i + 1 )) )); do
+	if [ "x${vopts_name[$i]}" == "xconfig" ]; then
+	    defconfig=${vopts_value[$i]}
+	fi
+    done
+    if ( echo "$@" | grep -vq "\-\-config=" ); then
+	if ( echo "$@" | grep -vq "\-\-strain=" ); then
+	    if [ "x${defconfig}" != "x" ]; then
+		vopt_read_config ${defconfig}
+	    fi
+	fi
+    fi
+
     while (echo "$1" | grep -q "^-"); do
 	option="$1"
 	option_handled=0
@@ -138,10 +152,12 @@ function vparseopt {
 	if ( echo "$option" | grep -q  "^--config=" ); then
 	    conf=$( echo "$option" | sed -e "s/^--config=//" )
 	    vopt_read_config $conf
+	    vpo_config_read=1
 	    option_handled=1
 	elif ( echo "$option" | grep -q  "^--strain=" ); then
 	    conf=$( echo "$option" | sed -e "s/^--strain=//" )
 	    vopt_read_config $conf
+	    vpo_config_read=1
 	    option_handled=1
 	else
 	    for (( i=1 ; $i <= ${vopts_numopts} ; i=$(( $i + 1 )) )); do
