@@ -34,6 +34,8 @@ loopdev=$3
 rloopdev=$4
 debug=$5
 ram_overlay_size=$6
+reset_overlay=$7
+reset_overlay_sizemb=$8
 
 function fodebug {
     if ((${debug})); then
@@ -179,6 +181,31 @@ if ( blockdev $pdev > /dev/null 2>&1 ); then
     mount -n -t auto $pdev /mnt/.LiveOS/overlayfs
     ofstype="$( /sbin/vol_id -t $pdev )"
     pmounted=1
+fi
+
+if [ "x${reset_overlay}" == "xon" ]; then
+    if [ -f "/mnt/.LiveOS/overlayfs${pathspec}" ]; then
+	if [ "x${reset_overlay_sizemb}" == "x0" ]; then
+	    echo -en "\n\n\nZyX: reinitializing overlay...\n\n\n"
+	    dd if=/dev/zero of="/mnt/.LiveOS/overlayfs${pathspec}" bs=1k count=42 conv=notrunc > /dev/null 2>&1
+	else
+	    echo -en "\n\n\nZyX: initializing overlay to ${reset_overlay_sizemb}MB, this may take a little while...\n\n\n"
+	    dd if=/dev/zero of="/mnt/.LiveOS/overlayfs${pathspec}" bs=1M count=${reset_overlay_sizemb} > /dev/null 2>&1
+	fi
+    else 
+	if [ "x${reset_overlay_sizemb}" == "x0" ]; then
+	    echo -en "\n\n\nZyX: could not find overlay, please enter size in MB of desired initial\n"
+	    echo -en "   : overlay, or enter to continue with a temporary RAM overlay.\n"
+	    read reset_overlay_sizemb
+	    if [ "x${reset_overlay_sizemb}x" != "xx" ]; then
+		echo -en "\n\n\nZyX: initializing overlay to ${reset_overlay_sizemb}MB, this may take a little while...\n\n\n"
+		dd if=/dev/zero of="/mnt/.LiveOS/overlayfs${pathspec}" bs=1M count=${reset_overlay_sizemb} > /dev/null 2>&1
+	    fi
+	else
+	    echo -en "\n\n\nZyX: initializing overlay to ${reset_overlay_sizemb}MB, this may take a little while...\n\n\n"
+	    dd if=/dev/zero of="/mnt/.LiveOS/overlayfs${pathspec}" bs=1M count=${reset_overlay_sizemb} > /dev/null 2>&1
+	fi
+    fi
 fi
 
 if [ -w "/mnt/.LiveOS/overlayfs${pathspec}" ]; then

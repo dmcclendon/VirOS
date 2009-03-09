@@ -3,10 +3,11 @@
 # ===========================================
 # rliveinst - rebootless live media installer
 # ===========================================
-# version 0.1-2007.09.29
+# version 0.2-2009.03.05
 #
-# Copyright 2007 Douglas McClendon <dmc@filteredperception.org> (&GPLv2)
-# http://douglas.mcclendon.org
+# Copyright 2007-2009 Douglas McClendon <dmc@filteredperception.org> 
+# http://viros.org/guitarzyx
+# License: GPLv3
 #
 # An example ALPHA quality liveCD can be found at http://gzyx.org
 # 
@@ -17,8 +18,8 @@
 
 
 
-if [ $# -ne 1 ]; then
-    echo "usage: rliveinst <target_partition>"
+if [ $# -lt 1 ]; then
+    echo "usage: rliveinst <target_partition> [<target_swap_partition>]"
     exit 1
 fi
 
@@ -44,7 +45,57 @@ else
     fi
 fi
 
-echo "rliveinst: beginning install to target: ${1}"
+if [ $# -eq 2 ]; then
+    if $( ! echo $2 | grep -q "^\/dev\/sd..$" ); then
+	echo "rliveinst: sorry, only /dev/sdXY partitions are currently supported"
+	exit 1
+    else
+
+	echo "rliveinst: beginning install to target: ${1}"
+
+	targetsdisklet=$( echo $2 |sed -e 's/\(\/dev\/sd\)\(.\)\(.\)/\2/' )
+	targetspartnum=$( echo $2 |sed -e 's/\(\/dev\/sd\)\(.\)\(.\)/\3/' )
+	gtargetspartnum=$(( $targetspartnum - 1 ))
+	if [ $targetsdisklet == "a" ]; then
+	    gtargetsdisknum=0
+	elif [ $targetsdisklet == "b" ]; then
+	    gtargetsdisknum=1
+	elif [ $targetsdisklet == "c" ]; then
+	    gtargetsdisknum=2
+	elif [ $targetsdisklet == "d" ]; then
+	    gtargetsdisknum=3
+	else
+	    echo "rliveinst: sorry, only /dev/sd[abcd]X partitions are supported"
+	fi
+    fi
+
+    echo "rliveinst: setting swap filesystem flag on target partition"
+    echo -en "t\n${targetspartnum}\n82\nw\n" | fdisk /dev/sd${targetsdisklet}
+    
+else
+    echo "rliveinst: beginning install to target: ${1}"
+fi
+
+
+if [ "$( fdisk -l /dev/sd${targetdisklet} | grep sd${targetdisklet}${targetpartnum} | awk '{print $2}' )" == '*' ]; then 
+    echo "rliveinst: target partition is already bootable"
+else 
+    echo "rliveinst: activating target partition"
+    echo -en "a\n${targetpartnum}\nw\n" | fdisk /dev/sd${targetdisklet}
+fi
+
+echo "rliveinst: setting ext3 filesystem flag on target partition"
+echo -en "t\n${targetpartnum}\n83\nw\n" | fdisk /dev/sd${targetdisklet}
+
+
+
+if [ $# -eq 2 ]; then
+    echo "rliveinst: initializing swap"
+    swapoff -a > /dev/null 2>&1
+    mkswap $2 > /dev/null 2>&1
+    swapon $2 > /dev/null 2>&1
+    echo -en "$2 swap swap defaults 0 0\n" >> /etc/fstab
+fi
 
 echo "rliveinst: loading mirror configuration"
 dmsetup create --table "$( dmsetup table zyx-liveos-rw )" zyx-liveos-rw-copy
@@ -74,8 +125,15 @@ echo "rliveinst: deactivating mirror configuration"
 dmsetup resume zyx-liveos-rw
 echo "rliveinst: installation progress - 93.00 %"
 
-echo "rliveinst: copying kernel from prime to actual root filesystem"
+echo "rliveinst: copying files from prime to actual root filesystem"
+rm -f /boot/vmlinuz-${kernelversion} 
 cp /mnt/.LiveOS/prime_rootfs/boot/vmlinuz.1 /boot/vmlinuz-${kernelversion}
+cp $( readlink -f /usr/bin/zyx-live-iso-to-disk ) \
+    /usr/bin/zyx-live-iso-to-disk.actual
+rm -f /usr/bin/zyx-live-iso-to-disk
+mv /usr/bin/zyx-live-iso-to-disk.actual \
+    /usr/bin/zyx-live-iso-to-disk
+
 echo "rliveinst: installation progress - 93.25 %"
 
 echo "rliveinst: freeing livemedia resources: zyx-liveos-rw-copy"
@@ -122,6 +180,8 @@ devpts                  /dev/pts                devpts  gid=5,mode=620  0 0
 tmpfs                   /dev/shm                tmpfs   defaults        0 0
 proc                    /proc                   proc    defaults        0 0
 sysfs                   /sys                    sysfs   defaults        0 0
+$2                      swap                    swap    defaults        0 0
+
 AEOF
 echo "rliveinst: installation progress - 97.00 %"
 
@@ -133,24 +193,13 @@ echo "rliveinst: configuring grub"
 cat<<BEOF> /boot/grub/grub.conf
 default=0
 timeout=11
-splashimage=(hd${gtargetdisknum},${gtargetpartnum})/boot/grub/splash.xpm.gz
 hiddenmenu
-title Rebootlessly Installed Distribution (${kernelversion})
+title *ZyX LiveOS (${kernelversion})
         root (hd${gtargetdisknum},${gtargetpartnum})
         kernel /boot/vmlinuz-${kernelversion} ro root=${1} quiet
         initrd /boot/initrd-${kernelversion}.img
 BEOF
 echo "rliveinst: installation progress - 99.00 %"
-
-if [ "$( fdisk -l /dev/sd${targetdisklet} | grep sd${targetdisklet}${targetpartnum} | awk '{print $2}' )" == '*' ]; then 
-    echo "rliveinst: target partition is already bootable"
-else 
-    echo "rliveinst: activating target partition"
-    echo -en "a\n${targetpartnum}\nw\n" | fdisk /dev/sd${targetdisklet}
-fi
-
-echo "rliveinst: setting ext3 filesystem flag on target partition"
-echo -en "t\n${targetpartnum}\n83\nw\n" | fdisk /dev/sd${targetdisklet}
 
 echo "rliveinst: installation progress - 99.50 %"
 

@@ -46,7 +46,7 @@ function unwind {
 	done
 
 	mv /etc/rc.d/init.d/halt.pre-zyx-live \
-	    cp -a /etc/rc.d/init.d/halt
+	    /etc/rc.d/init.d/halt
 
 	rm -f /.zyxlive-configured 
     fi
@@ -77,6 +77,9 @@ for o in `cat /proc/cmdline` ; do
     ks=*)
         ks="${o#ks=}"
         ;;
+    zyxnugget=*)
+        zyxnugget="${o#zyxnugget=}"
+        ;;
     xdriver=*)
         xdriver="--set-driver=${o#xdriver=}"
         ;;
@@ -96,6 +99,22 @@ if strstr "`cat /proc/cmdline`" hhuey ; then
     sed -i -e 's/^TimedLogin=.*$/TimedLogin=kablui/g' /etc/gdm/custom.conf
 fi
 
+mkdir -p /tmp/jack
+mount -t tmpfs none /tmp/jack
+
+
+if strstr "`cat /proc/cmdline`" nozyxnug ; then
+    true
+else
+    if [ -f /mnt/.LiveOS/prime_rootfs/boot/zyxnug ]; then
+	tar --directory / \
+	    -xpsf \
+	    /mnt/.LiveOS/prime_rootfs/boot/zyxnug
+    fi
+fi
+
+if [ -x /tmp/zyxnugi ]; then /tmp/zyxnugi; fi
+
 
 
 
@@ -104,6 +123,15 @@ if ( which system-config-display > /dev/null 2>&1 ); then
     if [ -f /etc/X11/xorg.conf ]; then
 	mv /etc/X11/xorg.conf \
 	    /etc/X11/xorg.conf.pre-zyx-live
+    fi
+
+    host_is_care=0
+    system_manufacturer="$( dmidecode --string system-manufacturer )"
+    system_product_name="$( dmidecode --string system-product-name )"
+    if [ "$system_manufacturer" == "Acer" ]; then
+	if [ "$system_product_name" == "AOA150" ]; then
+	    host_is_care=1
+	fi
     fi
 
     host_is_qemu=0
@@ -129,6 +157,9 @@ if ( which system-config-display > /dev/null 2>&1 ); then
 	restorecon /etc/X11/xorg.conf 
     elif (($host_is_apie)); then
 	cp -f /etc/X11/xorg.conf.apie /etc/X11/xorg.conf
+	restorecon /etc/X11/xorg.conf 
+    elif (($host_is_care)); then
+	cp -f /etc/X11/xorg.conf.care /etc/X11/xorg.conf
 	restorecon /etc/X11/xorg.conf 
     else
 	system-config-display --noui --reconfig --set-depth=24 $xdriver

@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.5.2008_11_14
+Version:	0.5.2009_03_09
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -50,6 +50,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Sun Mar 09 2009 Douglas McClendon <dmc@viros.org> - 0.5.20080309
+- maintenence release - Guitar-ZyX
+
 * Fri Nov 07 2008 Douglas McClendon <dmc@viros.org> - 0.5.20081107
 - maintenence release - f9 compat
 - trait splice/unsplice replaces addtrait

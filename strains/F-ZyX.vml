@@ -41,7 +41,7 @@ traits splice-software::install=patch
 traits splice-genericize-gdm
 traits splice-ZyX.brand::distroname="F-ZyX":distroversion="0.9"
 traits splice-ZyX.live
-traits splice-ZyX.livecd-iso-to-disk
+traits splice-zyx-live-iso-to-disk
 traits splice-turn-off-nfs
 traits splice-rliveinst
 traits splice-ZyX.adduser::username="guest":usercomment="Guest User"

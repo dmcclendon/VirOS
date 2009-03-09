@@ -16,4 +16,4 @@ VirOS Known Bugs
 - viros command frontend still attempts abbreviation, but currently does
   this less than successfully (at least when no match is found)
 
-
+- .kablui trait has path to default_desktop hardcoded in /usr/bin/kablui

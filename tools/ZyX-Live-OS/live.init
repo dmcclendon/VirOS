@@ -61,6 +61,10 @@ function set_defaults {
 
     overlay=off
 
+    reset_overlay=off
+
+    reset_overlay_sizemb=0
+
     livecache=off
 
     fatime=0
@@ -260,6 +264,13 @@ function parse_options {
 	    overlay=*)
                 overlay=${option#overlay=}
 		;;
+	    reset_overlay)
+                reset_overlay=on
+		;;
+	    reset_overlay=*)
+                reset_overlay=on
+                reset_overlay_sizemb=${option#reset_overlay=}
+		;;
 	    livecache=*)
                 livecache=${option#livecache=}
 		;;
@@ -303,7 +314,9 @@ function parse_options {
 
 function load_some_drivers {
 
-    modprobe loop max_loop=42
+    # loop seems to be compiled into recent fedora drivers, may need 
+    # alternate max_loop via cmdline
+    if ( modprobe loop max_loop=42 > /dev/null 2>&1 ); then true; fi
 
     if [ "x${cow_mode}" == "xdms" ]; then
 	modprobe dm_snapshot
@@ -378,6 +391,10 @@ function debug_show_opts {
     debug "cow_mode is $cow_mode"
 
     debug "overlay is $overlay"
+
+    debug "reset_overlay is $reset_overlay"
+
+    debug "reset_overlay_sizemb is $reset_overlay_sizemb"
 
     debug "livecache is $livecache"
 }
@@ -611,7 +628,8 @@ function prep_cow_rootfs {
         /sbin/findoverlay "$zyx" "$overlay" \
 	    $zyx_root_overlay_loopdev \
 	    $zyx_root_overlay_rloopdev \
-	    $debug $ram_overlay_size
+	    $debug $ram_overlay_size \
+	    $reset_overlay $reset_overlay_sizemb
     else
 
 #
@@ -687,6 +705,16 @@ function mount_final_rootfs {
 
 function tweak_rootfs {
     status "tweaking root filesystem for live session"
+
+    # XXX there might be a better way to do this, which is a workaround
+    #     and/or fix for the fact that /etc/rc.d/init.d/zyx-live needs
+    #     to run once on every boot (e.g. in persistence situations)
+    #     One thought was to take everyting out of eri/zl that can 
+    #     logically go elsewhere, then ensure that the rest is idempotent
+    #     for each thing it does.
+    if [ -f /sysroot/.zyxlive-configured ]; then
+	rm -f /sysroot/.zyxlive-configured 
+    fi
 
     #
     # functions and halt need to be patched for clean liveos rootfs shutdown

@@ -7,6 +7,7 @@ progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
 /sbin/chkconfig --add zyx-live
 
 lokkit -f --quiet --nostart --enabled
+lokkit -q -p 24642:tcp
 
 cp /boot/grub/grub.conf  /boot/grub/grub.conf.stock
 cat /boot/grub/grub.conf.stock | \
@@ -30,6 +31,7 @@ if [ -b /dev/sda ]; then
 fi
 
 modprobe kqemu > /dev/null 2>&1
+chmod 666 /dev/kqemu > /dev/null 2>&1
 
 chvt 4
 

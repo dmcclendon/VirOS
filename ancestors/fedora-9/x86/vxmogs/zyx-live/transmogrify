@@ -54,6 +54,10 @@ bootloader_sdmc_mode=0
 
 bootloader_hhuey_mode=0
 
+bootloader_instajam_mode=0
+
+bootloader_ijro_mode=0
+
 prelink=0
 
 timestamps="199912211221.42"
@@ -78,11 +82,15 @@ bootloader_isolinux_menu_timeoutrow="13"
 
 mkisofs_options="-no-emul-boot -boot-load-size 4 -boot-info-table -J -r -hide-rr-moved"
 
-echo "about to calculate user_kernel_version"
-ls -1A ${targetroot}/boot
-echo "about to calculate user_kernel_version"
-use_kernel_version=$( ls -1A ${targetroot}/boot/vmlinuz* | sort | \
-    tail -1 | sed -e 's/.*vmlinuz-//' )
+
+echo "calculating user_kernel_version"
+if [ -L ${targetroot}/boot/kernel-liveos-default ]; then
+    use_kernel_version=$( readlink -f ${targetroot}/boot/kernel-liveos-default | \
+	sed -e 's/.*vmlinuz-//' )
+else
+    use_kernel_version=$( ls -1A ${targetroot}/boot/vmlinuz* | sort | \
+	tail -1 | sed -e 's/.*vmlinuz-//' )
+fi
 echo "ukv $use_kernel_version"
 
 
@@ -195,7 +203,7 @@ rm -vf ${targetroot}/var/log/*vrun*
 rm -vf ${targetroot}/var/log/*vsys*
 
 verbose "cleaninug up /tmp..."
-rm -vf ${targetroot}/tmp/*
+rm -rvf ${targetroot}/tmp/*
 
 verbose "configuring target bootloader"
 
@@ -265,7 +273,7 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 
     if (( $md5verify )); then
 	isolinux_verify_entry="label check
-  menu label Check Media Then Boot
+  menu label Media Check 
   kernel /boot/vmlinuz.1
   append initrd=/boot/initrd.1  ro quiet root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg check "
     else
@@ -288,6 +296,24 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
   append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg hhuey "
     else
 	isolinux_hhuey_entry=""
+    fi
+
+    if (( $bootloader_instajam_mode )); then
+	isolinux_instajam_entry="label instajam
+  menu label InstaJam AutoStart
+  kernel /boot/vmlinuz.1
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg instajam "
+    else
+	isolinux_instajam_entry=""
+    fi
+
+    if (( $bootloader_ijro_mode )); then
+	isolinux_ijro_entry="label ijro
+  menu label InstaJam ResetOverlay
+  kernel /boot/vmlinuz.1
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg instajam reset_overlay "
+    else
+	isolinux_ijro_entry=""
     fi
 
     cat <<EOF> ${targetisodir}/boot/isolinux/isolinux.cfg
@@ -313,6 +339,8 @@ menu color unsel 0 #ff999999 #00000000
 menu color hotsel 0 #ff000000 #ffffffff
 menu color hotkey 7 #ffffffff #ff000000
 
+${isolinux_instajam_entry}
+${isolinux_ijro_entry}
 label linux
   menu label Boot ${fs_label} LiveOS
   kernel /boot/vmlinuz.1
@@ -321,7 +349,7 @@ ${isolinux_hhuey_entry}
 ${isolinux_sdmc_entry}
 ${isolinux_verify_entry}
 label safe
-  menu label Boot Safe/Text/Rescue Mode
+  menu label Safe/Text/Rescue Mode
   kernel /boot/vmlinuz.1
   append initrd=/boot/initrd.1  ro verbose root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append} 1 
 EOF
@@ -366,8 +394,8 @@ top -d 30 -b &
 pushd ${targetroot}
 
 if [ -d ./VirOS.prime_rootfs ]; then
-    mv ./VirOS.prime_rootfs/* ${targetisodir}/
-    rmdir ./VirOS.prime_rootfs 
+    cp -av ./VirOS.prime_rootfs/* ${targetisodir}/
+    rm -rf ./VirOS.prime_rootfs 
 fi
 
 if [ -f ./var/log/viros.boot.afiles.sorted_by_size.txt ]; then

@@ -33,7 +33,7 @@ traits splice-compose.repos::no_mutate_prepost=1:mode=install
 traits splice-ZyX.brand::distroname="M-ZyX":distroversion="0.1"
 traits splice-ZyX.live
 traits splice-ZyX.adduser::username="guest":usercomment="Guest User"
-traits splice-ZyX.livecd-iso-to-disk
+traits splice-zyx-live-iso-to-disk
 traits splice-M-ZyX.release
 traits splice-M-ZyX.logos
 traits splice-restorecon

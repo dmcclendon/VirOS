@@ -70,10 +70,25 @@ fi
 
 destpart=$( echo "$partchoice" | sed -e 's/.*\s--\s//' )
 
+spartchoice=$( /usr/lib/zrliveinst/listparts | sort | zenity --list \
+    --width 480 --height 360 \
+    --title "ZyX RLiveInst: Choose Installation Swap Volume" \
+    --column "Installation Swap Volume Options" \
+    --text "Select a disk volume for swap from the list below, or cancel for none:" )
+
+if [ "x" == "x${spartchoice}" ]; then
+    echo "zrliveinst: swap declined"
+    sdestpart="no"
+    swap_subtext=""
+else
+    sdestpart=$( echo "$spartchoice" | sed -e 's/.*\s--\s//' )
+    swap_subtext=" and $spartchoice"
+fi
+
 zenity --question \
     --width 480 --height 360 \
     --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
-    --text "Are you SURE that you want to ERASE and REPLACE BOTH the BOOTLOADER AND the disk partition $partchoice ???"
+    --text "Are you SURE that you want to ERASE and REPLACE BOTH the BOOTLOADER AND the disk partition $partchoice${swap_subtext}???"
 zrv=$?
 
 if (($zrv)); then
@@ -92,13 +107,23 @@ if (($zrv)); then
     exit 0
 fi
 
-/usr/sbin/rliveinst ${destpart} 2>&1 | \
-    tee -a /var/log/rliveinst.log | \
-    sed -u -e 's/.*-.//' -e 's/\s%$//' | \
-    zenity --progress --width 480 --height 360 \
-    --title "ZyX RLiveInst: Installation Progress" \
-    --text "Rebootless LiveOS Installation in Progress..."
-zrv=$?
+if [ "x${sdestpart}" == "xno" ]; then
+    /usr/sbin/rliveinst ${destpart} 2>&1 | \
+	tee -a /var/log/rliveinst.log | \
+	sed -u -e 's/.*-.//' -e 's/\s%$//' | \
+	zenity --progress --width 480 --height 360 \
+	--title "ZyX RLiveInst: Installation Progress" \
+	--text "Rebootless LiveOS Installation in Progress..."
+    zrv=$?
+else
+    /usr/sbin/rliveinst ${destpart} ${sdestpart} 2>&1 | \
+	tee -a /var/log/rliveinst.log | \
+	sed -u -e 's/.*-.//' -e 's/\s%$//' | \
+	zenity --progress --width 480 --height 360 \
+	--title "ZyX RLiveInst: Installation Progress" \
+	--text "Rebootless LiveOS Installation in Progress..."
+    zrv=$?
+fi
 
 if (($zrv)); then
     echo "zrliveinst: installation cancelled, goodbye!"
