@@ -1,54 +1,44 @@
 #!/bin/bash
 
+width=480
+height=360
+
 intro_text="\
-Hello and welcome to the revolutionary 
+   !!! WARNING WARNING WARNING !!!
 
-  *ZyX Rebootless LiveOS Installer* !!!
+This installation process will prompt for 
+one or two selected disk partitions, which 
+will then be wiped and used for this OS's
+root filesystem, and optionally swap space.
 
-If you choose to continue, you will be 
-able to select a disk volume, which will 
-be !!!WIPED!!! and replaced with the 
-Live Operating System that you are 
-currently using.  
+Unlike traditional LiveCD installers, you
+will not need to reboot after the
+installation completes.  You will be able
+to eject or remove the LiveOS media, and 
+then continue normal computer operation 
+without rebooting.  (pretty cool eh?)
 
-This means that unlike traditional LiveCD
-installers, you will not need to reboot
-after the installation completes.  You will
-be able to eject or remove the LiveOS media,
-and then go about your business, without
-a needless reboot.  That's pretty cool!
-
-WARNING WARNING WARNING !!! - before you
-click OK, make sure you understand that
-part above about how this process will
-*WIPE* the data from some part or all of
-one of your disk(s).  Feel free to cancel
-now, or at the 'are you sure' dialog after
-selecting the installation target.
-
-WARNING!!! This INCLUDES overwriting the
-bootloader with a new one.  For the time
-being, if you want to boot anything but
-this new system, it will be up to you
-to modify the grub configuration.
+This process *INCLUDES* overwriting the
+bootloader with a new one.  You will have
+to know grub configuration and basic system
+administration in order to add other
+preexisting bootable partitions other than
+the one(s) being presently WIPED(!).
 "
 
 done_text="\
 Congratulations!!!
 
-The installation is complete.  With any
+The installation is complete.  With any 
 luck, you should now be able to eject
 the LiveCD or remove the LiveUSB safely,
 and enjoy your newly installed system
 without rebooting.
-
-Remember, if some bug ate your system,
-you were warned...
 "
 
 zenity --question \
-    --width 480 --height 360 \
-    --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
+    --width ${width} --height ${height} \
+    --title "ZyX RLiveInst: Rebootless LiveOS Installer" \
     --text "$intro_text"
 zrv=$?
 
@@ -58,7 +48,7 @@ if (($zrv)); then
 fi
 
 partchoice=$( /usr/lib/zrliveinst/listparts | sort | zenity --list \
-    --width 480 --height 360 \
+    --width ${width} --height ${height} \
     --title "ZyX RLiveInst: Choose Installation Destination Disk Volume" \
     --column "Installation Destination Disk Volume Options" \
     --text "Select a disk volume for installation from the list below:" )
@@ -71,7 +61,7 @@ fi
 destpart=$( echo "$partchoice" | sed -e 's/.*\s--\s//' )
 
 spartchoice=$( /usr/lib/zrliveinst/listparts | sort | zenity --list \
-    --width 480 --height 360 \
+    --width ${width} --height ${height} \
     --title "ZyX RLiveInst: Choose Installation Swap Volume" \
     --column "Installation Swap Volume Options" \
     --text "Select a disk volume for swap from the list below, or cancel for none:" )
@@ -86,7 +76,7 @@ else
 fi
 
 zenity --question \
-    --width 480 --height 360 \
+    --width ${width} --height ${height} \
     --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
     --text "Are you SURE that you want to ERASE and REPLACE BOTH the BOOTLOADER AND the disk partition $partchoice${swap_subtext}???"
 zrv=$?
@@ -97,7 +87,7 @@ if (($zrv)); then
 fi
 
 zenity --question \
-    --width 480 --height 360 \
+    --width ${width} --height ${height} \
     --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
     --text "Are you REALLY SURE that you want to ERASE and REPLACE BOTH the BOOTLOADER AND the disk partition $partchoice ???"
 zrv=$?
@@ -111,7 +101,7 @@ if [ "x${sdestpart}" == "xno" ]; then
     /usr/sbin/rliveinst ${destpart} 2>&1 | \
 	tee -a /var/log/rliveinst.log | \
 	sed -u -e 's/.*-.//' -e 's/\s%$//' | \
-	zenity --progress --width 480 --height 360 \
+	zenity --progress --width ${width} --height ${height} \
 	--title "ZyX RLiveInst: Installation Progress" \
 	--text "Rebootless LiveOS Installation in Progress..."
     zrv=$?
@@ -119,7 +109,7 @@ else
     /usr/sbin/rliveinst ${destpart} ${sdestpart} 2>&1 | \
 	tee -a /var/log/rliveinst.log | \
 	sed -u -e 's/.*-.//' -e 's/\s%$//' | \
-	zenity --progress --width 480 --height 360 \
+	zenity --progress --width ${width} --height ${height} \
 	--title "ZyX RLiveInst: Installation Progress" \
 	--text "Rebootless LiveOS Installation in Progress..."
     zrv=$?
@@ -131,6 +121,6 @@ if (($zrv)); then
 fi
 
 zenity --info \
-    --width 480 --height 360 \
+    --width ${width} --height ${height} \
     --title "ZyX RLiveInst: The Rebootless LiveOS Installer" \
     --text "$done_text"

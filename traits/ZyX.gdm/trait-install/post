@@ -22,8 +22,8 @@ if [ "x${autologin}" == "xtrue" ]; then
 	cat << EOF >> /etc/gdm/custom.conf
 
 [daemon]
-TimedLoginEnable=true
-TimedLogin=${user}
+AutomaticLoginEnable=true
+AutomaticLogin=${user}
 TimedLoginDelay=11
 EOF
     fi
@@ -33,7 +33,7 @@ EOF
 	cat << EOF >> /etc/gdm/custom.conf
 
 [debug]
-Enabled=true
+Enabled=false
 EOF
     fi
 

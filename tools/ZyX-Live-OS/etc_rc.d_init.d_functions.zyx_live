@@ -50,12 +50,6 @@ if [ -z "${BOOTUP:-}" ]; then
   fi
 fi
 
-if [ "${BOOTUP:-}" != "verbose" ]; then
-   INITLOG_ARGS="-q"
-else
-   INITLOG_ARGS=
-fi
-
 # Interpret escape sequences in an fstab entry
 fstab_decode_str() {
 	fstab-decode echo "$1"
@@ -94,6 +88,7 @@ __umount_loop() {
 	local remaining sig=
 	local retry=3 count
 
+	#:::# zyx
         # Prepare protected filesystems (e.g. device mapper subcomponents of 
 	# rootfs) awk extension source.
 	rootfs_subcomponents_awk_source="{ }"
@@ -103,7 +98,10 @@ __umount_loop() {
 	    done
 	fi
 
+	#### remaining=$(LC_ALL=C awk "/^#/ {next} $1" "$2" | sort -r)
 	remaining=$(LC_ALL=C awk --source "${rootfs_subcomponents_awk_source}" --source "/^#/ {next} $1" "$2" | sort -r)
+	#:::# xyz
+
 	while [ -n "$remaining" -a "$retry" -gt 0 ]; do
 		if [ "$retry" -eq 3 ]; then
 			action "$3" fstab-decode umount $5 $remaining
@@ -111,11 +109,15 @@ __umount_loop() {
 			action "$4" fstab-decode umount $5 $remaining
 		fi
 		count=4
+		#:::# zyx: filter out our stuffs
+		####remaining=$(LC_ALL=C awk "/^#/ {next} $1" "$2" | sort -r)
 		remaining=$(LC_ALL=C awk --source "${rootfs_subcomponents_awk_source}" --source "/^#/ {next} $1" "$2" | sort -r)
 		while [ "$count" -gt 0 ]; do
 			[ -z "$remaining" ] && break
 			count=$(($count-1))
 			usleep 500000
+                        #:::# zyx: filter out our stuffs
+			####remaining=$(LC_ALL=C awk "/^#/ {next} $1" "$2" | sort -r)
 			remaining=$(LC_ALL=C awk --source "${rootfs_subcomponents_awk_source}" --source "/^#/ {next} $1" "$2" | sort -r)
 		done
 		[ -z "$remaining" ] && break
@@ -131,6 +133,7 @@ __umount_loopback_loop() {
 	local remaining devremaining sig=
 	local retry=3
 
+	#:::# zyx
         # Prepare protected filesystems (e.g. device mapper subcomponents of 
 	# rootfs) awk extension source.
 	rootfs_subcomponents_awk_source="{ }"
@@ -140,8 +143,11 @@ __umount_loopback_loop() {
 	    done
 	fi
 
+	####remaining=$(awk '$1 ~ /^\/dev\/loop/ && $2 != "/" {print $2}' /proc/mounts)
+	####devremaining=$(awk '$1 ~ /^\/dev\/loop/ && $2 != "/" {print $1}' /proc/mounts)
 	remaining=$(awk --source "${rootfs_subcomponents_awk_source}" --source '$1 ~ /^\/dev\/loop/ && $2 != "/" {print $2}' /proc/mounts)
 	devremaining=$(awk --source "${rootfs_subcomponents_awk_source}" --source '$1 ~ /^\/dev\/loop/ && $2 != "/" {print $1}' /proc/mounts)
+	#:::# xyz
 	while [ -n "$remaining" -a "$retry" -gt 0 ]; do
 		if [ "$retry" -eq 3 ]; then
 			action $"Unmounting loopback filesystems: " \
@@ -155,7 +161,11 @@ __umount_loopback_loop() {
 				action $"Detaching loopback device $dev: " \
 				losetup -d $dev
 		done
+		#:::# zyx: filter out our stuffs
+		####remaining=$(awk '$1 ~ /^\/dev\/loop/ && $2 != "/" {print $2}' /proc/mounts)
 		remaining=$(awk --source "${rootfs_subcomponents_awk_source}" --source '$1 ~ /^\/dev\/loop/ && $2 != "/" {print $2}' /proc/mounts)
+		#:::# zyx: filter out our stuffs
+		####devremaining=$(awk '$1 ~ /^\/dev\/loop/ && $2 != "/" {print $1}' /proc/mounts)
 		devremaining=$(awk --source "${rootfs_subcomponents_awk_source}" --source '$1 ~ /^\/dev\/loop/ && $2 != "/" {print $1}' /proc/mounts)
 		[ -z "$remaining" ] && break
 		fstab-decode /sbin/fuser -k -m $sig $remaining >/dev/null
@@ -404,15 +414,17 @@ status() {
 	base=${1##*/}
 
 	# First try "pidof"
-	pid="$(__pids_pidof "$1")"
+	__pids_var_run "$1" "$pid_file"
+	RC=$?
+	if [ -z "$pid_file" -a -z "$pid" ]; then
+		pid="$(__pids_pidof "$1")"
+	fi
 	if [ -n "$pid" ]; then
 	        echo $"${base} (pid $pid) is running..."
 	        return 0
 	fi
 
-	# Next try "/var/run/*.pid" files
-	__pids_var_run "$1" "$pid_file"
-	case "$?" in
+	case "$RC" in
 		0)
 			echo $"${base} (pid $pid) is running..."
 			return 0
@@ -477,17 +489,14 @@ echo_warning() {
 
 # Inform the graphical boot of our current state
 update_boot_stage() {
-  if [ "$GRAPHICAL" = "yes" -a -x /usr/bin/rhgb-client ]; then
-    /usr/bin/rhgb-client --update="$1"
+  if [ -x /usr/bin/plymouth ]; then
+      /usr/bin/plymouth --update="$1"
   fi
   return 0
 }
 
 # Log that something succeeded
 success() {
-  #if [ -z "${IN_INITLOG:-}" ]; then
-  #   initlog $INITLOG_ARGS -n $0 -s "$1" -e 1
-  #fi
   [ "$BOOTUP" != "verbose" -a -z "${LSB:-}" ] && echo_success
   return 0
 }
@@ -495,20 +504,14 @@ success() {
 # Log that something failed
 failure() {
   local rc=$?
-  #if [ -z "${IN_INITLOG:-}" ]; then
-  #   initlog $INITLOG_ARGS -n $0 -s "$1" -e 2
-  #fi
   [ "$BOOTUP" != "verbose" -a -z "${LSB:-}" ] && echo_failure
-  [ -x /usr/bin/rhgb-client ] && /usr/bin/rhgb-client --details=yes
+  [ -x /usr/bin/plymouth ] && /usr/bin/plymouth --details
   return $rc
 }
 
 # Log that something passed, but may have had errors. Useful for fsck
 passed() {
   local rc=$?
-  #if [ -z "${IN_INITLOG:-}" ]; then
-  #   initlog $INITLOG_ARGS -n $0 -s "$1" -e 1
-  #fi
   [ "$BOOTUP" != "verbose" -a -z "${LSB:-}" ] && echo_passed
   return $rc
 }  
@@ -516,9 +519,6 @@ passed() {
 # Log a warning
 warning() {
   local rc=$?
-  #if [ -z "${IN_INITLOG:-}" ]; then
-  #   initlog $INITLOG_ARGS -n $0 -s "$1" -e 1
-  #fi
   [ "$BOOTUP" != "verbose" -a -z "${LSB:-}" ] && echo_warning
   return $rc
 }  
@@ -529,23 +529,10 @@ action() {
 
   STRING=$1
   echo -n "$STRING "
-
-  if [ "${RHGB_STARTED:-}" != "" -a -w /etc/rhgb/temp/rhgb-console ]; then
-      echo -n "$STRING " > /etc/rhgb/temp/rhgb-console
-  fi
   shift
   "$@" && success $"$STRING" || failure $"$STRING"
   rc=$?
   echo
-  if [ "${RHGB_STARTED:-}" != "" -a -w /etc/rhgb/temp/rhgb-console ]; then
-      if [ "$rc" = "0" ]; then
-      	echo_success > /etc/rhgb/temp/rhgb-console
-      else
-        echo_failure > /etc/rhgb/temp/rhgb-console
-	[ -x /usr/bin/rhgb-client ] && /usr/bin/rhgb-client --details=yes
-      fi
-      echo > /etc/rhgb/temp/rhgb-console
-  fi
   return $rc
 }
 
@@ -557,7 +544,7 @@ strstr() {
 
 # Confirm whether we really want to run this service
 confirm() {
-  [ -x /usr/bin/rhgb-client ] && /usr/bin/rhgb-client --details=yes
+  [ -x /usr/bin/plymouth ] && /usr/bin/plymouth --hide-splash
   while : ; do 
       echo -n $"Start service $1 (Y)es/(N)o/(C)ontinue? [Y] "
       read answer
@@ -565,7 +552,7 @@ confirm() {
          return 0
       elif strstr $"cC" "$answer" ; then
 	 rm -f /var/run/confirm
-	 [ -x /usr/bin/rhgb-client ] && /usr/bin/rhgb-client --details=no
+	 [ -x /usr/bin/plymouth ] && /usr/bin/plymouth --show-splash
          return 2
       elif strstr $"nN" "$answer" ; then
          return 1
@@ -601,6 +588,13 @@ resolve_dm_name() {
     done
     line=$(echo "$line" | sed -e 's/^[ \t]*//' -e 's/[ \t]*$//' \
                -e 's/ core [12] [[:digit:]]\+ / core [12] [[:digit:]]\\+ /')
+    # XXX PJFIX -- this method of handling extra parameters is really just
+    #              asking for failure -- the better way would be to make
+    #              dmsetup or dmraid be able to do resolve_dm_name for us.
+    if [ "$(echo $line | awk '{ print $3 }')" == "mirror" ]; then
+        line=$(echo "$line" | sed \
+                -e 's/ 1 [[:alpha:]][[:alnum:]_]\+$/\\($\\|&$\\)/')
+    fi
     /sbin/dmsetup table | \
         sed -n -e "s/.*\(no block devices found\|No devices found\).*//" \
                -e "s/\(^[^:]\+\): $line\( \+$\|$\)/\1/p"

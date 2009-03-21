@@ -1,11 +1,11 @@
 #version=F9
-###repo --name=released --mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=fedora-9&arch=$basearch
-###repo --name=updates --mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=updates-released-f9&arch=$basearch
+###repo --name=released --mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=fedora-10&arch=$basearch
+###repo --name=updates --mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=updates-released-f10&arch=$basearch
 ## viros todo: add or verify basearch handling by mirrorlist
-#repo --name=released --baseurl=http://mirrors1.kernel.org/fedora/releases/9/Everything/$basearch/os
-repo --name=released --baseurl=http://mirrors1.kernel.org/fedora/releases/9/Everything/i386/os
-repo --name=updates --baseurl=http://mirrors1.kernel.org/fedora/updates/9/i386
-repo --name=updates-newkey --baseurl=http://mirrors1.kernel.org/fedora/updates/9/i386.newkey
+#repo --name=released --baseurl=http://mirrors1.kernel.org/fedora/releases/10/Everything/$basearch/os
+repo --name=released --baseurl=http://mirrors1.kernel.org/fedora/releases/10/Everything/i386/os
+#####repo --name=updates --baseurl=http://mirrors1.kernel.org/fedora/updates/10/i386
+repo --name=updates --baseurl=http://mirrors1.kernel.org/fedora/updates/10/i386
 # Firewall configuration
 firewall --disabled
 # X Window System configuration information
@@ -24,7 +24,8 @@ selinux --enforcing
 services  --disabled=network,sshd,nfs,nfslock --enabled=NetworkManager
 # System timezone
 ###timezone  US/Eastern
-timezone  US/Central
+#timezone  America/Denver
+timezone  America/Los Angeles
 # Disk partitioning information
 part /  --size=4096 --bytes-per-inode=4096
 

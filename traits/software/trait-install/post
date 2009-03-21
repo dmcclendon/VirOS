@@ -14,8 +14,8 @@ source ${progdir}/trait-options
 
 if [ "x${update}" == "xyes" ]; then
     echo "${progname}: updating system software ..."
-    yum -y --enablerepo=updates --disablerepo=updates-newkey update yum
-    yum -y --enablerepo=updates --disablerepo=updates-newkey update
+    yum -y --enablerepo=updates update yum
+    yum -y --enablerepo=updates update
     yum -y update
     echo "${progname}: done updating system software."
 fi

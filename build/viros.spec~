@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.5.2009_03_21
+Version:	0.5.20090321
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset

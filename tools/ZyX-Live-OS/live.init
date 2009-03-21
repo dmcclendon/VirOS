@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 # Inspired by similar scripts from other LiveOS distributions, particularly
 # Fedora's mayflower, and Ubuntu's casper.
@@ -318,12 +318,14 @@ function load_some_drivers {
     # alternate max_loop via cmdline
     if ( modprobe loop max_loop=42 > /dev/null 2>&1 ); then true; fi
 
+    # in f10 this is compiled into the kernel by default
     if [ "x${cow_mode}" == "xdms" ]; then
-	modprobe dm_snapshot
+	# modprobe -q wasn't enough for set -e environment
+	if ( modprobe dm_snapshot > /dev/null 2>&1 ); then true; fi
     fi
 
-    # due to bugs? with udev, just load some drivers 
-    modprobe sr_mod
+    # modprobe -q wasn't enough for set -e environment
+    if ( modprobe sr_mod > /dev/null 2>&1 ); then true; fi
 
 }
 
@@ -463,12 +465,15 @@ SLREOF
 
     echo 'udev_log="error"' > /etc/udev/udev.conf
 
+
     # rules for loading modules 
+    # note: -q's are due to f10 compiling some things into the kernel that f9 didn't
+    #       not enough for set -e env, but maybe enough for udev
     cat <<MPREOF >> /etc/udev/rules.d/10-modprobe.rules
 ACTION=="add", SUBSYSTEM=="?*", ENV{MODALIAS}=="?*", RUN+="/sbin/modprobe \$env{MODALIAS}"
-ACTION=="add", SUBSYSTEM=="scsi_device" RUN+="/sbin/modprobe sg"
-ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="0|7|14", RUN+="/sbin/modprobe sd_mod"
-ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="[45]", RUN+="/sbin/modprobe sr_mod"
+ACTION=="add", SUBSYSTEM=="scsi_device" RUN+="/sbin/modprobe -q sg"
+ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="0|7|14", RUN+="/sbin/modprobe -q sd_mod"
+ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="[45]", RUN+="/sbin/modprobe -q sr_mod"
 MPREOF
 
 }
@@ -480,10 +485,10 @@ function start_udev {
     /sbin/udevd --daemon
 
     status "launching udevtrigger to create device nodes"
-    /sbin/udevtrigger
+    /sbin/udevadm trigger
 
     status "waiting for udev to settle"
-    /sbin/udevsettle --timeout=30 || status "udev is still unsettled"
+    /sbin/udevadm settle --timeout=30 || status "udev is still unsettled"
 }
 
 function wait_for_udev_rootfs {

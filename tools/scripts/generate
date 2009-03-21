@@ -80,7 +80,7 @@ fi
 
 
 
-vregopt config string "f9"
+vregopt config string "f10"
 vregopt help boolean 0
 vregopt verbose boolean 0 inherit
 vregopt debug boolean 0 inherit
@@ -89,12 +89,11 @@ vregopt cachedir string "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 
 vregopt vsysgen_output_container_size string "7G" inherit
-vregopt vsysgen_distro string "fedora-9" inherit
+vregopt vsysgen_distro string "fedora-10" inherit
 vregopt vsysgen_arch string "x86" inherit
-vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/9/Fedora/i386/iso/Fedora-9-i386-netinst.iso" inherit
-vregopt vsysgen_install_boot_iso_sha1sum string "3b1df20ece05d64c34dd9c64400975b74eded0f2" inherit
-
-vregopt vsysgen_distro_config string "f9.ks" inherit
+vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/10/Fedora/i386/iso/Fedora-10-i386-netinst.iso" inherit
+vregopt vsysgen_install_boot_iso_sha1sum string "8f34cf6b8996c2a49578928aa437244f357ab0c2" inherit
+vregopt vsysgen_distro_config string "f10.ks" inherit
 vregopt vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" inherit
 vregopt vsysgen_screencast_output string "" inherit
 

@@ -15,11 +15,11 @@ cachedir ~/.viros/cachedir
 ##
 
 ###vsysgen_output_container_size 7G
-###vsysgen_distro fedora-9
+###vsysgen_distro fedora-10
 ###vsysgen_arch x86
-###vsysgen_install_boot_iso "http://download.fedoraproject.org/pub/fedora/linux/releases/9/Fedora/i386/iso/Fedora-9-i386-rescuecd.iso"
-###vsysgen_install_boot_iso_sha1sum "3b1df20ece05d64c34dd9c64400975b74eded0f2" 
-###vsysgen_distro_config string "f9.ks" inherit
+###vsysgen_install_boot_iso "http://mirrors.kernel.org/pub/fedora/releases/10/Fedora/i386/iso/Fedora-10-i386-netinst.iso"
+###vsysgen_install_boot_iso_sha1sum "8f34cf6b8996c2a49578928aa437244f357ab0c2"
+###vsysgen_distro_config string "f10.ks" inherit
 ###vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" 
 
 vsysgen_distro_config F-ZyX.ks

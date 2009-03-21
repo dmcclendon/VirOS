@@ -11,6 +11,9 @@
 NOLOCALE=1
 . /etc/init.d/functions
 
+UMOUNT="umount"
+[ ! -w /etc ] && UMOUNT="umount -n"
+
 action() {
    echo -n "$1 "
    shift
@@ -28,7 +31,7 @@ halt_crypto() {
 	[ -z "$dst" -o "${dst#\#}" != "$dst" ] && continue
         if [ -b "/dev/mapper/$dst" ]; then
             if /sbin/dmsetup info "$dst" | grep -q '^Open count: *0$'; then
-                /sbin/cryptsetup remove "$dst"
+                action $"Stopping disk encryption for $dst" /sbin/cryptsetup remove "$dst"
             else
                 fnval=1
             fi
@@ -73,9 +76,8 @@ action $"Sending all processes the KILL signal..."  /sbin/killall5 -9
 /sbin/halt -w
 
 # Save mixer settings, here for lack of a better place.
-grep -q "\(alsa\)" /proc/devices
-if [ $? = 0 -a -x /sbin/salsa ]; then
-   action $"Saving mixer settings" /sbin/salsa -s
+if [ -s /etc/alsa/alsactl.conf -a -x /sbin/alsactl ]; then
+  action $"Saving mixer settings" /sbin/alsactl -E ALSA_CONFIG_PATH=/etc/alsa/alsactl.conf --ignore store
 fi
 
 # Save random seed
@@ -83,53 +85,13 @@ touch /var/lib/random-seed
 chmod 600 /var/lib/random-seed
 action $"Saving random seed: " dd if=/dev/urandom of=/var/lib/random-seed count=1 bs=512 2>/dev/null
 
-# Sync the system clock.
-ARC=0
-SRM=0
-UTC=0
+#:::# zyx: note this will get sed replaced by upstream livesys (verify)
+[ -x /sbin/hwclock ] && action $"Syncing hardware clock to system time" /sbin/hwclock --systohc
 
-if [ -f /etc/sysconfig/clock ]; then
-   . /etc/sysconfig/clock
-
-   # convert old style clock config to new values
-   if [ "${CLOCKMODE}" = "GMT" ]; then
-      UTC=true
-   elif [ "${CLOCKMODE}" = "ARC" ]; then
-      ARC=true
-   fi
-fi
-
-CLOCKDEF=""
-CLOCKFLAGS="$CLOCKFLAGS --systohc"
-
-case "$UTC" in
-   yes|true)
-	CLOCKFLAGS="$CLOCKFLAGS -u";
-	CLOCKDEF="$CLOCKDEF (utc)";
-	;;
-   no|false)
-	CLOCKFLAGS="$CLOCKFLAGS --localtime";
-	CLOCKDEF="$CLOCKDEF (localtime)";
-	;;
-esac
-
-case "$ARC" in
-   yes|true)
-	CLOCKFLAGS="$CLOCKFLAGS -A";
-	CLOCKDEF="$CLOCKDEF (arc)";
-	;;
-esac
-case "$SRM" in
-   yes|true)
-	CLOCKFLAGS="$CLOCKFLAGS -S";
-	CLOCKDEF="$CLOCKDEF (srm)";
-	;;
-esac
-
-[ -x /sbin/no-such-hwclock ] && action $"Syncing hardware clock to system time" /sbin/no-such-hwclock $CLOCKFLAGS
-
+#:::# zyx: note this will get sed replaced by upstream livesys (verify)
 # Prepare protected filesystems (e.g. device mapper subcomponents of rootfs)
 # awk extension source.
+#:::# zyx
 rootfs_subcomponents_awk_source="{ }"
 rootfs_subcomponents_awk_source_for_mount="{ }"
 if [ -f /dev/.fstab.live.special ]; then
@@ -138,11 +100,16 @@ if [ -f /dev/.fstab.live.special ]; then
 	rootfs_subcomponents_awk_source_for_mount="\$3 == \"${protected_fs}\" { next ; } ${rootfs_subcomponents_awk_source}"
     done
 fi
+#:::# xyz
 
+#:::# zyx: filter out our stuffs
 # Try to unmount tmpfs filesystems to avoid swapping them in.  Ignore failures.
+#tmpfs=$(awk '$2 ~ /^\/($|proc|dev)/ { next; }
+#	     $3 == "tmpfs" { print $2; }' /proc/mounts | sort -r)
 tmpfs=$(awk --source "${rootfs_subcomponents_awk_source}" --source '$2 ~ /^\/($|proc|dev)/ { next; }
 	     $3 == "tmpfs" { print $2; }' /proc/mounts | sort -r)
-[ -n "$tmpfs" ] && fstab-decode umount $tmpfs 2>/dev/null
+#:::# xyz
+[ -n "$tmpfs" ] && fstab-decode $UMOUNT $tmpfs 2>/dev/null
 
 # Turn off swap, then unmount file systems.
 [ -f /proc/swaps ] && SWAPS=`awk '! /^Filename/ { print $1 }' /proc/swaps`
@@ -154,8 +121,6 @@ if [ -n "$SWAPS" ]; then
 	    backdev=$(/sbin/cryptsetup status "$dst" \
 		| awk '$1 == "device:" { print $2 }')
 	    /sbin/cryptsetup remove "$dst"
-	    # Leave partition with a blank plain-text swap
-	    mkswap "$backdev" > /dev/null
 	fi
     done
 fi
@@ -181,20 +146,24 @@ LANG=C __umount_loop '$2 ~ /^\/$|^\/proc|^\/dev/{next}
 	$"Unmounting file systems (retry): " \
 	-f
 
-[ -f /proc/bus/usb/devices ] && umount /proc/bus/usb
+[ -f /proc/bus/usb/devices ] && $UMOUNT /proc/bus/usb
 
-[ -f /etc/crypttab ] && \
-    LANG=C action $"Stopping disk encryption: " halt_crypto
+[ -f /etc/crypttab ] && halt_crypto
 
 # remove the crash indicator flag
 rm -f /.autofsck
 
 # Try all file systems other than root, essential filesystems and RAM disks,
 # one last time.
-awk --source "${rootfs_subcomponents_awk_source}" --source '$2 !~ /\/(|dev|proc|selinux)$/ && $1 !~ /^\/dev\/ram/ { print $2 }' \
+#:::# zyx: filter out our stuffs
+###awk '$2 !~ /\/(|dev|proc|selinux|sys)$/ && $1 !~ /^\/dev\/ram/ { print $2 }' \
+###    /proc/mounts | sort -r | \
+###
+awk --source "${rootfs_subcomponents_awk_source}" \
+    --source '$2 !~ /\/(|dev|proc|selinux)$/ && $1 !~ /^\/dev\/ram/ { print $2 }' \
     /proc/mounts | sort -r | \
   while read line; do
-    fstab-decode umount -f $line
+    fstab-decode $UMOUNT -f $line
 done
 
 if [ -x /sbin/halt.local ]; then
@@ -203,11 +172,16 @@ fi
 
 # Remount read only anything that's left mounted.
 # echo $"Remounting remaining filesystems readonly"
-mount | awk --source "${rootfs_subcomponents_awk_source_for_mount}" --source '{ print $3 }' | while read line; do
+#:::# zyx: filter out our stuffs
+####mount | awk '{ print $3 }' | while read line; do
+mount | \
+    awk --source "${rootfs_subcomponents_awk_source_for_mount}" \
+    --source '{ print $3 }' | while read line; do
+#:::# xyz
     fstab-decode mount -n -o ro,remount $line
 done
 
-#
+#:::# zyx
 # LiveOS persistent overlay teardown
 #
 
@@ -250,7 +224,7 @@ fi
 
 #
 # END of LiveOS persistent overlay teardown
-#
+#:::# xyz
 
 # Now halt or reboot.
 echo $"$message"
