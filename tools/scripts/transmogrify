@@ -181,8 +181,8 @@ export vopt_quiet
 
 
 verbose "NOT running get_dna_of_vsi in the name of developtment speed"
-distro="gzyx-0.6"
-arch="i686"
+distro="default"
+arch="default"
 
 verbose "vsi distro appears to be ${distro}, vsi arch appears to be ${arch}"
 

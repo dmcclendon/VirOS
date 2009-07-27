@@ -283,7 +283,7 @@ if [ "${vsys_qrap_callback}Y" != "Y" ]; then
 fi
 
 
-vopt_qopts="-net nic,model=pcnet -net user,hostname=zyxhost"
+vopt_qopts="-net nic,model=i82557b -net user,hostname=zyxhost"
 
 numqargs=0
 while (($#)); do

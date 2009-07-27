@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -90,6 +90,7 @@ if [ -L ${targetroot}/boot/kernel-liveos-default ]; then
 else
     use_kernel_version=$( ls -1A ${targetroot}/boot/vmlinuz* | sort | \
 	tail -1 | sed -e 's/.*vmlinuz-//' )
+    use_kernel_version="$( chroot ${targetroot} rpm -qa --last | grep kernel-2.6 | head -1 | awk '{print $1}' | sed -e 's/^kernel-//' ).i686"
 fi
 echo "ukv $use_kernel_version"
 
@@ -216,10 +217,9 @@ mv ${targetroot}/boot/initrd-${use_kernel_version}.zyx.img \
     ${targetisodir}/boot/initrd.1
 
 rm -f ${targetroot}/boot/initrd-*
-for kernel in $( ls -1A ${targetroot}/boot/vmlinuz-* ); do
-    rm -f ${kernel}
-    ln -s /mnt/.LiveOS/prime_rootfs/boot/vmlinuz.1 ${kernel}
-done
+rm -f ${targetroot}/boot/vmlinuz-${use_kernel_version}
+ln -s /mnt/.LiveOS/prime_rootfs/boot/vmlinuz.1 \
+    ${targetroot}/boot/vmlinuz-${use_kernel_version}
 
 sed -i -e 's/Booting\ the\ kernel\./\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ /' \
     ${targetisodir}/boot/vmlinuz.1
@@ -437,7 +437,7 @@ fi
 if [ "x${timestamps}" != "x" ]; then
     verbose "changing timestamps to $timestamps"
     /usr/sbin/chroot /scratch/target find / -xdev \
-	-exec touch -t $timestamps '{}' ';'
+	-exec touch -t $timestamps '{}' ';' > /dev/null 2>&1
 fi
 
 sync ; sleep 1 ; sync

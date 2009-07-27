@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -27,7 +27,7 @@
 #
 #############################################################################
 
-echo "STATUS: viros mutate post - fedora-9/x86 - STARTING XXXXXXXXXXXXXXXXXXXX"
+echo "STATUS: viros mutate post - fedora-10/x86 - STARTING XXXXXXXXXXXXXXXXXXXX"
 
 reposdir=$( cat /etc/yum.conf  | grep "^reposdir=" | sed -e 's/^reposdir=//' )
 if [ "x${reposdir}" == "x" ]; then reposdir=/etc/yum.repos.d; fi
@@ -37,5 +37,5 @@ if [ -d /etc/yum.reposdir.unmutated ]; then
     mv /etc/yum.reposdir.unmutated ${reposdir}
 fi
 
-echo "STATUS: viros mutate post - fedora-9/x86 - EXITING XXXXXXXXXXXXXXXXXXXX"
+echo "STATUS: viros mutate post - fedora-10/x86 - EXITING XXXXXXXXXXXXXXXXXXXX"
 

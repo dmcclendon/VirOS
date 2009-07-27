@@ -4,8 +4,8 @@
 ## viros todo: add or verify basearch handling by mirrorlist
 #repo --name=released --baseurl=http://mirrors1.kernel.org/fedora/releases/10/Everything/$basearch/os
 repo --name=released --baseurl=http://mirrors1.kernel.org/fedora/releases/10/Everything/i386/os
-#####repo --name=updates --baseurl=http://mirrors1.kernel.org/fedora/updates/10/i386
-repo --name=updates --baseurl=http://mirrors1.kernel.org/fedora/updates/10/i386
+# anaconda claims to ignore this duplcate repo
+#repo --name=updates --baseurl=http://mirrors1.kernel.org/fedora/updates/10/i386
 # Firewall configuration
 firewall --disabled
 # X Window System configuration information
@@ -24,10 +24,10 @@ selinux --enforcing
 services  --disabled=network,sshd,nfs,nfslock --enabled=NetworkManager
 # System timezone
 ###timezone  US/Eastern
-#timezone  America/Denver
-timezone  America/Los Angeles
+timezone  America/Denver
+#timezone  America/Los_Angeles
 # Disk partitioning information
-part /  --size=4096 --bytes-per-inode=4096
+part /  --size=4096
 
 %post
 # FIXME: it'd be better to get this installed from a package

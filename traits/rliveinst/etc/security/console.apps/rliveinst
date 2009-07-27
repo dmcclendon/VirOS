@@ -1,3 +1,0 @@
-USER=root
-PROGRAM=/usr/sbin/rliveinst
-SESSION=true

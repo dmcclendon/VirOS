@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.5.2009_03_21
+Version:	0.5.2009_07_27
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -50,10 +50,13 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
-* Sat Mar 21 2009 Douglas McClendon <dmc@viros.org> - 0.5.20080321
+* Sun Jul 27 2009 Douglas McClendon <dmc@viros.org> - 0.5.20090727
+- for Guitar-ZyX-0.3
+
+* Sat Mar 21 2009 Douglas McClendon <dmc@viros.org> - 0.5.20090321
 - primarily, 1st pass at f10 compat
 
-* Sun Mar 09 2009 Douglas McClendon <dmc@viros.org> - 0.5.20080309
+* Sun Mar 09 2009 Douglas McClendon <dmc@viros.org> - 0.5.20090309
 - maintenence release - Guitar-ZyX
 
 * Fri Nov 07 2008 Douglas McClendon <dmc@viros.org> - 0.5.20081107

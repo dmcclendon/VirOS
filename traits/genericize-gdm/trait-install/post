@@ -1,5 +1,10 @@
 #!/bin/bash
 
-patch \
-    /usr/share/gdm/gdm-greeter-login-window.glade \
-    /trait-expanded/trait-install/usr.share.gdm.gdm-greeter-login-window.glade.patch
+
+cat <<EOF >> /etc/rc.d/rc.local
+if [ -f /usr/share/gdm/gdm-greeter-login-window.glade.zyx ]; then
+    if (! diff -q /usr/share/gdm/gdm-greeter-login-window.glade.zyx /usr/share/gdm/gdm-greeter-login-window.glade > /dev/null 2>&1); then
+        cp /usr/share/gdm/gdm-greeter-login-window.glade.zyx /usr/share/gdm/gdm-greeter-login-window.glade
+    fi
+fi
+

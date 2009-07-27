@@ -1,11 +1,11 @@
---- /tmp/gdm-greeter-login-window.glade	2008-10-29 21:08:55.000000000 -0700
-+++ /tmp/new.gdm-greeter-login-window.glade	2008-10-29 21:09:22.000000000 -0700
-@@ -17,7 +17,7 @@
-             <property name="visible">True</property>
-             <child>
-               <widget class="GtkImage" id="logo-image">
--                <property name="visible">True</property>
-+                <property name="visible">False</property>
-                 <property name="pixel_size">64</property>
-                 <property name="icon_name">computer</property>
-               </widget>
+--- usr.share.gdm.gdm-greeter-login-window.glade.orig	2009-07-18 03:03:31.000000000 -0600
++++ usr.share.gdm.gdm-greeter-login-window.glade	2009-07-18 03:04:00.000000000 -0600
+@@ -60,7 +60,7 @@
+ 
+ 		  <child>
+ 		    <widget class="GtkImage" id="logo-image">
+-		      <property name="visible">True</property>
++		      <property name="visible">False</property>
+ 		      <property name="icon_name">computer</property>
+ 		      <property name="pixel_size">64</property>
+ 		      <property name="xalign">0.5</property>
