@@ -1,10 +1,22 @@
 #!/bin/bash
 
-
 cat <<EOF >> /etc/rc.d/rc.local
-if [ -f /usr/share/gdm/gdm-greeter-login-window.glade.zyx ]; then
-    if (! diff -q /usr/share/gdm/gdm-greeter-login-window.glade.zyx /usr/share/gdm/gdm-greeter-login-window.glade > /dev/null 2>&1); then
-        cp /usr/share/gdm/gdm-greeter-login-window.glade.zyx /usr/share/gdm/gdm-greeter-login-window.glade
-    fi
-fi
 
+
+#############################################################################
+#
+# this is a gross way to workaround the fact that I don't yet know how 
+# to easily/scriptomatically create a new named/themed icon, and even
+# then I'm not sure that will be sufficient to get the customization that
+# this achieves (replacing the icon, and hiding the computer name in gdm)
+#
+# Assumption is that this is sufficient (at bootup) because I don't think
+# gdm rereads its glade file.  If it does, this might be better in or also
+# in cron.daily
+# 
+zyx-chronic-fixup.gdm
+#
+#############################################################################
+
+
+EOF

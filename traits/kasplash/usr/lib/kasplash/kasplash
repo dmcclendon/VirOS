@@ -1,0 +1,539 @@
+#!/usr/bin/env python
+#############################################################################
+#############################################################################
+##
+## kasplash : display a fullscreen splashscreen, with progress meter
+##
+## Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+##
+#############################################################################
+#############################################################################
+
+
+#############################################################################
+#############################################################################
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Library General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+#############################################################################
+#############################################################################
+
+
+#############################################################################
+#############################################################################
+##
+## abbreviations (for code readability- you need to know these)
+##
+#############################################################################
+#############################################################################
+#
+#
+
+
+#############################################################################
+#############################################################################
+##
+## constants (more room to optionize)
+##
+#############################################################################
+#############################################################################
+
+# progress bar text and background color
+PBAR_FG = "#BBBBBB"
+PBAR_BG = "#000000"
+
+# period for refreshing
+POLL_INTERVAL = 100
+
+# Slush factor controls slowly displayed progress tracks actual progress.
+# A higher number (7.7) generally results in smoother progressbar animation.
+SLUSH_FACTOR=17
+
+# number of poll intervals to wait after progress hits 1.0 before exiting
+DONE_WAIT = 29
+
+# testing
+TEST_POLL_INTERVAL = 500
+# amount to add to progress fraction every TEST_POLL_INTERVAL ms
+#TEST_INCREMENT = 0.02
+TEST_INCREMENT = 0.2
+
+# window minimum width and height
+KSWIN_MIN_WIDTH = 400
+KSWIN_MIN_HEIGHT = 300
+# window default (non-fullscreen) width and height
+KSWIN_DEF_WIDTH = 600
+KSWIN_DEF_HEIGHT = 400
+
+#############################################################################
+#############################################################################
+##
+## libraries
+##
+#############################################################################
+#############################################################################
+
+try:
+    import pygtk
+    pygtk.require("2.0")
+except:
+    pass
+
+try:
+    import sys
+    import gobject
+    import os
+    import time
+    # for command line argument processing
+    from optparse import OptionParser
+    from os import O_NONBLOCK
+    from fcntl import fcntl, F_SETFL, F_GETFL
+    import gtk
+    import gtk.glade
+    import gtk.gdk
+except:
+    sys.exit(1)
+
+
+#############################################################################
+#############################################################################
+##
+## Class Definitions
+##
+#############################################################################
+#############################################################################
+
+
+#############################################################################
+##
+## kasplashGTK: Main GUI Object's Class
+##
+#############################################################################
+class kasplashGTK(object):
+
+    #
+    # Initialization/Constructor
+    #
+    def __init__(self,
+                 image_file="/usr/lib/kasplash/default.jpg",
+                 pipe_path="/tmp/kasplash.pipe",
+                 progress_text="progress...",
+                 test_mode=False,
+                 pbar_width=35.7,
+                 pbar_height=9.6,
+                 pbar_xcenter=50.0,
+                 pbar_ycenter=80.0,
+                 ):
+
+        # set class owned state variables from initialization parameters
+        self.image_file = image_file
+        self.pipe_path = pipe_path
+        self.progress_text= progress_text
+        self.test_mode = test_mode
+        self.pbar_width = pbar_width
+        self.pbar_height = pbar_height
+        self.pbar_xcenter = pbar_xcenter
+        self.pbar_ycenter = pbar_ycenter
+        
+        #
+        # load the glade designed gui 
+        #
+        # TODO: graceful error handling, i.e. file missing, etc.
+        self.gladefile = os.path.dirname(\
+            os.path.abspath(os.path.realpath(__file__))) + \
+            "/kasplash.glade"
+
+        try:
+            self.wTree = gtk.glade.XML(self.gladefile)
+        except:
+            sys.exit(1)
+            
+
+        #
+        # get the global widget handles we will use
+        #
+        self.splashscreen_window = self.wTree.get_widget("splashscreen")
+        self.progressbar = self.wTree.get_widget("progressbar")
+        self.fixed = self.wTree.get_widget("fixed")
+        self.background = self.wTree.get_widget("background")
+
+        #
+        # initialize state
+        #
+        self.input_opened = 0
+        self.progress = 0.0
+        self.last_progress = 0.0
+        self.displayed_progress = 0.0
+        self.donewait = -1
+        self.progressbar.set_fraction(self.displayed_progress)
+        self.progressbar.set_text(self.progress_text)
+
+        #
+        # create signal handler dictionary and connect it
+        #
+        dic = {
+            "on_splashscreen_destroy_event" :
+                self.on_splashscreen_destroy_event,
+            "on_splashscreen_key_press_event" :
+                self.on_splashscreen_key_press_event,
+            "on_splashscreen_configure_event" :
+                self.on_splashscreen_configure_event,
+            }
+        self.wTree.signal_autoconnect(dic)
+
+        #
+        # load the image
+        #
+
+        self.gpb = gtk.gdk.pixbuf_new_from_file(self.image_file)
+
+        # set fullscreen
+        self.splashscreen_window.set_default_size(KSWIN_MIN_WIDTH,
+                                                  KSWIN_MIN_HEIGHT)
+        self.splashscreen_window.set_size_request(KSWIN_DEF_WIDTH,
+                                                  KSWIN_DEF_HEIGHT)
+        self.splashscreen_window.set_keep_above(True)
+        self.splashscreen_window.stick()
+        self.splashscreen_window.fullscreen()
+
+        # make a fifo
+        os.mkfifo(self.pipe_path)
+        
+        # 
+        # add a timeout handler to run periodic refresh function
+        #
+        self.timeout_handler_id = \
+            gobject.timeout_add(POLL_INTERVAL, self.do_periodic)
+        if self.test_mode:
+            self.timeout_handler_id_test = \
+                gobject.timeout_add(TEST_POLL_INTERVAL, self.do_periodic_test)
+            self.test_progress = 0.0
+
+    ##
+    ## signal handlers
+    ##
+
+    # if user closes main window
+    def on_splashscreen_destroy_event(self, widget):
+        os.unlink(self.pipe_path)
+        sys.exit(0)
+
+    # if user hits a key
+    def on_splashscreen_key_press_event(self, widget, event):
+        # escape causes immediate exit
+        if event.keyval == gtk.keysyms.Escape:
+            os.unlink(self.pipe_path)
+            sys.exit(0)
+        # f causes fullscreen
+        elif event.keyval == gtk.keysyms.f:
+            self.splashscreen_window.fullscreen()
+        # any other key causes unfullscreen
+        else:
+            self.splashscreen_window.unfullscreen()
+            self.splashscreen_window.set_size_request(KSWIN_DEF_WIDTH,
+                                                      KSWIN_DEF_HEIGHT)
+       
+
+    # function to handle window resize events (and first size initialization)
+    def on_splashscreen_configure_event(self, widget, unknown):
+
+        width, height = self.splashscreen_window.get_size()
+
+        #
+        # calculate the heights and widths of the 5 regions of the screen
+        #
+        # historic note: the i suffix was because these used to be individual 
+        #                GtkImage widgets, before discovering the set_back_pixmap
+        #                method, and finally, going with a fixed/floating container
+        #                above a single widget (which was a workaround to a bizarre
+        #                bug where the set_back_pixmap would get blacked out for
+        #                no good reason.
+
+        t_center_x = width / 2.0
+        t_center_y = height / 2.0
+
+        t_pbar_width = width / 100.0 * self.pbar_width
+        t_pbar_height = height / 100.0 * self.pbar_height
+        t_pbar_center_x = self.pbar_xcenter / 100.0 * width
+        t_pbar_center_y = self.pbar_ycenter / 100.0 * height
+
+        t_topi_width = width
+        t_topi_height = height - (t_pbar_center_y + t_pbar_height / 2.0)
+        t_topi_x = 0
+        t_topi_y = 0
+
+        t_bottomi_width = width
+        t_bottomi_height = t_pbar_center_y - t_pbar_height / 2.0
+        t_bottomi_x = 0
+        t_bottomi_y = height - t_bottomi_height
+
+        t_lefti_width = t_pbar_center_x - t_pbar_width / 2.0
+        t_lefti_height = t_pbar_height
+        t_lefti_x = 0
+        t_lefti_y = height - (t_bottomi_height + t_pbar_height)
+
+        t_righti_width = width - (t_pbar_center_x + t_pbar_width / 2.0)
+        t_righti_height = t_pbar_height
+        t_righti_x = t_lefti_width + t_pbar_width 
+        t_righti_y = height - (t_bottomi_height + t_pbar_height)
+
+        # scale image to the correct size
+        self.ngpb = self.gpb.scale_simple(width, height,
+                                          gtk.gdk.INTERP_BILINEAR)
+        
+
+        # set the progressbar's size and placement within the fixed
+        # container
+        self.progressbar.set_size_request(int(t_pbar_width),
+                                          int(t_pbar_height))
+        self.fixed.move(self.progressbar,
+                        int(t_lefti_width),
+                        int(t_topi_height))
+
+        
+        # set the background image's size and placement within the fixed
+        # container
+        self.background.set_size_request(width,
+                                         height)
+        self.fixed.move(self.background, 0, 0)
+
+        # put the scaled image into the background GtkImage widget
+        self.background.set_from_pixbuf(self.ngpb)
+
+        # set the progressbar text and background colors
+        self.progressbar.modify_fg(gtk.STATE_NORMAL,
+                                   gtk.gdk.color_parse(PBAR_FG))
+        self.progressbar.modify_bg(gtk.STATE_NORMAL,
+                                   gtk.gdk.color_parse(PBAR_BG))
+
+        self.splashscreen_window.modify_bg(gtk.STATE_NORMAL,
+                                  gtk.gdk.color_parse(PBAR_BG))
+
+        ## HISTORIC: this is an alternate method, using set_back_pixmap, i.e.
+        ##           this could be used, removing the background widget completely.
+        # generate pixmap and mask from background pixbuf to use for window
+        # background
+        #        bg_pixmap, bg_mask = self.ngpb.render_pixmap_and_mask()
+        # set_app_paintable..
+        #        self.splashscreen_window.set_app_paintable(True)
+        # set up transparency if the background image has it
+        #        if bg_mask != None:
+        #            self.splashscreen_window.shape_combine_mask(bg_mask, 0, 0) 
+        # set window background to the background image pixmap
+        #        self.splashscreen_window.window.set_back_pixmap(bg_pixmap, False)
+        # free resources no longer needed
+        #        del bg_pixmap
+
+        
+
+
+    #
+    # periodic test function
+    #
+    def do_periodic_test(self):
+        if self.input_opened:
+            self.test_progress = self.progress + TEST_INCREMENT
+            os.system("echo %f > %s" % (self.test_progress, self.pipe_path))
+            return True
+
+    #
+    # periodic progressbar animation driving function
+    #
+    def do_periodic(self):
+        
+        if self.donewait != -1 :
+            # progress has completed, continue countdown to exit
+            self.donewait = self.donewait - 1
+            if self.donewait < 0:
+                os.unlink(self.pipe_path)
+                exit(0)
+        else:
+            # progress has not completed
+            if not self.input_opened:
+                # still haven't opened fifo, keep trying
+                try:
+                    self.input_fd = os.open(self.pipe_path,
+                                            os.O_RDONLY | os.O_NONBLOCK)
+                except IOError:
+                    pass
+                else:
+                    self.input_opened = 1
+                    self.input = os.fdopen(self.input_fd)
+
+            if self.input_opened:
+                # fifo has been opened, try reading
+                try:
+                    line = self.input.readline()
+                except IOError:
+                    pass
+                else:
+                    if line != "":
+                        # data found in fifo, process
+                        self.last_progress = self.progress
+                        self.progress = float(line)
+                        if self.progress >= 1.0:
+                            # progress completed
+                            self.progress = 1.0
+                            self.displayed_progress = 1.0
+                            self.donewait = DONE_WAIT
+                
+            # implement slushy progress metering
+            self.displayed_progress = \
+                self.displayed_progress + \
+                (self.progress - self.displayed_progress) / SLUSH_FACTOR
+
+            # change what the progress bar is displaying
+            self.progressbar.set_fraction(self.displayed_progress)
+
+        # return true so the function will be called again next period
+        return True
+
+
+#############################################################################
+#############################################################################
+##
+## main: main entrypoint, class instance, and event loop
+##
+#############################################################################
+#############################################################################
+
+def main():        
+
+    #########################################################################
+    ##
+    ## parse command line arguments
+    ##
+    
+    parser = OptionParser()
+    
+    ### python note: variable list of string args, as well as defined args
+    parser.add_option("-i", "--image", 
+                      dest="image_file", 
+                      default="/usr/share/kasplash/pixmaps/default.jpg",
+                      help="splash screen image")
+
+    default_pipe_path = \
+        "/tmp/kasplash." + \
+        os.environ["USERNAME"] + "." + \
+        str(os.getpid()) + "." + \
+        "pipe"
+    parser.add_option("-p", "--pipe", 
+                      dest="pipe_path", 
+                      default=default_pipe_path,
+                      help="splash progress pipe")
+
+    parser.add_option("-t", "--text", 
+                      dest="progress_text", 
+                      default="progress...",
+                      help="splash progress meter text")
+
+    parser.add_option("-w", "--width", 
+                      type="float",
+                      dest="pbar_width", 
+                      default=35.7,
+                      help="splash progress meter width")
+
+    parser.add_option("-e", "--height", 
+                      type="float",
+                      dest="pbar_height", 
+                      default=9.6,
+                      help="splash progress meter height")
+
+    parser.add_option("-x", "--xcenter", 
+                      type="float",
+                      dest="pbar_xcenter", 
+                      default=50.0,
+                      help="splash progress meter x center")
+
+    parser.add_option("-y", "--ycenter", 
+                      type="float",
+                      dest="pbar_ycenter", 
+                      default=80.0,
+                      help="splash progress meter y center")
+    
+    parser.add_option("-d", "--debug-mode", 
+                      dest="test_mode", 
+                      action="store_true",
+                      default=False,
+                      help="debug/testing mode")
+    
+    (options, args) = parser.parse_args()
+    
+    ##
+    ## validate command line arguments
+    ##
+    if not os.path.exists(options.image_file):
+        print >> sys.stderr, \
+            "image file %s does not seem to exist" % (options.image_file,)
+        return 1
+
+    if os.path.exists(options.pipe_path):
+        print >> sys.stderr, \
+            "pipe %s seems to already exist" % (options.pipe_path,)
+        return 1
+    
+    #
+    # move mouse to bottom right corner of screen
+    #
+    display = gtk.gdk.display_get_default()
+    screen = display.get_default_screen()
+    # for lower right, i.e. left panel
+    #display.warp_pointer(screen, 9999, 9999)
+    # for lower left, i.e. right panel
+    display.warp_pointer(screen, 0, 9999)
+
+    #
+    # create instance of main gui object
+    #
+    ksg = kasplashGTK(image_file = options.image_file,
+                      pipe_path = options.pipe_path,
+                      progress_text = options.progress_text,
+                      test_mode = options.test_mode,
+                      pbar_width = options.pbar_width,
+                      pbar_height = options.pbar_height,
+                      pbar_xcenter = options.pbar_xcenter,
+                      pbar_ycenter = options.pbar_ycenter,
+                      )
+
+    #
+    # enter infinite main event handling loop
+    #
+    gtk.main()
+
+############################################################################
+## end main // standard python main entrypoint
+############################################################################
+if __name__ == "__main__":
+    sys.exit(main())
+
+#############################################################################
+#############################################################################
+##
+## end code -- just notes below
+##
+#############################################################################
+#############################################################################
+
+
+
+#############################################################################
+##
+## TODO
+##
+## - cache appropriately sized image, e.g.
+##  convert kasplash.jpg -resize 1024x768 kasplash.fitted.jpg
+##  use identify to do math for border
+##  convert kasplash.fitted.jpg -bordercolor black -border 0x14 kasplash.1024x768.jpg
+##
+

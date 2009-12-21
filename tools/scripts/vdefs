@@ -3,13 +3,23 @@
 # common viros system constant definitions
 #
 
+#viros_synthesize_qmem=320
+# f10: 512 worked, 320 did not, 384 did
+#viros_synthesize_qmem=512
+# 384 seemed to work for non-updates case
+#viros_synthesize_qmem=384
+# sigh, 512 wasn't enough for f10+updates, but 768 worked
 viros_synthesize_qmem=768
+# f10: 256 seems to be OOMkilled???
+#viros_mutate_qmem=256
 viros_mutate_qmem=512
+#viros_transmogrify_qmem=256
 viros_transmogrify_qmem=512
 viros_transmogrify_scratch=20G
 viros_transmogrify_statuslogger_divfactor=33
 viros_mutate_statuslogger_divfactor=10
 
+# used by mutate, qrap,
 viros_arap_portmin=11245
 viros_arap_portmax=11354
 

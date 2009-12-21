@@ -1,5 +1,8 @@
 #!/bin/bash
 
+##
+## get runtime environment
+##
 progname="$( basename $0 )"
 progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
     pwd ; popd > /dev/null 2>&1 ) )
@@ -22,6 +25,10 @@ if [ "x${autologin}" == "xtrue" ]; then
 	cat << EOF >> /etc/gdm/custom.conf
 
 [daemon]
+# wow, with f10 upstream, this is back, it just sucks (too much) now
+# though theoretically upstream has fixed that in f11
+#AutomaticLoginEnable=true
+#AutomaticLogin=${user}
 TimedLoginEnable=true
 TimedLogin=${user}
 TimedLoginDelay=11
@@ -33,6 +40,7 @@ EOF
 	cat << EOF >> /etc/gdm/custom.conf
 
 [debug]
+#Enabled=true
 Enabled=false
 EOF
     fi
@@ -42,4 +50,13 @@ EOF
     rm -f /tmp/zyx-live.custom.conf.$$ 
 fi
 
+# this was probably never a real solution, delete as soon as things stabalize
+#
+# .dmrc is a possible workaround for a known gdm bug (hence debug enabled above)
+#echo -en "\n\n" > /home/${username}/.dmrc
+#chown ${username}:${username} /home/${username}/.dmrc
+#if [ -e /usr/share/zyx/face-icon.png ] ; then
+#    cp /usr/share/zyx/face-icon.png /home/${username}/.face
+#    chown ${username}:${username} /home/${username}/.face
+#fi
 

@@ -10,12 +10,11 @@
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,11 +26,72 @@
 #
 #############################################################################
 
+#############################################################################
+#
+# dm-parts - given a disk device or image, generate devicemapper entries 
+#            for the partitions therein.  A set of temporary 'fork' partitions
+#            are also created utilizing devicemapper snapshot-origin.  Finally,
+#            a readonly mode can optionally protect the source disk
+#            completely, efectively providing 2 temporary virtual sets of 
+#            partitions.
+#
+#############################################################################
 
+#############################################################################
+#
+# usage: dm-parts <setup|teardown> <disk> <cowpath> <readonly> <device-prefix>
+#
+#e.g.
+#
+# for a typical qfakeroot inside-qemu invocation
+#
+# $> dm-parts setup /dev/sdd /scratch/tmp 0 /dev/qfrdi
+#
+# or for a typical qfakeroot native/root invocation
+#
+# $> dm-parts setup /tmp/foo.vsi /tmpdir 1 /tmpdir/chroot/dev/qfrdi
+#
+#
+# dm-parts creates the following devices, e.g. device-prefix=/tmp/dev/qfrdi
+#
+# /tmp/dev/qfrdi-real 
+#
+# which is a link to the a) disk device, or b) the loopback device associated
+#                                              with the disk image file
+# In readonly mode, qfrdi-real will be a snapshot of what it would normally be.
+#
+# /tmp/dev/qfrdi-base
+#
+# which is a link to the modifiable main disk 
+#
+# /tmp/dev/qfrdi-copy 
+#
+# which is a link to the modifiable throwaway 'fork' of the main disk
+#
+# for the latter 2 entries, partitions, e.g. qfrdi-base-p3 qfrdi-copy-p3, for
+# all partitions that sfdisk sees in the disk.
+#
+# developer note: qfrdi-copy is a snapshot of qfrdi-real
+#                 and  qfrdi-base is a snapshot-origin of qfrdi-real
+#
+#############################################################################
 
+#############################################################################
+##
+## constants
+##
+#############################################################################
 
+# note: when qfakeroot runs with --scratch=11M instead of --scratch=1G,
+#       dd for the cowfiles dies, if cowsize is 42G instead of 1G
+#cowsizemegs=1024
 cowsizemegs=$(( 42 * 1024 ))
 
+#############################################################################
+##
+## get runtime environment
+##
+#############################################################################
 
 starttime="$( date +%Y%m%d%H%M%S )"
 rundir="$( pwd )"
@@ -41,6 +101,11 @@ progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
 rundir=$( pwd )
 mypid=$$
 
+#############################################################################
+##
+## functions
+##
+#############################################################################
 
 function die {
     echo "${progname}: FATAL ERROR: $@"
@@ -49,8 +114,15 @@ function die {
 
 function verbose {
     echo "" > /dev/null
+    # currently I trust dm-parts to work
+#    echo "${progname}: verbose: $@"
 }
 
+#############################################################################
+##
+## usage
+##
+#############################################################################
 
 function usage {
     echo ""
@@ -82,6 +154,11 @@ devprefix=$5
 devname=$( basename $devprefix )
 devdir=$( dirname $devprefix )
 
+#############################################################################
+##
+## sanity check arguments
+##
+#############################################################################
 
 if [ ! -f $disk -a ! -b $disk ]; then
     echo "${progname}: disk image/device $disk not found"
@@ -89,13 +166,25 @@ if [ ! -f $disk -a ! -b $disk ]; then
 fi
 
 
+#############################################################################
+##
+## process
+##
+#############################################################################
 
 if [ "x${mode}" == "xsetup" ]; then
+    ### setup mode: create the target device nodes and links
     verbose "creating device mapper device partition device nodes"
 
+    #
+    # sanitize environment
+    #
     mkdir -p ${cowdir}
     mkdir -p $( dirname ${devprefix} )
 
+    #
+    # establish disk-real device
+    #
     if [ -b $disk ]; then
 	touch ${cowdir}/dm-parts.readwrite
 	ln -s $disk "${devprefix}-real"
@@ -111,6 +200,9 @@ if [ "x${mode}" == "xsetup" ]; then
 	ln -s $disk_loop_device "${devprefix}-real"
     fi
 
+    #
+    # establish disk-copy device
+    #
     dd if=/dev/null of=${cowdir}/dm-parts.copycow \
 	bs=1k count=1 seek=$(( 1024 * $cowsizemegs ))
     disk_copy_cowdev=$( losetup -f )
@@ -119,7 +211,11 @@ if [ "x${mode}" == "xsetup" ]; then
     dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-copy-cowdev p 8" "dm-parts-${devname}-copy"
     ln -s /dev/mapper/"dm-parts-${devname}-copy" "${devprefix}-copy"
 
+    #
+    # create disk_base device
+    #
     if (($readonly)); then
+	### for readonly case, create a second snapshot
 	dd if=/dev/null of=${cowdir}/dm-parts.cow \
 	    bs=1k count=1 seek=$(( 1024 * $cowsizemegs ))
 	disk_cowdev=$( losetup -f )
@@ -127,10 +223,14 @@ if [ "x${mode}" == "xsetup" ]; then
 	ln -s $disk_cowdev "${devprefix}-cowdev"
 	dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-cowdev p 8" "dm-parts-${devname}-base"
     else
+	### for readwrite case, create a snapshot-origin
 	dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot-origin ${devprefix}-real" "dm-parts-${devname}-base"
     fi
     ln -s "/dev/mapper/dm-parts-${devname}-base" "${devprefix}-base"
 
+    #
+    # create partition device nodes and links
+    #
     pushd ${devdir}
     sfdisk -ld ${devname}-real | grep "start=" > ${cowdir}/dm-parts.sfo
     popd
@@ -139,8 +239,17 @@ if [ "x${mode}" == "xsetup" ]; then
 	verbose "sfdisk line parsing: va $va vb $vb vc $vc vd $vd ve $ve vf $vf vg $vg vh $vh"
 	part=${va#${devname}-real}
 
+	# hmm, peculiar, for some reason the p prefix seems to have disappeared
 	partnum=$part
 	verbose "partnum is $partnum"
+#	if ( echo $part | grep -q "^p" ); then
+#	    partnum=${part#p}
+#	    verbose "partnum is $partnum"
+#	else
+#	    echo XXXX
+#	    cat ${cowdir}/dm-parts.sfo
+#	    die "part $part is not of the format pNUM"
+#	fi
 
 	if ( echo $vd | grep -q ',$' ); then
 	    startsec=$( echo $vd | sed -e 's/,$//' )
@@ -169,8 +278,12 @@ if [ "x${mode}" == "xsetup" ]; then
     done <  ${cowdir}/dm-parts.sfo
 
 elif [ "x${mode}" == "xteardown" ]; then
+    ### teardown mode: remove the target device nodes and links
     verbose "removing device mapper device partition device nodes"
 
+    #
+    # remove partition device nodes and links
+    #
 
     devprefixdir=$( dirname ${devprefix} )
     devname=$( basename ${devprefix} )
@@ -181,6 +294,9 @@ elif [ "x${mode}" == "xteardown" ]; then
 	rm -f ${devprefixdir}/${devname}
     done
 
+    #
+    # remove disk_base device
+    #
     dmsetup remove dm-parts-${devname}-base
     rm -f ${devprefix}-base
     if [ -L ${devprefix}-cowdev ]; then
@@ -190,6 +306,9 @@ elif [ "x${mode}" == "xteardown" ]; then
 	rm -f ${cowdir}/dm-parts.cow
     fi
 
+    #
+    # remove disk-copy device
+    #
     dmsetup remove dm-parts-${devname}-copy
     rm -f ${devprefix}-copy
     disk_copy_cowdev=$( readlink ${devprefix}-copy-cowdev )
@@ -198,6 +317,9 @@ elif [ "x${mode}" == "xteardown" ]; then
     rm -f ${cowdir}/dm-parts.copycow
 
 
+    #
+    # remove disk_real device
+    #
     if [ -f ${cowdir}/dm-parts.readonly ]; then
 	disk_loop_device=$( readlink ${devprefix}-real )
 	losetup -d ${disk_loop_device}
@@ -208,5 +330,10 @@ else
     usage
 fi
 
+#############################################################################
+## 
+## cleanup and exit
+##
+#############################################################################
 
 exit 0

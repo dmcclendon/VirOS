@@ -1,0 +1,98 @@
+####
+####
+#### VirOS System Image Generation Configuration
+####
+####
+
+##
+## global configuration
+##
+
+cachedir ~/.viros/cachedir
+
+##
+## phase 1 configuration - synthesis
+##
+
+vsysgen_output_container_size 7G
+vsysgen_distro "fedora-11"
+vsysgen_arch "x86"
+vsysgen_install_boot_iso "http://mirrors.kernel.org/pub/fedora/releases/11/Fedora/i386/iso/Fedora-11-i386-netinst.iso"
+vsysgen_install_boot_iso_sha256sum "b61cf796fa1602ca003b340ca8073d783576507e88db3499d86640b0d20034cd"
+vsysgen_distro_config "F-ZyX-0.4.ks" 
+vsysgen_boot_cmdline "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" 
+
+vsysgen_distro_config F-ZyX-0.4.ks
+
+##
+## phase 2 configuration - mutation
+##
+
+traits splice-compose.repos::no_mutate_prepost=1:mode=install 
+
+traits splice-workaround-gsd-kb
+traits splice-workaround-gsd-ss
+
+# needed by xmog, perhaps could be temp installed by xmog into throwaway rootfs
+traits splice-software::install=squashfs-tools
+
+# for space
+traits splice-software::erase=isdn4k-utils
+traits splice-software::erase=smolt
+# guaranteed better than numeric is just a splash screen that
+# says how to install and use openoffice 
+traits splice-software::erase=gnumeric
+traits splice-software::install=patch
+
+# disable some unneeded xdg autostart entries
+# (i.e. kerneloops, gnome-user-share, etc...)
+traits splice-xdg-autostart-lite
+
+traits splice-genericize-gdm
+traits splice-ZyX.brand::distroname="F-ZyX":distroversion="0.9.2"
+traits splice-ZyX.live
+traits splice-zyx-live-iso-to-disk
+traits splice-workaround-gconf-sanity
+traits splice-turn-off-nfs
+traits splice-software::install=liveusb-creator
+traits splice-software::install=gparted
+traits splice-zyx-liveinstaller
+traits splice-ZyX.adduser::username="guest":usercomment="Guest User"
+traits splice-ZyX.gdm::autologin=true:user=guest
+traits splice-ZyX.autostartff::user=guest
+traits splice-F-ZyX.release
+traits splice-F-ZyX.cleanup
+
+# use this if you care about booting the mutated vsi with selinux enabled
+#traits splice-restorecon
+
+# use this to generate an interesting log of installed packages
+#traits splice-sysinfo
+
+traits splice-compose.repos::no_mutate_prepost=1:mode=uninstall 
+
+
+##
+## phase 3 configuration - transmogrification
+##
+
+vxmogopts bootloader=isolinux
+vxmogopts bootloader_append="ram_overlay_size=1024 qnash"
+
+
+# experiment to get autoticker up 2 rows
+vxmogopts bootloader_isolinux_menu_margin=20
+vxmogopts bootloader_isolinux_menu_width=78
+vxmogopts bootloader_isolinux_menu_rows=6
+vxmogopts bootloader_isolinux_menu_tabmsgrow=12
+vxmogopts bootloader_isolinux_menu_cmdlinerow=12
+vxmogopts bootloader_isolinux_menu_endrow=18
+vxmogopts bootloader_isolinux_menu_timeoutrow=14
+# verified that this is the now upstream solution for toprow (was startrow)
+vxmogopts bootloader_isolinux_menu_vshift=3
+
+
+vxmogopts fs_label=F-ZyX
+vxmogopts selinux=1
+vxmogopts prelink=1
+vxmogopts md5verify=1

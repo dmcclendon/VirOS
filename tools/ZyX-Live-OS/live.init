@@ -9,7 +9,7 @@
 # Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 # Inspired by similar scripts from other LiveOS distributions, particularly
-# Fedora's mayflower, and Ubuntu's casper.
+# Fedora's mkliveinitrd, and Ubuntu's casper.
 #
 #############################################################################
 #
@@ -17,8 +17,7 @@
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -340,6 +339,7 @@ function start_hotplug {
 # use root filesystem information from /etc/fstab if available and not
 # overridden by the user via kernel options
 function parse_fstab {
+
     if [ ! -f /etc/fstab ]; then return; fi
 
     status "parsinge fstab"
@@ -666,6 +666,13 @@ function mount_final_rootfs {
 
     if [ "$cow_mode" != "dms" ]; then 
 	debug_mode panic "sorry, only dms cow_mode is currently supported"
+    fi
+
+    if [ "$( /lib/udev/vol_id -u /dev/mapper/zyx-liveos-rw )" == \
+	"42244224-4224-4224-4224-422442244224" ]; then
+	touch /etc/mtab
+	tune2fs -U random /dev/mapper/zyx-liveos-rw > /dev/null 2>&1
+#	tune2fs -U random /dev/mapper/zyx-liveos-rw 
     fi
 
     # woohoo- mount the cow root filesytem

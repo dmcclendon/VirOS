@@ -1,0 +1,5 @@
+style "panel-clock"
+{
+  fg[NORMAL] = "#bbbbbb"
+}
+widget "*.clock-applet-button.*" style "panel-clock"

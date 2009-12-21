@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,10 +26,25 @@
 #
 #############################################################################
 
+#
+##
+##
+## VirOS generate
+##
+## usage: vsys [options] generate [options]
+##
+## for detailed usage information: vsys help generate
+##
 
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -40,13 +54,19 @@ else
     exit 1
 fi
 
+##
+## functions
+##
 
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "${progname} \\"
     echo "    [--help] [--quiet] [--verbose] [--debug] \\"
     echo "    --strain=<strain> | --config=<config> \\ ### default: fz8"
-    echo "    [[--addtrait=<traitspec>]] \\"
+    echo "    [[--traits=<traitspec>]] \\"
     echo "    [[--vxmogopts=<transmogrifier options>]] \\"
     echo "    [--transmogrifier=<transmogrifier>] \\   ### default: zyx-live"
     echo "    [--output=<filename>]                    ### default: ./viros.iso"
@@ -60,6 +80,9 @@ function usage {
 }
 
 function cleanup_and_exit {
+    ##
+    ## cleanup and exit
+    ##
     if (( $vopt_debug )); then
 	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
     else
@@ -71,6 +94,9 @@ function cleanup_and_exit {
 }
 
 
+##
+## use TMPDIR environment if set
+##
 
 if [ "x${TMPDIR}" == "x1" ]; then
     default_vopt_tmpdir="/tmp"
@@ -79,7 +105,13 @@ else
 fi
 
 
+##
+## define and parse options
+##
 
+#
+# general vsys options
+#
 vregopt config string "f10"
 vregopt help boolean 0
 vregopt verbose boolean 0 inherit
@@ -88,22 +120,33 @@ vregopt quiet boolean 0 inherit
 vregopt cachedir string "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 
+#
+# phase1-generate options
+#
+# this is the size of the qemu vsi rootfs
 vregopt vsysgen_output_container_size string "7G" inherit
-vregopt vsysgen_distro string "fedora-10" inherit
+vregopt vsysgen_distro string "fedora-11" inherit
 vregopt vsysgen_arch string "x86" inherit
-vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/10/Fedora/i386/iso/Fedora-10-i386-netinst.iso" inherit
-vregopt vsysgen_install_boot_iso_sha1sum string "8f34cf6b8996c2a49578928aa437244f357ab0c2" inherit
-vregopt vsysgen_distro_config string "f10.ks" inherit
+vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/11/Fedora/i386/iso/Fedora-11-i386-netinst.iso" inherit
+vregopt vsysgen_install_boot_iso_sha256sum string "b61cf796fa1602ca003b340ca8073d783576507e88db3499d86640b0d20034cd" inherit
+vregopt vsysgen_distro_config string "f11.ks" inherit
 vregopt vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" inherit
 vregopt vsysgen_screencast_output string "" inherit
 
+#
+# phase2-mutate options
+#
 vregopt mirrorlist string ""
 vregopt traits cumulative ""
 
+#
+# phase3-xmog options
+#
 vregopt transmogrifier string "zyx-live"
 vregopt vxmogopts cumulative ""
 vregopt output string "./viros.iso"
 
+# parse options
 vparseopt "$@"
 
 if (( $vopt_help )); then 
@@ -123,6 +166,9 @@ export vopt_debug
 export vopt_verbose
 export vopt_quiet
 
+##
+## phase 1 - synthesis
+##
 
 export vopt_mirrorlist
 export vopt_cachedir
@@ -138,6 +184,9 @@ verbose "starting phase#1-synthesis at $( date )"
 
 veva synthesize --output=${tmpdir}/outimage.vsi
 
+##
+## phase 2 - mutation
+##
 
 export vopt_traits
 export vopt_mirrorlist
@@ -152,6 +201,9 @@ verbose "starting phase#2-mutation at $( date )"
 
 veva mutate ${tmpdir}/mutated.vsi
 
+##
+## phase 3 - transmogrification
+##
 
 export vopt_vxmogopts
 
@@ -161,6 +213,9 @@ veva transmogrify ${vopt_transmogrifier} \
     ${tmpdir}/mutated.vsi \
     ${vopt_output}
 
+##
+## clean up and exit
+##
 
 verbose "processing done, cleaning up at $( date )"
 

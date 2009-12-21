@@ -10,12 +10,11 @@
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,9 +26,30 @@
 #
 #############################################################################
 
+# XXX: this script is in bypass mode for development expediency, see below...
 
+#
+## VirOS get_dna_of_vsi
+##
+## usage: get_dna_of_vsi <input.vsi> [outputfile]
+##
+## get_dna_of_vsi returns the distro and arch of the specified vsi
+##
+## outputs e.g.
+## >-- begin output ---
+## distro=fedora-8  // |centos-5.1|ubuntu-7.10|debian-4.0 (todo)
+## arch=i686        // |i586|x86-64|ppc (todo)
+## >-- end output ---
+##
+
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -39,6 +59,12 @@ else
     exit 1
 fi
 
+##
+## qfakeroot special embedded function: 
+##
+## this represents what gets run as root if this
+## script is passed to qfakeroot as --command
+##
 function target_script_to_run_as_root {
     export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
 
@@ -73,13 +99,23 @@ function target_script_to_run_as_root {
 
     echo "qfakeroot: ${progname}: done"
 }
+# run the qfakeroot special function and exit, if being called as such
 if [ "$progname" == "qfakeroot.command" ]; then
     target_script_to_run_as_root
     exit 0
 fi
+##
+## END EMBEDDED QFAKEROOT SCRIPT
+##
 
 
+##
+## functions
+##
 
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "${progname} \\"
@@ -98,7 +134,13 @@ function usage {
     fi
 }
 
+##
+## functions
+##
 
+##
+## define and parse options
+##
 vregopt help boolean 0
 vregopt verbose boolean 0
 vregopt debug boolean 0
@@ -109,12 +151,22 @@ if (( $vopt_help )); then
     usage clean 
 fi
 
+##
+## process command line arguments
+##
 
 if [ $vopts_numargs -ne 2 ]; then usage; fi
 
 sysimage="${vopts_args[1]}"
 output="${vopts_args[2]}"
 
+# TODO: error check arguments
+
+# XXX:HACKHACKHACK: development expediency
+echo -en "distro=default\n" >> ${output}
+echo -en "arch=default\n" >> ${output}
+exit 0
+# end XXX
 
 verbose "initializing..."
 

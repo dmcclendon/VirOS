@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,9 +26,35 @@
 #
 #############################################################################
 
+#
+## VirOS qrap
+## Date: 2007/02/27
+##
+## DESCRIPTION
+##
+## qrap is a wrapper for qemu, which simplifies a few usage scenarios of
+## particular interest to VirOS.  qrap supports the following features-
+##
+## 1) --vdisplay provides an alternate method of executing qemu within VNC.
+##    This feature exists primarily due to the _current_ lack of authentication
+##    support within the embedded vnc that comes with the stock qemu package.
+##
+## 2) --recvideo allows a video of the qemu session to be recorded.  This
+##    feature exists primarily because the video recording functionality
+##    provided by vnc2swf is not yet part of mainline vnc and/or qemu's vnc.
+##
+## 3) --vhttpdroot provides a mechanism to provide a custom http service
+##    for the virtual host.  Similar in spirit to qemu's --smb feature.
+##
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -39,7 +64,13 @@ else
     exit 1
 fi
 
+##
+## functions
+##
 
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "usage: viros ${progname} \\"
@@ -59,6 +90,9 @@ function usage {
 }
 
 function cleanup_and_exit {
+    ##
+    ## cleanup and exit
+    ##
     if (( $vopt_debug )); then
 	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
     else
@@ -70,6 +104,9 @@ function cleanup_and_exit {
 }
 
 
+##
+## use TMPDIR environment if set
+##
 
 if [ "x${TMPDIR}" == "x1" ]; then
     default_vopt_tmpdir="/tmp"
@@ -79,14 +116,60 @@ fi
 
 
 
+##
+## OPTION DESCRIPTIONS
+##
+## --vdisplay=<DisplayNum> \
+##
+## The qemu run will be run on a virtual VNC X display.  If displaynum is 'X'
+## a random available display between :1 and :9 will be used.
+##
+## --vhttpdroot=<DocumentRoot> \
+## --vhttpdport=<HttpdPort> \
+##
+## The virtual host will have access to a private httpd server exposing the
+## contents of the path specified by DocumentRoot.  Symlinks can be followed.
+## if no HttpdPort is specified, a random available one will be used, which
+## will only be useful if a CallbackProgram is specified which somehow tells
+## the virtual system about the random port chosen.
+##
+## --recvideo=<screencast_output_prefix> \
+##
+## Video will be recorded from qemu to the specified output file, with
+## a .swf appended, along with a sibling .html
+##
+## --callback=<CallbackProgram> \
+##
+## If a callback program is specified, it will be invoked just prior to qemu
+## actually being launched.  The motivation for this feature is to provide
+## a way for user scripts to be able to be aware of the dynamic port and other
+## information used by qrap.  I.e. qrap provides the standalone webserver 
+## module, but it may utilize a randomly chosen available port.  The callback
+## program will have the following environment variables defined:
+##
+## QRAP_HOST_IP // ip address of the host as seen from the virtual system
+## QRAP_HTTPD_PORT // port that the standalone webserver is running on or NA
+## QRAP_VDISPLAY // display number of the standalone VNC display or NA
+#
+#
 
+##
+## set constants
+##
 
+##
+## process command line arguments
+##
 
 if [ $# -lt 1 ]; then 
     usage 
 fi
 
+##
+## set defaults
+##
 
+# for pre-command options
 vsys_qrap_vinput=""
 vsys_qrap_vdisplay=""
 vsys_qrap_vhttpdroot=""
@@ -110,8 +193,13 @@ intlogfile="${tmpdir}/qrap.log"
 vnchome="${tmpdir}/qrap_vnchome"
 vnc2swfhome="${tmpdir}/qrap_vnc2swfhome"
 
+#### NOTE: valueless options are not yet suported
 
+##
+## parse pre-command options
+##
 
+#### NOTE: current assumption is that no -- qemu options will be used
 while (echo "$1" | grep -q "^--"); do
     if (! echo "$1" | grep -q "="); then
         die "pre-command option \"$1\" needs a value"
@@ -119,6 +207,7 @@ while (echo "$1" | grep -q "^--"); do
     precomopt=$( echo "$1" | sed -e 's/^--\([^=]*\)=\(.*\)/\1/')
     precomopt_val=$( echo "$1" | sed -e 's/^--\([^=]*\)=\(.*\)/\2/')
 
+    # TODO: pull this from a list as below (make it the same list)
     if [ \
 	"$precomopt" = "vdisplay" -o \
 	"$precomopt" = "vhttpdport" -o \
@@ -136,10 +225,20 @@ while (echo "$1" | grep -q "^--"); do
 done
 
 qrap_opts="vdisplay vhttpdroot recaudio recvideo callback"
+#for thing in $qrap_opts; do
+#    eval "status \"debug: $thing = \\\"\$vsys_qrap_${thing}\"\\\""
+#done
+#status "status: qemu arguments are: $@"
 
+##
+## begin processing
+##
 
 echo "${progname}: status: initializing at $( date ) ..."
 
+##
+## create temp directory and qoutputfile
+##
 
 echo "${progname}: status: tmpdir is ${tmpdir} ..."
 
@@ -147,18 +246,26 @@ if [ ! -d $tmpdir ]; then
     die "${progname}: error: tmpdir could not be created: $tmpdir"
 fi
 
+# create intlogfile
 veva touch $intlogfile
 logfiles="$intlogfile"
 
 qoutputfile=$( mktemp "${tmpdir}/qoutput.XXXXXXXXXX" )
 
+# debug
+#cleanup_command="rm -f $qoutputfile ; $cleanup_command"
 
+##
+## configure private vnc server if needed
+##
 
+# remember local display
 localdisplay=$DISPLAY
 
 if [ "${vsys_qrap_vdisplay}Y" == "Y" ]; then
     status "no vdisplay specified, using environmental DISPLAY $DISPLAY"
     vsys_qrap_spawnvnc=0
+    # HACKHACKHACK: assumes no display host , e.g. localhost:10.0
     vsys_qrap_vdisplay=$( echo "$DISPLAY" | sed -e 's/^://' )
 elif [ "X${vsys_qrap_vdisplay}" == "XX" ]; then
     status "vdisplay X: probing for available display/port..."
@@ -174,11 +281,15 @@ elif [ "X${vsys_qrap_vdisplay}" == "XX" ]; then
     fi
     vsys_qrap_vdisplay=$vncdisplay
 else
+    # vdisplay was specified explicitly
     status "using specified vdisplay $vsys_qrap_vdisplay"
     vsys_qrap_spawnvnc=0
 fi
 export DISPLAY=":${vsys_qrap_vdisplay}"
 
+##
+## launch private vnc server if needed
+##
 
 if (($vsys_qrap_spawnvnc)); then
     status "starting special vnc server..."
@@ -190,8 +301,12 @@ if (($vsys_qrap_spawnvnc)); then
 	"
     
     veva specvnc --display=${vsys_qrap_vdisplay} --confdir=${vnchome} start
+    # TODO: make this a wait on event rather than flakey sleep
+    #       Or rather, try to get specvnc to not return until it would be
+    #       ready
     sleep 3
 
+    # start recording, to yet another headless vnc server, if desired
     if [ "${vsys_qrap_recvideo}Y" != "Y" ]; then
 	if ( ! which vnc2swf > /dev/null 2>&1 ); then
 	    status "cannot vind vnc2swf in path, screencast capture is not possible"
@@ -206,6 +321,8 @@ if (($vsys_qrap_spawnvnc)); then
 	fi
     fi
 	
+    # give gui feedback if it is called for.  
+    # --verbose gives you vnc viewonly, --debug will give interactive/rw
     if (($vopt_debug)); then
 	veva env DISPLAY=$localdisplay specvnc --display=${vsys_qrap_vdisplay} --confdir=${vnchome} view &
 	qrap_specvnc_debug_viewer_pid=$!
@@ -226,9 +343,14 @@ if (($vsys_qrap_spawnvnc)); then
 
     fi
 
+    # highly experimental ssh-X fix???
+    # seemed to work (at least for the remote case)
     export HOME="${vnchome}"
 fi
 
+##
+## configure private httpd server if needed
+##
 if [ "${vsys_qrap_vhttpdport}Y" = "Y" ]; then
     status "no vhttpdport specified, not launching private httpd server"
     vsys_qrap_spawnhttpd=0
@@ -238,20 +360,27 @@ elif [ "${vsys_qrap_vhttpdport}Y" = "XY" ]; then
     vsys_qrap_vhttpdport=$( findfreeport $viros_arap_portmin $viros_arap_portmax )
     vsys_webserver_port_retval=$?
     if ((! $vsys_webserver_port_retval)); then
+	# BUG: this line of code is reached even when things went wrong
+	#      with findport
 	status "vsys_qrap_vhttpdport is $vsys_qrap_vhttpdport"
     else
 	die "could not find available port for private httpd server"
     fi
 else
+    # vhttpdport was specified explicitly
     status "using specified vhttpdport $vsys_qrap_vhttpdport"
     vsys_qrap_spawnhttpd=1
 fi
 
+##
+## launch private httpd server if needed
+##
 
 if (($vsys_qrap_spawnhttpd)); then
 
     status "starting private http server..."
 
+    # convert any relative paths in vhttpdroot
     vsys_qrap_vhttpdroot="$( cd $( dirname $vsys_qrap_vhttpdroot ) ; pwd )/$( basename $vsys_qrap_vhttpdroot )"
 
     veva webserver \
@@ -271,6 +400,9 @@ if (($vsys_qrap_spawnhttpd)); then
 	"
 fi
 
+##
+## launch callback if needed
+##
 
 if [ "${vsys_qrap_callback}Y" != "Y" ]; then
     eval "env \
@@ -282,9 +414,25 @@ if [ "${vsys_qrap_callback}Y" != "Y" ]; then
 	"
 fi
 
+##
+## launch virtual system (QEMU)
+##
 
-vopt_qopts="-net nic,model=i82557b -net user,hostname=zyxhost"
+# set up networking the qrap way (just adding hostname to the default 
+# qemu behavior)
+#vopt_qopts="-net nic -net user,hostname=zyxhost"
+# may not have been required, but pcnet and other changes got f10 to work
+#vopt_qopts="-net nic,model=pcnet -net user,hostname=zyxhost"
+#vopt_qopts="-net nic -net user,hostname=zyxhost"
+# i82551 i82557b i82559er ne2k_pci pcnet rtl8139
+# rtl8139 and pcnet seem to have issues with f10qemu (Bad SWSTYLE=0x04, NetworkManager timeouts)
+vopt_qopts=""
+# this recovers pref11 behavior of not using kernel-PAE by default
+vopt_qopts="${vopt_qopts} -cpu qemu32,-nx,-pae"
+#vopt_qopts="${vopts_qopts} -net nic,model=i82557b"
+vopt_qopts="${vopt_qopts} -net nic -net user,hostname=zyxhost"
 
+# do string replacement for any qemu args, with the private httpd server info
 numqargs=0
 while (($#)); do
     numqargs=$(($numqargs + 1))
@@ -310,6 +458,8 @@ if [ "x${vsys_qrap_reaper}" != "x" ]; then
     qdone=0
     while ((!$qdone)); do
 	if ( grep -q QEMU_DONE_IN_NEED_OF_SHUTDOWN ${qoutputfile} ); then
+	    # HACKHACKHACK: bake-it is currently issuing this just before it
+	    # does an init 0, so give it time to actually shut down.
 	    sleep 77
 	    debug "killing qemu subprocess once"
 	    kill -HUP $qrap_qemu_pid > /dev/null 2>&1
@@ -317,6 +467,7 @@ if [ "x${vsys_qrap_reaper}" != "x" ]; then
 	    debug "killing qemu subprocess again for good measure"
 	    kill -KILL $qrap_qemu_pid > /dev/null 2>&1
 	    qdone=1
+            # restore traps
 	    trap SIGCHLD
 	    trap SIGHUP
 	    trap SIGTERM
@@ -336,6 +487,9 @@ fi
 status "status: waiting for qemu to exit..."
 wait $qrap_qemu_pid
 
+##
+## clean up
+##
 status "cleaning up..."
 debug "cleanup_command is $cleanup_command..."
 veva $cleanup_command

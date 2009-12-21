@@ -8,3 +8,4 @@ rundir=$( dirname $0 )
 cd ${rundir}
 
 /usr/sbin/sysinfo | tee -a /root/sysinfo.output
+#rm -f /usr/sbin/sysinfo

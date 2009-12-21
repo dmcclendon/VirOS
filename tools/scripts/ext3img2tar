@@ -11,12 +11,11 @@
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,9 +27,29 @@
 #
 #############################################################################
 
+#
+# usage: ext3img2tar <ext3 fs image filename> <output tar filename>
+#
+# canonical qfakeroot command implementation details: 
+#
+# This script will invoke qfakeroot, using itself as the command.  This
+# will involve initially checking the the name of the program as called ($0)
+# and then performing the behaviour expected of a qfakeroot command, if
+# invoked as command.qfakeroot.  The expected behavior of a qfakeroot command
+# being to expect its input in /input/ and produce its output in /output/
+#
+# As .qfakeroot, it will process /input/ext3fs.img and create 
+# /output/ext3fs.tar
+#
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -40,6 +59,12 @@ else
     exit 1
 fi
 
+##
+## qfakeroot special embedded function: 
+##
+## this represents what gets run as root if this
+## script is passed to qfakeroot as --command
+##
 
 function target_script_to_run_as_root {
     export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
@@ -66,6 +91,9 @@ if [ "$progname" == "qfakeroot.command" ]; then
     exit 0
 fi
 
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "${progname} \\"
@@ -84,7 +112,13 @@ function usage {
     fi
 }
 
+##
+## iso2tar outtermost wrapper implementation
+##
 
+##
+## define and parse options
+##
 vregopt config string ""
 vregopt help boolean 0
 vregopt verbose boolean 0 inherit
@@ -150,6 +184,9 @@ qfakeroot \
 
 mv ${tmpdir}/qfakeroot.outputdir/ext3fs.tar ${vopts_args[2]}
 
+##
+## clean up and exit
+##
 
 if (($vopt_debug)); then
     debug "NOT REMOVING tmpdir ${tmpdir}"

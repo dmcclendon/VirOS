@@ -1,0 +1,280 @@
+#!/bin/bash
+# 
+# todo: argument processing for (and usage) (see below comments)
+#
+
+domirrorcheck=0
+dosynthesis=0
+doupdate=0
+domutate=0
+dobake=0
+doxmog=0
+dopackage=0
+
+#domirrorcheck=1
+dosynthesis=1
+doupdate=1
+domutate=1
+dobake=1
+doxmog=1
+#dopackage=1
+
+strain_name=F-ZyX
+#strain_name=Fork-ZyX
+#strain_name=G-ZyX
+#strain_name=Guitar-ZyX
+#strain_name=D-ZyX
+#strain_name=min
+#strain_version="0.9.2"
+strain_version="0.4"
+mirrorlist=/var/mirrors/f11/viros.mirrors.cfg
+
+
+#
+#            --sig=<sigdir>
+#            [--check-keys=<check_key_dir>]
+#            --check-mirror
+#            [--mirrorlist=/var/mirrors/f10/viros.mirrors.cfg]
+#
+#            --nox (hide viros synth monitor)
+#            --reuse-synthesis
+#            --reuse-update
+#            --reuse-mutate
+#            --reuse-bake
+#            --reuse-xmog
+#            --strain=
+#
+# retry for synth, 
+#   - first pass is checking for pre script string at 15min
+#
+# retry for mutate
+#   - wait until failure to implement
+#
+# disk space checking - check for 31G to be on the safe side
+#
+# done - retry for baking
+#
+# (DEFER) start with a make release, remaking the viros trait, then copying elsewhere.
+#
+#
+#
+# final packaging
+#  - create new outputdir
+#  - move&rename buildlog
+#  - m&r traits.tar
+#  - use srpmlist to find (not ydl) srpms
+#
+#
+#    (DEFER)- (use builddep to expand) 
+#      - just pass over rpmqa doing query on each packages src,
+#        - then iter again skipping already done packages,
+#          - iter till no new packages
+#   
+
+workarea=$( pwd )
+
+strain="${strain_name}-${strain_version}"
+
+datestamp=$( date +%Y-%m-%d--%H-%M-%S )
+
+rundir=$( pwd )
+progdir=$( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 )
+virosdir=$( pushd $( dirname $0 )/.. > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 )
+
+
+builddir="${workarea}/build.${datestamp}"
+mkdir -p $builddir
+cd $builddir
+
+find ${virosdir} -name "*~" -exec rm -vf '{}' ';'
+find ${virosdir} -name "#*" -exec rm -vf '{}' ';'
+
+if (($dosynthesis)); then
+#    --verbose --debug \
+    time \
+	${virosdir}/viros synthesize \
+	--verbose --debug \
+	--mirrorlist=${mirrorlist} \
+	--tmpdir=${builddir} \
+	--config=${strain} \
+	--vsysgen_screencast_output=${strain}.screencast \
+	--output=${builddir}/${strain}.vsi \
+	2>&1 | tee -a ${builddir}/zmakeit.phased.log
+    rm -f ${rundir}/${strain}.vsi
+    ln -fs ${builddir}/${strain}.vsi \
+	${rundir}/${strain}.vsi
+else
+    ln -s $( readlink -f ${rundir}/${strain}.vsi ) \
+	${builddir}/${strain}.vsi
+fi
+
+if (($doupdate)); then
+    qemu-img create -b ${strain}.vsi \
+	-f qcow2 ${strain}-updated.vsi 
+
+    time \
+	${virosdir}/viros mutate \
+	--verbose --debug \
+	--mirrorlist=${mirrorlist} \
+	--tmpdir=${builddir} \
+	--traits=splice-compose.repos::no_mutate_prepost=1:mode=install \
+	--traits=splice-kupdate \
+	--traits=splice-software::update=yes \
+	--traits=splice-compose.repos::no_mutate_prepost=1:mode=uninstall \
+	${builddir}/${strain}-updated.vsi \
+	2>&1 | tee -a ${builddir}/zmakeit.phased.log
+    rm -f ${rundir}/${strain}-updated.vsi
+    ln -fs ${builddir}/${strain}-updated.vsi \
+	${rundir}/${strain}-updated.vsi
+else
+    ln -s $( readlink -f ${rundir}/${strain}-updated.vsi ) \
+	${builddir}/${strain}-updated.vsi
+fi
+
+if (($domutate)); then
+    qemu-img create -b ${strain}-updated.vsi \
+	-f qcow2 ${strain}-mutated.vsi 
+
+    time \
+	${virosdir}/viros mutate \
+	--verbose --debug \
+	--mirrorlist=${mirrorlist} \
+	--tmpdir=${builddir} \
+	--config=${strain} \
+	${builddir}/${strain}-mutated.vsi \
+	2>&1 | tee -a ${builddir}/zmakeit.phased.log
+    rm -f ${rundir}/${strain}-mutated.vsi
+    ln -fs ${builddir}/${strain}-mutated.vsi \
+	${rundir}/${strain}-mutated.vsi
+else
+    ln -s $( readlink -f ${rundir}/${strain}-mutated.vsi ) \
+	${builddir}/${strain}-mutated.vsi
+fi
+
+if (($dobake)); then
+    xdone=0
+    while ((!${xdone})); do
+
+	iter_datestamp=$( date +%Y-%m-%d--%H-%M-%S )
+	mkdir ${builddir}/vtmp.iter.${iter_datestamp}
+
+	if [ -f bake.img ]; then
+	    mv bake.img bake.${iter_datestamp}.img
+	fi
+
+	if [ -f ${strain}-mutated-cooked.vsi ]; then
+	    mv ${strain}-mutated-cooked.vsi ${strain}-mutated-cooked.${iter_datestamp}.vsi
+	fi
+
+	qemu-img create bake.img 1234M
+	qemu-img create \
+	    -b ${strain}-mutated.vsi \
+	    -f qcow2 \
+	    ${strain}-mutated-cooked.vsi
+
+	# builddir is probably not getting expanded here, eval perhaps
+	# now seems like it may be expanced, but not what we want in the
+	# retry scenario, i.e. it kills the new one as well
+	eval "( sleep 1800 ; kill -KILL \$( < ${builddir}/vtmp.iter.${iter_datestamp}/vtmp.qrap*/qpid.txt ) ) &"
+
+	time \
+	    env \
+	    vopt_debug=1 \
+	    vopt_verbose=1 \
+	    viros_stupid_vncname="VirOS___Simulation___Monitor" \
+	    TMPDIR=${builddir}/vtmp.iter.${iter_datestamp} \
+	    ${virosdir}/viros qrap \
+	    --vdisplay=X \
+	    --reaper=true \
+	    --recvideo=./${strain}-bakecast \
+	    -net none -m 512 -boot c \
+	    -full-screen \
+	    -hda ./${strain}-mutated-cooked.vsi \
+	    -hdb ./bake.img
+	rm -f ${rundir}/${strain}-mutated-cooked.vsi
+	ln -fs ${builddir}/${strain}-mutated-cooked.vsi \
+	    ${rundir}/${strain}-mutated-cooked.vsi
+
+	if ( tar tvf ./bake.img | grep -q "output/guest.cooked/.mozilla/firefox/.*\.default/prefs.js" ); then
+	    if ( tar tvf ./bake.img | grep -q "output/guest.cooked/.mozilla/firefox/.*\.default/extensions.ini" ); then
+		xdone=1
+	    fi
+	fi
+    done
+
+else
+    ln -s $( readlink -f ${rundir}/${strain}-mutated.vsi ) \
+	${builddir}/${strain}-mutated-cooked.vsi
+fi
+
+if (($doxmog)); then
+    time \
+	${virosdir}/viros transmogrify \
+	--verbose --debug \
+	--tmpdir=${builddir} \
+	--config=${strain} \
+	zyx-live \
+	${builddir}/${strain}-mutated-cooked.vsi \
+	${builddir}/${strain}.iso \
+	2>&1 | tee -a ${builddir}/zmakeit.phased.log
+    rm -f ${rundir}/${strain}.iso
+    ln -fs ${builddir}/${strain}.iso \
+	${rundir}/${strain}.iso
+else
+    ln -s $( readlink -f ${rundir}/${strain}.iso ) \
+	${builddir}/${strain}.iso
+fi
+
+if (($dopackage)); then
+
+    rm -rf ./goldbits
+    mkdir ./goldbits
+    pushd ./goldbits
+
+    golden_iso=$( readlink -f "${rundir}/${strain}.iso" )
+    golden_iso_name=$( basename "${golden_iso}" )
+    golden_iso_dir=$( dirname "${golden_iso}" )
+
+    mutated_vsi=$( readlink -f "${rundir}/${strain}-mutated.vsi" )
+    mutated_vsi_name=$( basename "${mutated_vsi}" )
+    mutated_vsi_dir=$( dirname "${mutated_vsi}" )
+
+    mutated_cooked_vsi=$( readlink -f "${rundir}/${strain}-mutated-cooked.vsi" )
+    mutated_cooked_vsi_name=$( basename "${mutated_cooked_vsi}" )
+    mutated_cooked_vsi_dir=$( dirname "${mutated_cooked_vsi}" )
+
+    mirror_dir=$( dirname "${mirrorlist}" )
+
+    mkdir ./${strain}.srpms
+
+    cp ${mutated_vsi_dir}/vtmp.mutate.*/vtmp.qfakeroot.*/qfakeroot.initramfs.input.tar "./${strain}.traits.tar"
+
+    tar xvf "${mutated_cooked_vsi_dir}/bake.img" output/sysinfo.srpms
+    mv output/sysinfo.srpms "./${strain}.srpms.txt"
+    rmdir output
+    
+    for srpm in $( < "./${strain}-${strain}.srpms.txt" ); do
+	find "${mirror_dir}" -name "${srpm}" -exec cp -av '{}' "./${strain}.srpms/" ';'
+    done
+
+    sha512sum "./${strain}-${strain}.srpms/*" > \
+	"./${strain}.srpms.sha512sums.txt"
+    
+    cat "${builddir}"/build.*/zmakeit.phased.log >> \
+	"./${strain}.build.log"
+
+    cp -av "${golden_iso}" "./${strain}.iso"
+    cp -av "${golden_iso}" "./${strain}.x.iso"
+
+    sha512sum * > "./${strain}.sha512sums.txt"
+
+    popd
+
+    rm -f ${rundir}/${strain}.goldbits
+    ln -fs ${builddir}/goldbits \
+	${rundir}/${strain}.goldbits
+
+fi
+

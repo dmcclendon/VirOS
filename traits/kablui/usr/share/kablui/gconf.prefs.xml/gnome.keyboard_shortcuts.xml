@@ -1,0 +1,16 @@
+<gconfentryfile>
+  <entrylist base="/">   
+    <entry>
+      <key>/apps/metacity/global_keybindings/switch_to_workspace_down</key>
+      <value>
+        <string>&lt;Control&gt;Down</string>
+      </value>
+    </entry>
+    <entry>
+      <key>/apps/metacity/global_keybindings/switch_to_workspace_up</key>
+      <value>
+        <string>&lt;Control&gt;Up</string>
+      </value>
+    </entry>
+  </entrylist>   
+</gconfentryfile>

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# remove some xdg systemwide autostart entries that are unneeded
+
+# note: alternately, the xdg spec suggests ~/.config/autostart/
+#       having override .desktop entries of the same name, but
+#       containing the Hidden=True key.  Alternately, see about
+#       just removing the package containing these, if that
+#       doesn't incur some stupid dependency issue.
+#
+# note: package upgrades will blow this away, so obviously one
+#       of the above alternatives needs to be implemented 
+#       eventually.
+
+function xdg_disable {
+    
+    target="${1}"
+
+    pushd /etc/xdg/autostart > /dev/null 2>&1
+
+    mv "${target}.desktop" \
+	"${target}.desktop.disabled"
+
+    popd /etc/xdg/autostart > /dev/null 2>&1
+
+}
+
+# note: most of these things may get removed as *zyx matures, for
+#       now these things are nuisances to early development.
+
+# i don't use bluetooth
+xdg_disable bluetooth-applet
+# i don't use gnome user file sharing 
+xdg_disable gnome-user-share
+# i don't like to be annoyed by the update icon
+xdg_disable gpk-update-icon
+# not using this form of im at the moment
+xdg_disable imsettings-start
+# don't care so much about nonfatal oopses right now
+xdg_disable kerneloops-applet
+# no selinux 
+xdg_disable sealertauto

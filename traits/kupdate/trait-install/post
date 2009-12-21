@@ -1,0 +1,5 @@
+#!/bin/bash
+
+yum -y update yum
+yum -y update grubby
+yum -y update kernel

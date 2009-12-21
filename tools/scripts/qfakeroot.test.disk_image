@@ -10,12 +10,11 @@
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,9 +26,20 @@
 #
 #############################################################################
 
+#
+# qfakeroot.test.disk_image: test rig for disk image functionality of qfr
+#
+# usage: qfakeroot.test.disk_image <disk_image/device> <output_tar_filename>
+#
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -39,6 +49,9 @@ else
     exit 1
 fi
 
+##
+## BEGIN EMBEDDED QFAKEROOT SCRIPT
+##
 function target_script_to_run_as_root {
     export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
 
@@ -85,8 +98,17 @@ if [ "$progname" == "qfakeroot.command" ]; then
     target_script_to_run_as_root
     exit 0
 fi
+##
+## END EMBEDDED QFAKEROOT SCRIPT
+##
 
+##
+## functions
+##
 
+##
+## qfakeroot.test.disk_image outtermost wrapper
+##
 
 if (( $# != 2 )); then
     echo "usage: ${progname} <disk_image/device> <output_tar_filename>" 
@@ -111,6 +133,7 @@ if [ -f $2 ]; then
     exit 1
 fi
 
+#    --debug --verbose \
 qfakeroot \
     --debug --verbose \
     --command=${progdir}/${progname} \

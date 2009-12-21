@@ -36,12 +36,14 @@ fi
 PLYMOUTH=
 [ -x /usr/bin/plymouth ] && PLYMOUTH=yes
 
+# Check SELinux status
 selinuxfs="$(fstab_decode_str `LC_ALL=C awk '/ selinuxfs / { print $2 }' /proc/mounts`)"
 SELINUX_STATE=
 if [ -n "$selinuxfs" ] && [ "`cat /proc/self/attr/current`" != "kernel" ]; then
 	if [ -r "$selinuxfs/enforce" ] ; then
 		SELINUX_STATE=`cat "$selinuxfs/enforce"`
 	else
+		# assume enforcing if you can't read it
 		SELINUX_STATE=1
 	fi
 fi
@@ -58,6 +60,8 @@ disable_selinux() {
 }
 
 relabel_selinux() {
+    # if /sbin/init is not labeled correctly this process is running in the 
+    # wrong context, so a reboot will be required after relabel
     REBOOTFLAG=`restorecon -v /sbin/init`
     AUTORELABEL=
     . /etc/selinux/config
@@ -113,6 +117,8 @@ find_crypto_mount_point() {
     done < /etc/fstab
 }
 
+# Because of a chicken/egg problem, init_crypto must be run twice.  /var may be
+# encrypted but /var/lib/random-seed is needed to initialize swap.
 init_crypto() {
     local have_random dst src key opt mode owner params makeswap skip arg opt
     local param value rc ret mke2fs mdir prompt mount_point
@@ -149,17 +155,22 @@ init_crypto() {
 	makeswap=""
 	mke2fs=""
 	skip=""
+	# Parse the src field for UUID= and convert to real device names
 	if [ "${src%%=*}" == "UUID" ]; then
 		src=$(/sbin/blkid -t "$src" -l -o device)
 	elif [ "${src/^\/dev\/disk\/by-uuid\/}" != "$src" ]; then
 		src=$(__readlink $src)
 	fi
+	# Is it a block device?
 	[ -b "$src" ] || continue
+	# Is it already a device mapper slave? (this is gross)
 	devesc=${src##/dev/}
 	devesc=${devesc//\//!}
 	for d in /sys/block/dm-*/slaves ; do
 	    [ -e $d/$devesc ] && continue 2
 	done
+	# Parse the options field, convert to cryptsetup parameters and
+	# contruct the command line
 	while [ -n "$opt" ]; do
 	    arg=${opt%%,*}
 	    opt=${opt##$arg}
@@ -247,10 +258,15 @@ init_crypto() {
     return $ret
 }
 
+# Print a text banner.
+#:::# zyx
+###echo -en $"\t\tWelcome to "
 echo -en "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
 echo -en "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
 echo -en "\n       "
+#:::# xyz
 read -r redhat_release < /etc/redhat-release
+#:::# zyx
 if [[ "$redhat_release" =~ "-ZyX" ]]; then
  ZYXPREFIX=`sed "s/\(.*\)-ZyX release \(.*\)/\1/" /etc/redhat-release`
  ZYXPRODUCT=`sed "s/\(.*\)-ZyX release \(.*\)/\2/" /etc/redhat-release`
@@ -265,6 +281,7 @@ if [[ "$redhat_release" =~ "-ZyX" ]]; then
   echo -en "${ZYXPREFIX}-ZyX"
  fi
  echo " $ZYXPRODUCT is booting..."
+#:::# xyz
 elif [[ "$redhat_release" =~ "Red Hat" ]]; then
  [ "$BOOTUP" = "color" ] && echo -en "\\033[0;31m"
  echo -en "Red Hat"
@@ -281,27 +298,38 @@ else
  PRODUCT=`sed "s/ release.*//g" /etc/redhat-release`
  echo "$PRODUCT"
 fi
+#:::# zyx
 echo -en "\n"
 echo -en "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
 echo -en "\n\n\n\n\n\n\n"
 
+###if [ "$PROMPT" != "no" ]; then
+### echo -en $"\t\tPress 'I' to enter interactive startup."
+### echo
+###fi
+#:::# xyz
 
+# Fix console loglevel
 if [ -n "$LOGLEVEL" ]; then
 	/bin/dmesg -n $LOGLEVEL
 fi
 
+# Only read this once.
 cmdline=$(cat /proc/cmdline)
 
+# Initialize hardware
 if [ -f /proc/sys/kernel/modprobe ]; then
    if ! strstr "$cmdline" nomodules && [ -f /proc/modules ] ; then
        sysctl -w kernel.modprobe="/sbin/modprobe" >/dev/null 2>&1
    else
+       # We used to set this to NULL, but that causes 'failed to exec' messages"
        sysctl -w kernel.modprobe="/bin/true" >/dev/null 2>&1
    fi
 fi
 
 touch /dev/.in_sysinit >/dev/null 2>&1
 
+# Set default affinity
 if [ -x /bin/taskset ]; then
    if strstr "$cmdline" default_affinity= ; then
      for arg in $cmdline ; do
@@ -317,15 +345,19 @@ nashpid=$(pidof nash 2>/dev/null)
 unset nashpid
 /sbin/start_udev
 
+# Load other user-defined modules
 for file in /etc/sysconfig/modules/*.modules ; do
   [ -x $file ] && $file
 done
 
+# Load modules (for backward compatibility with VARs)
 if [ -f /etc/rc.modules ]; then
 	/etc/rc.modules
 fi
 
+#:::# zyx
 
+# probably obsolete rhgb stuff
 
 if ( which system-config-display > /dev/null 2>&1 ); then
 
@@ -376,17 +408,29 @@ if ( which system-config-display > /dev/null 2>&1 ); then
     
 fi
 
+#:::# xyz
 
 mount -n /dev/pts >/dev/null 2>&1
 [ -n "$SELINUX_STATE" ] && restorecon /dev/pts >/dev/null 2>&1
 
+# Configure kernel parameters
 update_boot_stage RCkernelparam
 sysctl -e -p /etc/sysctl.conf >/dev/null 2>&1
 
+# Set the hostname.
 update_boot_stage RChostname
 action $"Setting hostname ${HOSTNAME}: " hostname ${HOSTNAME}
 
+# Start any MD RAID arrays that haven't been started yet
+#:::# zyx
+# don't mess with the system's disks in LiveOS mode
+# TODO: verify/consider how this may negatively impact installed normal usage
+# I.E.: I've forgotten if this sysinit is only used in LiveOS mode, and if so,
+#       I still need to make the real sysinit have the above aesthetic mods.
+#[ -f /etc/mdadm.conf -a -x /sbin/mdadm ] && /sbin/mdadm -As --auto=yes --run
+#:::# xyz
 
+# Device mapper & related initialization
 if ! __fgrep "device-mapper" /proc/devices >/dev/null 2>&1 ; then
        modprobe dm-mod >/dev/null 2>&1
 fi
@@ -496,10 +540,17 @@ if [ "$READONLY" = "yes" -o "$TEMPORARY_STATE" = "yes" ]; then
 		fi
 	}
 
+	# Common mount options for scratch space regardless of 
+	# type of backing store
 	mountopts=
 
+	# Scan partitions for local scratch storage
 	rw_mount_dev=$(blkid -t LABEL="$RW_LABEL" -l -o device)
 
+	# First try to mount scratch storage from /etc/fstab, then any
+	# partition with the proper label.  If either succeeds, be sure
+	# to wipe the scratch storage clean.  If both fail, then mount
+	# scratch storage via tmpfs.
 	if mount $mountopts "$RW_MOUNT" > /dev/null 2>&1 ; then
 		rm -rf "$RW_MOUNT" > /dev/null 2>&1
 	elif [ x$rw_mount_dev != x ] && mount $rw_mount_dev $mountopts "$RW_MOUNT" > /dev/null 2>&1; then
@@ -528,6 +579,10 @@ if [ "$READONLY" = "yes" -o "$TEMPORARY_STATE" = "yes" ]; then
 		done
 	done
 
+	# In theory there should be no more than one network interface active
+	# this early in the boot process -- the one we're booting from.
+	# Use the network address to set the hostname of the client.  This
+	# must be done even if we have local storage.
 	ipaddr=
 	if [ "$HOSTNAME" = "localhost" -o "$HOSTNAME" = "localhost.localdomain" ]; then
 		ipaddr=$(ip addr show to 0.0.0.0/0 scope global | awk '/[[:space:]]inet / { print gensub("/.*","","g",$2) }')
@@ -537,13 +592,24 @@ if [ "$READONLY" = "yes" -o "$TEMPORARY_STATE" = "yes" ]; then
 		fi
 	fi
 	
+	# Clients with read-only root filesystems may be provided with a
+	# place where they can place minimal amounts of persistent
+	# state.  SSH keys or puppet certificates for example.
+	#
+	# Ideally we'll use puppet to manage the state directory and to
+	# create the bind mounts.  However, until that's all ready this
+	# is sufficient to build a working system.
 
+	# First try to mount persistent data from /etc/fstab, then any
+	# partition with the proper label, then fallback to NFS
 	state_mount_dev=$(blkid -t LABEL="$STATE_LABEL" -l -o device)
 	if mount $mountopts $STATE_OPTIONS "$STATE_MOUNT" > /dev/null 2>&1 ; then
 		/bin/true
 	elif [ x$state_mount_dev != x ] && mount $state_mount_dev $mountopts "$STATE_MOUNT" > /dev/null 2>&1;  then
 		/bin/true
 	elif [ ! -z "$CLIENTSTATE" ]; then
+		# No local storage was found.  Make a final attempt to find 
+		# state on an NFS server.
 
 		mount -t nfs $CLIENTSTATE/$HOSTNAME $STATE_MOUNT -o rw,nolock
 	fi
@@ -609,6 +675,7 @@ if [ -z "$fastboot" -a "$READONLY" != "yes" ]; then
 		reboot -f
         fi
 	
+        # A return of 4 or higher means there were serious problems.
 	if [ $rc -gt 1 ]; then
 		[ -n "$PLYMOUTH" ] && plymouth --hide-splash 
 
@@ -650,15 +717,18 @@ remount_needed() {
   return 0
 }
 
+# Remount the root filesystem read-write.
 update_boot_stage RCmountfs
 if remount_needed ; then
   action $"Remounting root filesystem in read-write mode: " mount -n -o remount,rw /
 fi
 
+# Clean up SELinux labels
 if [ -n "$SELINUX_STATE" ]; then
    restorecon /etc/mtab /etc/ld.so.cache /etc/blkid/blkid.tab /etc/resolv.conf >/dev/null 2>&1
 fi
 
+# If relabeling, relabel mount points.
 if [ -n "$SELINUX_STATE" -a "$READONLY" != "yes" ]; then 
     if [ -f /.autorelabel ] || strstr "$cmdline" autorelabel ; then
 	restorecon $(awk '!/^#/ && $4 !~ /noauto/ && $2 ~ /^\// { print $2 }' /etc/fstab) >/dev/null 2>&1
@@ -666,10 +736,13 @@ if [ -n "$SELINUX_STATE" -a "$READONLY" != "yes" ]; then
 fi
 
 if [ "$READONLY" != "yes" ] ; then
+	# Clear mtab
 	(> /etc/mtab) &> /dev/null
 
+	# Remove stale backups
 	rm -f /etc/mtab~ /etc/mtab~~
 
+	# Enter mounted filesystems into /etc/mtab
 	mount -f /
 	mount -f /proc >/dev/null 2>&1
 	mount -f /sys >/dev/null 2>&1
@@ -677,12 +750,16 @@ if [ "$READONLY" != "yes" ] ; then
 	mount -f /proc/bus/usb >/dev/null 2>&1
 fi
 
+# Mount all other filesystems (except for NFS and /proc, which is already
+# mounted). Contrary to standard usage,
+# filesystems are NOT unmounted in single user mode.
 if [ "$READONLY" != "yes" ] ; then
 	action $"Mounting local filesystems: " mount -a -t nonfs,nfs4,smbfs,ncpfs,cifs,gfs,gfs2 -O no_netdev
 else
 	action $"Mounting local filesystems: " mount -a -n -t nfs4,smbfs,ncpfs,cifs,gfs,gfs2 -O no_netdev
 fi
 
+# Update quotas if necessary
 if [ X"$_RUN_QUOTACHECK" = X1 -a -x /sbin/quotacheck ]; then
 	action $"Checking local filesystem quotas: " /sbin/quotacheck -anug
 fi
@@ -691,6 +768,7 @@ if [ -x /sbin/quotaon ]; then
     action $"Enabling local filesystem quotas: " /sbin/quotaon -aug
 fi
 
+# Check to see if a full relabel is needed
 if [ -n "$SELINUX_STATE" -a "$READONLY" != "yes" ]; then 
     if [ -f /.autorelabel ] || strstr "$cmdline" autorelabel ; then
 	relabel_selinux
@@ -701,6 +779,7 @@ else
     fi
 fi
 
+# Initialize pseudo-random number generator
 if [ -f "/var/lib/random-seed" ]; then
 	cat /var/lib/random-seed > /dev/urandom
 else
@@ -715,6 +794,7 @@ if [ -f /etc/crypttab ]; then
     init_crypto 1
 fi
 
+# Configure machine if necessary.
 if [ -f /.unconfigured ]; then
     if [ -x /usr/bin/rhgb-client ] && /usr/bin/rhgb-client --ping ; then
 	/usr/bin/rhgb-client --quit
@@ -739,29 +819,36 @@ if [ -f /.unconfigured ]; then
 	/usr/sbin/ntsysv --level 35
     fi
 
+    # Reread in network configuration data.
     if [ -f /etc/sysconfig/network ]; then
 	. /etc/sysconfig/network
 
+	# Reset the hostname.
 	action $"Resetting hostname ${HOSTNAME}: " hostname ${HOSTNAME}
     fi
 
     rm -f /.unconfigured
 fi
 
+# Clean out /.
 rm -f /fastboot /fsckoptions /forcefsck /.autofsck /forcequotacheck /halt \
 	/poweroff &> /dev/null
 
+# Do we need (w|u)tmpx files? We don't set them up, but the sysadmin might...
 _NEED_XFILES=
 [ -f /var/run/utmpx -o -f /var/log/wtmpx ] && _NEED_XFILES=1
 
+# Clean up /var.
 rm -rf /var/lock/cvs/* /var/run/screen/*
 find /var/lock /var/run ! -type d -exec rm -f {} \;
 rm -f /var/lib/rpm/__db* &> /dev/null
 rm -f /var/gdm/.gdmfifo &> /dev/null
 
+# Reset pam_console permissions
 [ -x /sbin/pam_console_apply ] && /sbin/pam_console_apply -r
 
 {
+# Clean up utmp/wtmp
 > /var/run/utmp
 touch /var/log/wtmp
 chgrp utmp /var/run/utmp /var/log/wtmp
@@ -773,6 +860,7 @@ if [ -n "$_NEED_XFILES" ]; then
   chmod 0664 /var/run/utmpx /var/log/wtmpx
 fi
 
+# Clean up various /tmp bits
 [ -n "$SELINUX_STATE" ] && restorecon /tmp
 rm -f /tmp/.X*-lock /tmp/.lock.* /tmp/.gdm_socket /tmp/.s.PGSQL.*
 rm -rf /tmp/.X*-unix /tmp/.ICE-unix /tmp/.font-unix /tmp/hsperfdata_* \
@@ -780,10 +868,12 @@ rm -rf /tmp/.X*-unix /tmp/.ICE-unix /tmp/.font-unix /tmp/hsperfdata_* \
        /tmp/scrollkeeper-*  /tmp/ssh-* \
        /dev/.in_sysinit
 
+# Make ICE directory
 mkdir -m 1777 -p /tmp/.ICE-unix >/dev/null 2>&1
 chown root:root /tmp/.ICE-unix
 [ -n "$SELINUX_STATE" ] && restorecon /tmp/.ICE-unix >/dev/null 2>&1
 
+# Start up swapping.
 update_boot_stage RCswap
 action $"Enabling /etc/fstab swaps: " swapon -a -e
 if [ "$AUTOSWAP" = "yes" ]; then
@@ -798,8 +888,10 @@ if [ "$AUTOSWAP" = "yes" ]; then
 	fi
 fi
 
+# Set up binfmt_misc
 /bin/mount -t binfmt_misc none /proc/sys/fs/binfmt_misc > /dev/null 2>&1
 
+# Boot time profiles. Yes, this should be somewhere else.
 if [ -x /usr/sbin/system-config-network-cmd ]; then
   if strstr "$cmdline" netprofile= ; then
     for arg in $cmdline ; do
@@ -810,9 +902,12 @@ if [ -x /usr/sbin/system-config-network-cmd ]; then
   fi
 fi
 
+# Now that we have all of our basic modules loaded and the kernel going,
+# let's dump the syslog ring somewhere so we can find it later
 [ -f /var/log/dmesg ] && mv -f /var/log/dmesg /var/log/dmesg.old
 dmesg -s 131072 > /var/log/dmesg
 
+# create the crash indicator flag to warn on crashes, offer fsck with timeout
 touch /.autofsck &> /dev/null
 
 if [ "$PROMPT" != no ]; then
@@ -834,6 +929,7 @@ fi
 wait
 [ "$PROMPT" != no ] && rm -f /var/run/getkey_done
 
+#:::# zyx
 if ( which system-config-display > /dev/null 2>&1 ); then
 
     if (($host_is_qemu)); then
@@ -847,7 +943,9 @@ if ( which system-config-display > /dev/null 2>&1 ); then
 	restorecon /etc/X11/xorg.conf
     fi
 fi
+#:::# xyz
 
+# Let rhgb know that we're leaving rc.sysinit
 if [ -x /usr/bin/rhgb-client ] && /usr/bin/rhgb-client --ping ; then
     /usr/bin/rhgb-client --sysinit
 fi

@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+#
+#############################################################################
+#
+# zyx-chronic-fixup.gdm: the cess pool of inelegant workarounds (gdm)
+#
+#############################################################################
+#
+# Copyright 2009-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+# This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, version 3 of the License.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+#############################################################################
+#
+# zyx-chronic-fixup: the cess pool of inelegant workarounds
+#
+# This script gets run nightly, to fix up things. 
+#
+# One example of such things are my inability to configure gdm's logo.
+# While my own ignorance may be partly to blame, it is certainly a bug
+# that absent the fedora-logos package, the gdm logo is a fedora trademark.
+#
+#############################################################################
+
+
+
+#############################################################################
+##
+## constants
+##
+
+
+
+#############################################################################
+#############################################################################
+##
+## functions
+##
+#############################################################################
+
+function fixup_gdm_greeter_logo {
+    
+    ( IFS='\n'
+	in_cinl=0
+	in_li=0
+	cat "${1}" | while read line; do
+	    if ((${in_cinl})); then
+		if ( echo "${line}" | grep -q '</widget>' ); then
+		    in_cinl=0
+		fi
+	    else
+		if ( echo "${line}" | grep -q '<widget class="GtkLabel" id="computer-info-name-label">' ); then
+		    in_cinl=1
+		fi
+	    fi
+	    if ((${in_li})); then
+		if ( echo "${line}" | grep -q '</widget>' ); then
+		    in_li=0
+		fi
+	    else
+		if ( echo "${line}" | grep -q '<widget class="GtkImage" id="logo-image">' ); then
+		    in_li=1
+		fi
+	    fi
+	    
+	    if ( echo "${line}" | grep -q '<widget class="GtkImage" id="logo-image">' ); then
+		echo "${line}" | sed -e 's/logo-image/logo-image-zyx/'
+	    elif (( $in_cinl )); then
+		echo "${line}" | sed -e 's|<property name="visible">True</property>|<property name="visible">False</property>|' 
+	    elif (( $in_li )); then
+		echo "${line}" | sed -e 's|<property name="icon_name">.*</property>|<property name="pixbuf">/etc/zyx/gdm-branding-icon.png</property>|' 
+	    else
+		echo "${line}"
+	    fi
+	done
+	)
+
+}
+
+#############################################################################
+#############################################################################
+##
+## main
+##
+#############################################################################
+
+
+# this is a gross way to workaround the fact that I don't yet know how 
+# to easily/scriptomatically create a new named/themed icon, and even
+# then I'm not sure that will be sufficient to get the customization that
+# this achieves (replacing the icon, and hiding the computer name)
+
+if ( ! diff -q /usr/share/gdm/gdm-greeter-login-window.glade /usr/share/gdm/gdm-greeter-login-window.glade.zyx 2> /dev/null ); then
+    cp /usr/share/gdm/gdm-greeter-login-window.glade \
+	/usr/share/gdm/gdm-greeter-login-window.glade.orig
+    fixup_gdm_greeter_logo /usr/share/gdm/gdm-greeter-login-window.glade \
+	> /usr/share/gdm/gdm-greeter-login-window.glade.zyx
+    cp /usr/share/gdm/gdm-greeter-login-window.glade.zyx \
+	/usr/share/gdm/gdm-greeter-login-window.glade 
+fi

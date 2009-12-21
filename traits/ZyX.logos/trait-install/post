@@ -1,0 +1,62 @@
+#!/bin/bash
+
+rpm -e --nodeps fedora-logos
+yum -y install generic-logos
+rpm -e --nodeps desktop-backgrounds-basic
+rpm -e --nodeps gnome-backgrounds
+
+
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type string \
+    /desktop/gnome/background/picture_options \
+    'stretched'
+
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type string \
+    /schemas/desktop/gnome/background/picture_options \
+    'stretched'
+
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type string \
+    /desktop/gnome/background/picture_filename \
+    '/etc/zyx/kablui-desktop-background.jpg'
+
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type string \
+    /schemas/desktop/gnome/background/picture_filename \
+    '/etc/zyx/kablui-desktop-background.jpg'
+
+
+sed -i \
+    -e 's/fedora\-logo\-icon/\/etc\/zyx\/kablui-mainmenu-icon\.png/' \
+    /usr/share/applications/liveinst.desktop
+
+mv /usr/sbin/liveinst /usr/sbin/liveinst.orig
+cat /usr/sbin/liveinst.orig | grep -v "^export ANACONDA" > /tmp/liveinst
+cat <<EOF >/usr/sbin/liveinst
+#!/bin/sh
+export ANACONDA_PRODUCTNAME=\$( cat /etc/zyx-release | sed -e 's/\srelease.*//' )
+export ANACONDA_PRODUCTVERSION=\$( cat /etc/zyx-release | sed -e 's/.*release\s//' | sed -e 's/\s(.*//' )
+export ANACONDA_BUGURL="http://gzyx.org/bugz"
+EOF
+
+cat /tmp/liveinst >> /usr/sbin/liveinst
+chmod 755 /usr/sbin/liveinst
+rm -f /tmp/liveinst
+

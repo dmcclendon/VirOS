@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
+<!--*- mode: xml -*-->
+<glade-interface>
+  <widget class="GtkWindow" id="splashscreen">
+    <property name="visible">True</property>
+    <property name="title" translatable="yes">kablui initialization</property>
+    <signal name="configure_event" handler="on_splashscreen_configure_event"/>
+    <signal name="key_press_event" handler="on_splashscreen_key_press_event"/>
+    <signal name="destroy_event" handler="on_splashscreen_destroy_event"/>
+    <child>
+      <widget class="GtkFixed" id="fixed">
+        <property name="visible">True</property>
+	<child>
+	  <widget class="GtkImage" id="background">
+            <property name="width_request">1</property>
+            <property name="height_request">1</property>
+            <property name="visible">True</property>
+            <property name="stock">gtk-missing-image</property>
+	  </widget>
+	</child>
+        <child>
+          <widget class="GtkProgressBar" id="progressbar">
+            <property name="width_request">100</property>
+            <property name="height_request">20</property>
+            <property name="visible">True</property>
+            <property name="pulse_step">0.10000000149</property>
+          </widget>
+        </child>
+      </widget>
+    </child>
+  </widget>
+</glade-interface>

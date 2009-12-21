@@ -1,0 +1,11 @@
+[Desktop Entry]
+Encoding=UTF-8
+Version=1.0
+Type=Directory
+Name[en_US]=ZyX
+Comment[en_US]=ZyX Main Menu
+Name=ZyX
+Comment=ZyX Main Menu
+Icon[en_US]=/etc/zyx/kablui-mainmenu-icon.png
+Icon=/etc/zyx/kablui-mainmenu-icon.png
+

@@ -8,12 +8,9 @@ VirOS Known Bugs
 - on at least a couple occasions, qemu has come up, frozen in an alternate
   console mode ("parallel=0").  very rare, and not reproducable
 
-- at least once, the f8 rescue iso oopsed before doing much, though there
-  had been "-m 256 -m 320" on the qemu cmdline.  That is fixed now, but
-  I suspect that reflects either a kernel bug irrespective of the qemu
-  cmdline, or a qemu bug.  Maybe has to do with use of acpi=froce (div bug?)
-
 - viros command frontend still attempts abbreviation, but currently does
   this less than successfully (at least when no match is found)
 
-- .kablui trait has path to default_desktop hardcoded in /usr/bin/kablui
+- running zbuild/vxmog/(qfr/smirfgen) can result in an unreaped qemu process,
+  if ctrl-c'd at the wrong time.  Detected while adding the .kernel to output
+  of --guest_smirf

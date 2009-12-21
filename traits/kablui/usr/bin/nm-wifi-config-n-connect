@@ -1,0 +1,205 @@
+#!/usr/bin/python -tt
+#############################################################################
+#############################################################################
+##
+## nm-wifi-config-n-connect
+##
+## A commandline tool to configure and thus connect to a wifi network
+##
+## usage: ./nm-wifi-config-n-connect <wifi ssid(network name)>
+##
+## Copyright 2009 Douglas McClendon <dmc AT filteredperception DOT org>
+##
+#############################################################################
+#############################################################################
+
+
+#############################################################################
+#############################################################################
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Library General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+#############################################################################
+#############################################################################
+
+
+#############################################################################
+#############################################################################
+##
+## libraries
+##
+#############################################################################
+#############################################################################
+
+# for sys.exit
+import sys
+
+# for mkstemp
+import tempfile
+
+# for fdopen
+import os
+
+
+#############################################################################
+#############################################################################
+##
+## functions
+##
+#############################################################################
+#############################################################################
+
+
+def cloudsession_initiate(network_name):
+
+    #
+    # define the template for the xml configuration we will load
+    #
+    new_gconf_config_part_a = """<gconfentryfile>
+  <entrylist base="/">
+
+     <entry>
+       <key>/system/networking/connections/1/802-11-wireless/mode</key>
+       <value>
+         <string>infrastructure</string>
+       </value>
+     </entry>
+     <entry>
+       <key>/system/networking/connections/1/802-11-wireless/name</key>
+       <value>
+         <string>802-11-wireless</string>
+       </value>
+     </entry>
+    <entry>
+      <key>/system/networking/connections/1/802-11-wireless/seen-bssids</key>
+      <value>
+        <list type="string">
+        </list>
+      </value>
+    </entry>
+
+     <entry>
+       <key>/system/networking/connections/1/802-11-wireless/ssid</key>
+       <value>
+         <list type="int">
+"""
+    ## between the first and the second part, goes a 'spelling' out of
+    ## the ssid's characters ascii values, like this
+    #             <value>
+    #               <int>106</int>
+    #             </value>
+    new_gconf_config_part_b = """
+         </list>
+       </value>
+     </entry>
+     <entry>
+       <key>/system/networking/connections/1/connection/id</key>
+       <value>
+"""
+
+    ## between the second and third part, goes the network longname, 
+    ## e.g. <string>Auto my_wifi_network</string>
+    ## note: had to fold string open/close there due to wierd python issue
+    new_gconf_config_part_c = """       </value>
+     </entry>
+     <entry>
+       <key>/system/networking/connections/1/connection/name</key>
+       <value>
+         <string>connection</string>
+       </value>
+     </entry>
+     <entry>
+       <key>/system/networking/connections/1/connection/timestamp</key>
+       <value>
+         <string>3333333333</string>
+       </value>
+     </entry>
+     <entry>
+       <key>/system/networking/connections/1/connection/type</key>
+       <value>
+         <string>802-11-wireless</string>
+       </value>
+     </entry>
+
+  </entrylist>
+</gconfentryfile>
+"""
+
+    (new_gconf_config_fd, new_gconf_config_filename) = tempfile.mkstemp()
+
+    new_gconf_config_file = os.fdopen(new_gconf_config_fd, 'w')
+
+    # note, the comma at end suppresses newline
+    #print "%s" % (new_gconf_config_part_a,),
+    new_gconf_config_file.write(new_gconf_config_part_a)
+
+    for char in list(network_name):
+        new_gconf_config_file.write("             <value>\n")
+        new_gconf_config_file.write("               <int>%s</int>\n" % (str(ord(char)),))
+        new_gconf_config_file.write("             </value>\n")
+
+    # lots of equivalencies, python is like perl that way
+    #print "%s" % (new_gconf_config_part_b,),
+    new_gconf_config_file.write(new_gconf_config_part_b)
+
+    new_gconf_config_file.write("         <string>Auto %s</string>\n" % (network_name,))
+
+    new_gconf_config_file.write(new_gconf_config_part_c)
+    new_gconf_config_file.close()
+
+    # load new connection configuration
+    os.system("gconftool-2 --load=%s" % (new_gconf_config_filename,))
+
+    # poke networkmanager
+    os.system("((nm-connection-editor &) ; sleep 3 ; killall nm-connection-editor) > /dev/null 2>&1")
+
+    # delete temporary file
+    os.unlink(new_gconf_config_filename)
+
+
+#############################################################################
+#############################################################################
+##
+## main 
+##
+#############################################################################
+#############################################################################
+        
+if __name__ == "__main__":
+
+    #
+    # parse commandline
+    #
+    if len(sys.argv) == 2:
+        network_name = sys.argv[1]
+    else:
+        print """\n\nusage: nm-wifi-config-n-connect <wifi ssid (network name)>\n\n"""
+        sys.exit(1)
+
+    #
+    # connect to the specified network
+    #
+    cloudsession_initiate(network_name)
+
+    sys.exit(0)
+
+
+#############################################################################
+#############################################################################
+##
+## end code (only notes below)
+##
+#############################################################################
+#############################################################################
+    

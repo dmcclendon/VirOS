@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# runpre: script that is run by VirOS mutate after trait injection
+#
+#############################################################################
+#
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+#This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+echo "STATUS: viros mutate pre - fedora/x86 - STARTING XXXXXXXXXXXXXXXXXXXX"
+
+if [ -f /trait-expanded/trait-install/webserver.cfg ]; then
+    source /trait-expanded/trait-install/webserver.cfg
+else
+    exit 0
+fi
+
+
+reposdir=$( cat /etc/yum.conf  | grep "^reposdir=" | sed -e 's/^reposdir=//' )
+if [ "x${reposdir}" == "x" ]; then reposdir=/etc/yum.repos.d; fi
+
+mv ${reposdir} /etc/yum.reposdir.unmutated
+cp -a /etc/yum.reposdir.unmutated ${reposdir}
+
+/trait-expanded/trait-install/vmirmog \
+    /tmp/mutate.vsys.mirrorlist.cfg \
+    ${reposdir} \
+    http://${mutate_webserver_ip}:${mutate_webserver_port}/mirrors/
+
+rm -f /tmp/mutate.vsys.mirrorlist.cfg
+
+echo "STATUS: viros mutate pre - fedora/x86 - EXITING XXXXXXXXXXXXXXXXXXXXX"
+

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name="ZyX Kablui Splash"
+Exec=kablui-session
+NoDisplay=true
+X-GNOME-Autostart-Phase=WindowManager
+X-GNOME-Autostart-Provides=windowmanager
+X-GNOME-Autostart-Notify=false
+X-GNOME-AutoRestart=false
+

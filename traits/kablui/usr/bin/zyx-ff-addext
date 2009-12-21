@@ -1,0 +1,54 @@
+#!/usr/bin/env perl
+#
+# ff_addext.pl - add extension to firefox extensions.ini file
+#
+# Copyright 2007 Douglas McClendon <dmc@filteredperception.org>
+#
+
+#
+# usage: ff_addext.pl <inifile> <extpath>
+#
+# adds and extension defined by extpath to the target extension.ini file
+#
+# The canonical example would be adding the swifttabs extension
+# to an existing inifile.  This is done by adding a line to the 
+# enf of the ExtensionDirs section of the inifile, using an extension
+# number one higher than the largest existing extension number.
+#
+
+$inifile = $ARGV[0];
+$extpath = $ARGV[1];
+
+open(INIFILE, "<${inifile}") or die "ouch";
+@lines = <INIFILE>;
+close(INIFILE);
+
+open(INIFILE, ">${inifile}") or die "ouch";
+
+# simple stream filter
+$max_extension_number=0;
+$prev_line="";
+foreach ( @lines ) {
+  $orig_line = $_;
+  if ( $orig_line =~ /^Extension/ ) {
+      $this_extension_number = $orig_line;
+      $this_extension_number =~ s/^Extension//;
+      $this_extension_number =~ s/=.*$//;
+      if ($this_extension_number > $max_extension_number) {
+	  $max_extension_number = $this_extension_number;
+      }
+  }
+  if ( $orig_line !~ /^\[ThemeDirs\]/ ) {
+      print INIFILE "$prev_line";
+  } else {
+      $new_extension_number = $max_extension_number + 1;
+      print INIFILE "$prev_line";
+      print INIFILE "Extension${new_extension_number}=${extpath}\n"
+  }
+
+  $prev_line = $orig_line;
+}
+
+print INIFILE "$prev_line";
+
+close(INIFILE);

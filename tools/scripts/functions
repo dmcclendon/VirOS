@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,7 +26,15 @@
 #
 #############################################################################
 
+##
+## VirOS funcions
+##
+## utility functions for viros scripts
+##
 
+##
+## set default values for undefined globals that are used
+##
 if [ "x${viros_comtrace}" == "x" ]; then
     viros_comtrace="VirOS-${progname}"
 fi
@@ -56,6 +63,14 @@ if [ "x${cleanup_command}" == "x" ]; then
     cleanup_command="echo cleaning up..."
 fi
 
+#
+# usage: normalize_path <path>
+#
+# normalize_path will take a path to a file or directory, and return
+# an equivalent non-relative (non-symlink?) path
+#
+# globals used: none
+#
 function normalize_path {
     result=$( cd $( dirname $1 ) ; pwd )/$( basename $1 )
     if (($?)); then
@@ -66,8 +81,18 @@ function normalize_path {
 }
 
 
+#
+# usage: veva command args...
+#
+# the vsys eval wrapper runs a command, redirecting it's output to 
+# a nicely formatted log entry
+#
+# globals used: progname, logfiles
+#
 function veva {
 
+    # in debug mode, send debug messages to stdout as well as logfiles
+    # (doesn't seem to work tho)
     if (($vopt_debug)); then
 	vlogfiles="${logfiles} /dev/stdout"
     else
@@ -81,6 +106,8 @@ function veva {
 	echo "${progname}: status: $@" >> $logfile
     done
 
+    # I have not yet verified that pipefail is doing what I think its doing
+    # (my first ever use of pipefail)
     set -o pipefail
     if (($vopt_debug)); then
 	eval $@ 2>&1 | tee -a $logfiles
@@ -100,8 +127,12 @@ function veva {
     return $retval
 }
 
+# stupid workaround for my lack of level 99 bash gurudom
+# (no doubt I'll find a better method than this at some point)
 function vevastupid {
 
+    # in debug mode, send debug messages to stdout as well as logfiles
+    # (doesn't seem to work tho)
     if (($vopt_debug)); then
 	vlogfiles="${logfiles} /dev/stdout"
     else
@@ -118,10 +149,13 @@ function vevastupid {
     for (( i=1 ; $i <= $# ; i=$(( $i + 1 )) )); do
 	eval "datcopy[$i]=\$$i"
 	if ( echo "${datcopy[$i]}" | grep -q "___" ); then
+#	    datcopy[$i]="\"$( echo ${datcopy[$i]} | sed -e 's/VirOS_Synthesis_Monitor/VirOS\ Synthesis\ Monitor/')\""
 	    datcopy[$i]="\"$( echo ${datcopy[$i]} | sed -e 's/___/\ /g' )\""
 	fi
     done
 
+    # I have not yet verified that pipefail is doing what I think its doing
+    # (my first ever use of pipefail)
     set -o pipefail
     if (($vopt_debug)); then
 	eval ${datcopy[@]} 2>&1 | tee -a $logfiles
@@ -141,6 +175,14 @@ function vevastupid {
     return $retval
 }
 
+#
+# usage: die <message...>
+#
+# Generic error condition exit function used as a last resort when a more
+# graceful handling of the error is not possible or not yet implemented.
+#
+# globals used: cleanup_command
+#
 function die {
     echo -en "\n"
     status "===================================="
@@ -150,6 +192,9 @@ function die {
     status "VSYS has exited prior to task completion"
     status "===================================="
 
+    ##
+    ## clean up
+    ##
     status "cleaning up..."
     status "(please wait up to 1 minute if possible)"
     if (($vopt_debug)); then
@@ -161,6 +206,17 @@ function die {
     exit 1
 }
 
+#
+# usage: die_bug <message...>
+#
+# Generic error condition exit function used as a last resort when a more
+# graceful handling of the error is not possible or not yet implemented.
+#
+# the _bug version of die is called when a truly unexpected condition 
+# warrants developer feedback 
+#
+# globals used: cleanup_command
+#
 function die_bug {
     status "===================================="
     status $@
@@ -171,12 +227,22 @@ function die_bug {
     status "please submit a bug report to bugs@viros.org"
     status "===================================="
 
+    ##
+    ## clean up
+    ##
     status "cleaning up..."
     veva $cleanup_command
 
     exit 1
 }
 
+#
+# usage: debug <message...>
+#
+# wrapper for sending status messages to console and log
+#
+# globals used: progname, logfiles(not required)
+#
 function debug {
     time="$( date +%Y-%m-%d:%H:%M:%S )"
     if (($vopt_debug)); then
@@ -187,6 +253,13 @@ function debug {
     done
 }
 
+#
+# usage: debugcat <filename>
+#
+# wrapper for sending status messages to console and log
+#
+# globals used: progname, logfiles(not required)
+#
 function debugcat {
     if [ ! -f $1 ]; then
 	die "file $1 can not be debugcat-ed"
@@ -203,6 +276,13 @@ function debugcat {
     done
 }
 
+#
+# usage: verbose <message...>
+#
+# wrapper for sending status messages to console and log
+#
+# globals used: progname, logfiles(not required)
+#
 function verbose {
     time="$( date +%Y-%m-%d:%H:%M:%S )"
     if (($vopt_verbose)); then
@@ -211,12 +291,21 @@ function verbose {
 	echo "${viros_comtrace}: ${time}: verbose: $@"
     fi
     for logfile in $logfiles; do
+	# todo: figure out why this if case is necessary
+	# (triggerred a failure when I did a ctrl c on a non --debug run)
 	if [ -d "$( dirname $logfile )" ]; then
 	    echo "${progname}: ${time}: verbose: $@" >> $logfile
 	fi
     done
 }
 
+#
+# usage: status <message...>
+#
+# wrapper for sending status messages to console and log
+#
+# globals used: progname, logfiles(not required)
+#
 function status {
     bequiet=0
     if [ "x${vopt_quiet}" == "x1" ]; then
@@ -234,6 +323,12 @@ function status {
     done
 }
 
+#
+# usage: simple_statuslogger <logfile>
+#
+# this function passes it's stdin to the logfile, and outputs a . to stdout
+# for every line of stdin.
+#
 function simple_statuslogger {
     wdone=0
     while (( !$wdone )); do
@@ -250,6 +345,14 @@ function simple_statuslogger {
     echo -en "\n"
 }
 
+#
+# usage: statuslogger <logfile>
+#
+# like statuslogger, but designed for the os installer output
+# (anaconda.log and other).  In addition, lines of dots are broken either
+# when they hit $numdots_perline, or when a timestamp has not been printed
+# in more than $minvalsecs
+#
 function statuslogger {
     logfile=$1
     msg_prefix=$2
@@ -277,6 +380,9 @@ function statuslogger {
         read
 	wdone=$?
 
+	# todo: use a timer, and if the time since the 
+	# last divcount reset has been longer than a constant
+	# go ahead and jump divcount to divider
 	divcount=$(( $divcount + 1 ))
 
 	if [ $divcount -eq $divider ]; then
@@ -306,6 +412,15 @@ function statuslogger {
     echo -en "\n"
 }
 
+#
+# usage: waitonoutput <filename> <string> <period> <timeout>
+#
+# waitonoutput watches a particular filename, looking for the given
+# string.  waitonouput will check periodically with the period 
+# specified in seconds, until a maximum timeout value specified in
+# seconds.  If the string is found before the timeout expires, 0 (no error)
+# is returned.  Otherwise, 1 (error) will be returned
+#
 function waitonoutput {
     
     filename="$1"
@@ -313,6 +428,7 @@ function waitonoutput {
     period="$3"
     timeout="$4"
 
+    # local variables
     timeelapsed=0
     
     while [ true ]; do
@@ -329,13 +445,52 @@ function waitonoutput {
     done
 }
 
+##
+## usage: make_vncstartup <output_twmrc_filename>
+##
+## generates a minimal xstartup for Xvnc suitable for qemu in qrap
+##
 function make_vncstartup {
     cat <<EOF > $1
+#!/bin/bash
+#twm &
+#xterm &
 EOF
     chmod +x $1
 }
 
+function install_smirfgen {
+    src_dir=${1}
+    dest_dir=${2}
+
+    verbose "installing smirfgen..."
+    mkdir ${dest_dir}/lib/viros
+    mkdir ${dest_dir}/lib/viros/scripts
+    mkdir ${dest_dir}/lib/viros/ZyX-Live-OS
+    cp ${src_dir}/bin/smirfgen \
+	${dest_dir}/bin/smirfgen
+    # XXX: expediency, splitter should probably be bashified someday
+    if [ -x /bin/splitter ]; then
+	cp /bin/splitter \
+	    ${dest_dir}/bin/splitter
+    elif [ -x /usr/bin/splitter ]; then
+	cp /usr/bin/splitter \
+	    ${dest_dir}/bin/splitter
+    else
+	die "no splitter available"
+    fi
+    
+    cp -av ${src_dir}/lib/viros/scripts/* \
+	${dest_dir}/lib/viros/scripts/
+    cp -av ${src_dir}/lib/viros/ZyX-Live-OS/* \
+	${dest_dir}/lib/viros/ZyX-Live-OS/
+}
+
+
 function cleanup_and_exit {
+    ##
+    ## cleanup and exit
+    ##
     if (( $vopt_debug )); then
 	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
     else

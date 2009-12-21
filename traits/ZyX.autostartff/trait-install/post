@@ -1,5 +1,8 @@
 #!/bin/bash
 
+##
+## get runtime environment
+##
 progname="$( basename $0 )"
 progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
     pwd ; popd > /dev/null 2>&1 ) )
@@ -8,6 +11,61 @@ user=none
 source ${progdir}/trait-options
 
 mkdir -p /home/${user}/.config/autostart
-cp /usr/share/applications/mozilla-firefox.desktop /home/${user}/.config/autostart/firefox.desktop
+
+## SIGH
+## This was apparently enough in f10, but not in f9 and f11.
+## One suspicion I have is a race condition, between when metacity is
+## running these autostart programs, versus when it has successfully
+## initialized enough environment for firefox to actually be happy.
+## (which could of course also just indicate a longstanding firefox bug)
+#cp /usr/share/applications/mozilla-firefox.desktop /home/${user}/.config/autostart/firefox.desktop
+#chown -R ${user}:${user} /home/${user}
+
+cat <<EOF>  /home/${user}/.config/autostart/bakefox.desktop
+[Desktop Entry]
+Name=Firefox
+Type=Application
+Version=1.0
+Exec=/home/${user}/.kablui/runff
+EOF
+chmod 755 /home/${user}/.config/autostart/bakefox.desktop
+
+mkdir -p /home/${user}/.kablui
+cat <<EOF>  /home/${user}/.kablui/runff
+#!/bin/bash
+#numtries=7
+#try=1
+#while ((\$try <= \$numtries)); do
+#    firefox >> /home/${user}/.kablui/runff.log 2>&1 &
+#    ffpid=\$!
+#    sleep 3
+#    if ( ps \$ffpid > /dev/null 2>&1 ); then
+#        try=\$(( \$numtries + 1 ))
+#    else
+#        try=\$(( \$try + 1 ))
+#    fi
+#done
+
+xdone=0
+while ((! \$xdone)); do
+    if ( ps auwwxf | grep -q "clock-applet" ); then
+        if ( ps auwwxf | grep -q "gnome-power-manager" ); then
+            xdone=1
+        else
+            sleep 1
+        fi
+    else
+        sleep 1
+    fi
+done
+
+# sigh, experimental
+# next try will be repeated retries assuming possible badvalue xorg crash
+sleep 42
+
+firefox >> /home/${user}/.kablui/runff.log 2>&1 &
+
+EOF
+chmod 755 /home/${user}/.kablui/runff
 
 chown -R ${user}:${user} /home/${user}

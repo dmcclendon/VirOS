@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.5.2009_07_27
+Version:	0.6.2009_12_21
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -47,9 +47,19 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share
 
 
-
-
 %changelog
+* Mon Dec 21 2009 Douglas McClendon <dmc@viros.org> - 0.6.2009_12_21
+- new mutateopt of save_traits to put trait source in output
+- new trait:/trait-install/config.vml for trait dependencies
+- no longer strip out comments
+- guest_smirf: no longer rely on host files if virthost specified
+- use per ancenstor major version strain configs (easier rebasing)
+- sha256sum instead of sha1sum as per upstream defaults
+- add /lib/terminfo to initramfs for less (ala livecd-tools)
+- fixed typo in LiveOS smirgen.cfg for splash files
+- strain: g-zyx: add empathy for voice chat
+- for Guitar-ZyX-0.4
+
 * Sun Jul 27 2009 Douglas McClendon <dmc@viros.org> - 0.5.20090727
 - for Guitar-ZyX-0.3
 

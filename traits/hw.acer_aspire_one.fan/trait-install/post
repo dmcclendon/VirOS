@@ -1,0 +1,37 @@
+#!/bin/bash
+
+##
+## get runtime environment
+##
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+cat <<EOF >> /etc/rc.d/rc.local
+#
+# zyx misc: acer aspire one support for fan control
+#
+
+system_manufacturer="\$( dmidecode --string system-manufacturer )"
+system_product_name="\$( dmidecode --string system-product-name )"
+
+echo "zyx-unknown" > /var/run/ZyX.systype.txt
+
+if [ "\$system_manufacturer" == "Acer" ]; then
+    if [ "\$system_product_name" == "AOA150" ]; then
+        echo "zyx-acer-aspire-one" > /var/run/ZyX.systype.txt
+        acerfand
+    fi
+fi
+
+
+if [ "\$system_manufacturer" == "Sony Corporation" ]; then
+    if [ "\$system_product_name" == "VGN-N250E" ]; then
+        echo "zyx-sony-vgn_n250e" > /var/run/ZyX.systype.txt
+        acerfand
+    fi
+fi
+
+
+
+EOF

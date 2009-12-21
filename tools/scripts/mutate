@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,9 +27,52 @@
 #############################################################################
 
 
+#############################################################################
+##
+## VirOS mutate
+##
+## usage: mutate [options] [[--traits=<traitspec>]] <target.vsi>
+##
+## mutate modifies the target.vsi according to the specified traits.
+## The specified traits are assumed (for now) to either be a directory,
+## or a directory in the standard viros traits dir (/usr/lib/viros/traits)
+## (or developer environment equivalent)
+##
+## In addition to the contents of the directory being copied with root
+## ownership to the root of the target vsi's /, if a /trait-install
+## directory exists, any pre or post programs within it will be executed.
+##
+## Traits must be prefixed with either 'splice-' or 'unsplice-'.  The 
+## latter form can be used to remove traits that were added by an 
+## included .vml which for whatever reason you do not want to modify.
+##
+## traitspec may have options, attached to the directory name with :: and
+## seperated with :.  E.g.
+##
+## --traits=splice-EnableGDMAutoLogin::user=kablui:timeout=30 
+##
+## These options will be visible to the pre and post scripts a sourceable
+## bash script in /trait-expanded/trait-install/trait-options.
+##
+## multiple traits are applied in order.
+##
+##
+## Many further improvements to this functionality are planned.
+##
+#############################################################################
 
+
+#############################################################################
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+
+#############################################################################
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -40,8 +82,20 @@ else
     exit 1
 fi
 
+#############################################################################
+##
+## embedded qfakeroot script
+##
 function target_script_to_run_as_root {
 
+    #
+    # target mutation/trait environment assumptions:
+    #
+    # /input has contents of the trait as traitname.tar,
+    # /target is where the target root is mounted
+    # /scratch is a mounted workarea with lots of space
+    # /target has bindmounts for dev, proc, sys, selinux, and scratch
+    #
 
     export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/input/bin:/input/sbin"
 
@@ -49,6 +103,7 @@ function target_script_to_run_as_root {
     echo "STATUS: viros mutate - STARTING"
     echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
+    save_traits=0
     if [ -f /input/mutateopts ]; then
 	source /input/mutateopts
     fi
@@ -57,7 +112,7 @@ function target_script_to_run_as_root {
     echo "STATUS: viros mutate - creating swap"
     echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
-    swapk=$(( $( cat /proc/meminfo  | grep MemTotal | awk '{print $2}' ) * 2 ))
+    swapk=$(( $( cat /proc/meminfo  | grep MemTotal | awk '{print $2}' ) * 1 ))
     dd if=/dev/zero of=/scratch/qswap \
 	bs=1k count=$(( $swapk )) > /dev/null 2>&1
 
@@ -86,6 +141,7 @@ function target_script_to_run_as_root {
     mkdir /target/mutate.scratch
     mount --bind /scratch /target/mutate.scratch
 
+    # bindmount system directories into the chroot
     mount --bind /dev /target/dev
     mount --bind /dev/pts /target/dev/pts
     mount --bind /selinux /target/selinux
@@ -93,9 +149,7 @@ function target_script_to_run_as_root {
     mount --bind /sys /target/sys
 
     source /target/etc/selinux/config
-    echo "STATUS: about to really initialize selinux, x is $SELINUX y XXXXXXXXXXXXX"
     if [ "x${SELINUX}" == "xpermissive" -o "x${SELINUX}" == "xenforcing" ]; then
-	echo "STATUS: about to really really initialize selinux, x is $SELINUX y XXXXXXXXXXXXX"
 	chroot /target /usr/sbin/load_policy
 	chroot /target /usr/sbin/setenforce permissive
     fi
@@ -116,36 +170,44 @@ function target_script_to_run_as_root {
 	mkdir /target/trait-expanded
 	mkdir /target/trait-expanded/trait-install
 
+	# inelegant: base-trait-p* may depend on these
 	cp /input/vreplace /target/trait-expanded/trait-install/
 	cp /input/vmirmog /target/trait-expanded/trait-install/
 
+	# copy local webserver (e.g. for repo mirrors) configuration in place
 	if [ -f /input/webserver.cfg ]; then
 	    source /input/webserver.cfg
 	    cp /input/webserver.cfg \
 		/target/trait-expanded/trait-install/webserver.cfg
 	fi
-	echo "DMCDEBUG: HEREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
+	# if the base provides a mutate pre script, run it
 	if [ -x /input/base-trait-pre ]; then
 	    if (( $runprepost )); then
 		if [ "x${mutate_webserver_ip}" != "x" ]; then
-		    echo "DMCDEBUG: wgetting mirrorlist.cfg"
 		    wget -O /target/tmp/mutate.vsys.mirrorlist.cfg \
 			http://${mutate_webserver_ip}:${mutate_webserver_port}/mirrors/${mirror_listconfig}
-		    echo "DMCDEBUG: contents..."
-		    cat /target/tmp/mutate.vsys.mirrorlist.cfg 
-		    echo "DMCDEBUG: contents done."
 		fi
 		cp /input/base-trait-pre \
 		    /target/trait-expanded/trait-install/base-trait-pre
 		chroot /target /trait-expanded/trait-install/base-trait-pre
 	    fi
 	fi
-	echo "DMCDEBUG: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
 	pushd /target/trait-expanded
 
 	tar xpsf /input/trait.${trait}.${trait_num}.tar
 	cp /input/options.${trait}.${trait_num} ./trait-install/trait-options
+
+	# save desired traits
+	if (( $save_traits )); then
+	    if ( ! echo "${trait}" | grep -q "^nosave-" ); then
+		mkdir -p /target/VirOS.prime_rootfs/source/viros-traits
+		cp /input/trait.${trait}.${trait_num}.tar \
+		    /target/VirOS.prime_rootfs/source/viros-traits/
+		cp /input/options.${trait}.${trait_num} \
+		    /target/VirOS.prime_rootfs/source/viros-traits/
+	    fi
+	fi
 
 	if [ -x /target/trait-expanded/trait-install/pre ]; then
 	    echo "STATUS: viros mutate - running trait pre script for $trait_num : $trait"
@@ -167,6 +229,7 @@ function target_script_to_run_as_root {
 
 	popd
 
+	# if the base provides a mutate post script, run it
 	if [ -x /input/base-trait-post ]; then
 	    if (( $runprepost )); then
 		cp /input/base-trait-post \
@@ -174,10 +237,12 @@ function target_script_to_run_as_root {
 		chroot /target /trait-expanded/trait-install/base-trait-post
 	    fi
 	fi
+
 	rm -rf /target/trait-expanded
 
     done
 
+    # unbindmount system directories into the chroot
     umount /target/sys
     umount /target/proc
     umount /target/selinux
@@ -196,12 +261,30 @@ function target_script_to_run_as_root {
 
     echo "qfakeroot: ${progname}: done"
 }
+# run the qfakeroot special function and exit, if being called as such
 if [ "$progname" == "qfakeroot.command" ]; then
     target_script_to_run_as_root
     exit 0
 fi
+##
+## end embedded qfakeroot script
+##
+#############################################################################
 
 
+#############################################################################
+#############################################################################
+##
+## functions
+##
+#############################################################################
+#############################################################################
+
+
+#############################################################################
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "${progname} \\"
@@ -222,14 +305,33 @@ function usage {
 }
 
 
+#############################################################################
+#############################################################################
+##
+## main
+##
+#############################################################################
+#############################################################################
+
+
+#############################################################################
+##
+## use TMPDIR environment if set
+##
 if [ "x${TMPDIR}" == "x1" ]; then
     default_vopt_tmpdir="/tmp"
 else
     default_vopt_tmpdir="${TMPDIR}"
 fi
 
+
+#############################################################################
+##
+## define and parse options
+##
 export LIBVOPT_IGNORE_UNKNOWN_OPTIONS=true
 vregopt help boolean 0
+# todo: inherit this?(consider)
 vregopt config string ""
 vregopt verbose boolean 0 inherit
 vregopt debug boolean 0 inherit
@@ -247,6 +349,10 @@ fi
 debug "in mutate ml is ${vopt_mirrorlist}"
 
 
+#############################################################################
+##
+## initialization
+##
 verbose "creating temporary directory..."
 export TMPDIR=${vopt_tmpdir}
 tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
@@ -263,6 +369,11 @@ export vopt_quiet
 touch ${tmpdir}/qfakeroot.config
 
 
+#############################################################################
+##
+## process command line arguments
+##
+
 debug "vopts_numargs is $vopts_numargs ${vopts_args[1]} xxx ${vopts_args[2]} yyy"
 
 if [ $vopts_numargs -ne 1 ]; then usage; fi
@@ -278,26 +389,31 @@ num_traits=0
 splitter "$vopt_traits" | \
     grep -v "^\s*$" > $tmpdir/traitlistnopts
 while read line; do
+    # splice and unspice traits into the final trait list 
     if ( echo $line | grep -q "^splice-" ); then
 	splice_trait=$( echo $line | sed -e 's/^splice-//' )
 	num_traits=$(( $num_traits + 1 ))
 	traits[$num_traits]=$splice_trait
     elif ( echo $line | grep -q "^unsplice-" ); then
+	# search through list, if find a match, start condensing list and then decrement numtraits
 	unsplice_trait=$( echo $line | sed -e 's/^unsplice-//' )
 	shrinkit=0
 
 	for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
 	    if ((${shrinkit})); then
+		# on all but the last one, set to the next higher value
 		if [ $i -ne ${num_traits} ]; then
 		    traits[$i]=${traits[$((i + 1))]}
 		fi
 	    else
 		if [ "${traits[$i]}" == "${unsplice_trait}" ]; then
+		    # found the trait to unsplice
 		    shrinkit=1
 		    traits[$i]=${traits[$((i + 1))]}
 		fi
 	    fi
 	done
+	# now shrink the actual number
 	if ((${shrinkit})); then
 	    num_traits=$(( $num_traits - 1 ))
 	fi
@@ -309,6 +425,9 @@ done < $tmpdir/traitlistnopts
 for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
     trait=${traits[$i]}
 
+    ##
+    ## prepare target trait payload
+    ##
 
     trait_base="$( echo "$trait" | sed -e 's/\:\:.*//' )"
     trait_opts="$( echo "$trait" | sed -e "s/^${trait_base}//" )"
@@ -329,6 +448,7 @@ for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
 	die "could not find trait ${trait_base}"
     fi
 
+    # append trait's qfakeroot.config onto the cumulative qfakeroot.config
     if [ -f ${trait_dir}/trait-install/qfakeroot.config ]; then
 	cat ${trait_dir}/trait-install/qfakeroot.config \
 	    >> ${tmpdir}/qfakeroot.config
@@ -338,11 +458,11 @@ for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
     tar cf ${tmpdir}/trait.${trait_base}.${i}.tar .
     popd > /dev/null 2>&1
 
-    echo "add_files ${tmpdir}/trait.${trait_base}.${i}.tar:/input/trait.${trait_base}.${i}.tar" >> ${tmpdir}/qfakeroot.config
+    echo "add_nonvsi_files ${tmpdir}/trait.${trait_base}.${i}.tar:/input/trait.${trait_base}.${i}.tar" >> ${tmpdir}/qfakeroot.config
 
     ( eval echo '${trait_opts}' ) | sed -e 's/:/\n/g' > ${tmpdir}/options.${trait_base}.${i}
 
-    echo "add_files ${tmpdir}/options.${trait_base}.${i}:/input/options.${trait_base}.${i}" >> ${tmpdir}/qfakeroot.config
+    echo "add_nonvsi_files ${tmpdir}/options.${trait_base}.${i}:/input/options.${trait_base}.${i}" >> ${tmpdir}/qfakeroot.config
     
 done
 
@@ -351,8 +471,14 @@ if ((! $num_traits)); then
     usage
 fi
 
+##
+## pass specified vmut options as a file
+##
 echo -en ${vopt_mutateopts} > ${tmpdir}/mutateopts
 
+##
+## handle mirrorlist option
+##
 
 if [ "x${vopt_mirrorlist}" != "x" ]; then
     if [ ! -f "${vopt_mirrorlist}" ]; then
@@ -377,7 +503,7 @@ if [ "x${vopt_mirrorlist}" != "x" ]; then
     echo "mirror_listconfig=${mirror_listconfig}" \
 	>> ${tmpdir}/webserver.cfg
 
-    echo "add_files ${tmpdir}/webserver.cfg:/input/webserver.cfg" \
+    echo "add_nonvsi_files ${tmpdir}/webserver.cfg:/input/webserver.cfg" \
 	>> ${tmpdir}/qfakeroot.config
 
     status "starting dedicated webserver"
@@ -401,11 +527,16 @@ if [ "x${vopt_mirrorlist}" != "x" ]; then
 	"
 fi
 
+##
+## get distro and arch of target
+##
 
-verbose "NOT running get_dna_of_vsi in the name of developtment speed"
-distro="default"
-arch="default"
+get_dna_of_vsi ${target} ${tmpdir}/vsidna
+. ${tmpdir}/vsidna
 
+##
+## prepare base-specific trait pre/post install programs
+##
 
 if (($viros_devenv)); then
     mutatedir="${viros_devdir}/ancestors/${distro}/${arch}/mutate"
@@ -417,22 +548,26 @@ verbose "mutatedir is ${mutatedir}"
 
 if [ -x ${mutatedir}/pre ]; then
     verbose "adding base-trait-pre to qfakeroot.config"
-    echo "add_files ${mutatedir}/pre:/input/base-trait-pre:755" \
+    echo "add_nonvsi_files ${mutatedir}/pre:/input/base-trait-pre:755" \
 	>> ${tmpdir}/qfakeroot.config
 else
     verbose "NOT adding base-trait-pre to qfakeroot.config"
 fi
 
 if [ -x ${mutatedir}/post ]; then
-    echo "add_files ${mutatedir}/post:/input/base-trait-post:755" \
+    echo "add_nonvsi_files ${mutatedir}/post:/input/base-trait-post:755" \
 	>> ${tmpdir}/qfakeroot.config
 fi
 
 
+##
+## major processing
+##
 
 touch ${tmpdir}/qfr.log
 
 qfakeroot \
+    --guest_smirf \
     --command="${progdir}/${progname}" \
     --qflags="-m ${viros_mutate_qmem}" \
     --scratch=20G \
@@ -440,14 +575,15 @@ qfakeroot \
     --add_files="/bin/bash" \
     --add_files="bindir:/usr/bin:755" \
     --add_files="bindir:/usr/sbin:755" \
-    --add_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
-    --add_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
-    --add_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
-    --add_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
-    --add_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
-    --add_files="$( which splitter ):/bin/splitter" \
-    --add_files="${viros_scripts_dir}/vreplace:/input/vreplace" \
-    --add_files="${viros_scripts_dir}/vmirmog:/input/vmirmog" \
+    --add_nonvsi_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
+    --add_nonvsi_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
+    --add_nonvsi_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
+    --add_nonvsi_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
+    --add_nonvsi_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
+    --add_nonvsi_files="${viros_scripts_dir}/smirfgen:${viros_prefix}/bin/smirfgen" \
+    --add_nonvsi_files="$( which splitter ):/bin/splitter" \
+    --add_nonvsi_files="${viros_scripts_dir}/vreplace:/input/vreplace" \
+    --add_nonvsi_files="${viros_scripts_dir}/vmirmog:/input/vmirmog" \
     --add_files="/bin/date" \
     --add_files="/bin/mount" \
     --add_files="/bin/umount" \
@@ -473,8 +609,8 @@ qfakeroot \
     --add_files="/bin/ps" \
     --add_files="/sbin/fuser" \
     --add_files="/usr/bin/wget" \
-    --add_files="${tmpdir}/mutateopts:/input/mutateopts" \
-    --add_files="${tmpdir}/traitlist:/input/traitlist" \
+    --add_nonvsi_files="${tmpdir}/mutateopts:/input/mutateopts" \
+    --add_nonvsi_files="${tmpdir}/traitlist:/input/traitlist" \
     --config="${tmpdir}/qfakeroot.config" \
     --disk_image="${target}" \
     --outputdir=${tmpdir}/qfakeroot.outputdir \
@@ -500,6 +636,9 @@ else
 fi
 
 
+##
+## clean up and exit
+##
 
 if (($vopt_debug)); then
     debug "NOT REMOVING tmpdir ${tmpdir}"

@@ -1,0 +1,45 @@
+<!DOCTYPE Menu
+  PUBLIC '-//freedesktop//DTD Menu 1.0//EN'
+  'http://standards.freedesktop.org/menu-spec/menu-1.0.dtd'>
+<Menu>
+	<Name>Applications</Name>
+	<MergeFile type="parent">/etc/xdg/menus/applications.menu</MergeFile>
+	<Menu>
+		<Name>ZyX</Name>
+		<Directory>zyx.directory</Directory>
+		<Include>
+			<Filename>generic-zyx-docs.desktop</Filename>
+			<Filename>generic-zyx-web.desktop</Filename>
+			<Filename>generic-zyx-relnotes.desktop</Filename>
+			<Filename>zyx-liveinstaller.desktop</Filename>
+		</Include>
+		<Layout>
+			<Filename>generic-zyx-docs.desktop</Filename>
+			<Filename>generic-zyx-web.desktop</Filename>
+			<Filename>generic-zyx-relnotes.desktop</Filename>
+			<Filename>zyx-liveinstaller.desktop</Filename>
+		</Layout>
+	</Menu>
+	<DefaultLayout inline="false"/>
+	<Include>
+		<Filename>zyx.desktop</Filename>
+	</Include>
+	<Layout>
+		<Merge type="menus"/>
+		<Filename>zyx.desktop</Filename>
+		<Menuname>ZyX</Menuname>
+		<Menuname>Accessories</Menuname>
+		<Menuname>Education</Menuname>
+		<Menuname>Games</Menuname>
+		<Menuname>Graphics</Menuname>
+		<Menuname>Internet</Menuname>
+		<Menuname>Office</Menuname>
+		<Menuname>Other</Menuname>
+		<Menuname>Development</Menuname>
+		<Menuname>Multimedia</Menuname>
+		<Menuname>System Tools</Menuname>
+		<Separator/>
+		<Filename>pirut.desktop</Filename>
+		<Merge type="files"/>
+	</Layout>
+</Menu>

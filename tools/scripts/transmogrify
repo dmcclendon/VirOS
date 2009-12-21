@@ -7,16 +7,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -29,10 +28,33 @@
 #############################################################################
 
 
+#############################################################################
+##
+## VirOS transmogrify
+##
+## usage: transmogrify [options] <transmogrifier> <input.vsi> <outputfile>
+##
+## transmogrify processes a viros generated system image (.vsi for now*),
+## and converts it into a new format, based on the transmogrifier and 
+## options specified.  The prototypical transmogrifier is zyx-live-os which
+## produces a LiveISO.
+##
+## *: TODO: support .iso, .tgz, localhost, mountpoint as input types
+##
+#############################################################################
 
 
+#############################################################################
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+
+#############################################################################
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -42,20 +64,44 @@ else
     exit 1
 fi
 
+
+#############################################################################
+##
+## embedded qfakeroot script
+##
 function target_script_to_run_as_root {
 
+    #
+    # target transmogrifier environment assumptions:
+    #
+    # /input has contents of ancestors/distro/arch/vxmogs/<xmog> as vxmog.tar,
+    #     and expanded, including ./transmogrify as the well known entrypoint
+    # /vxmog.input.copy/vxmog.input is where the input root is mounted
+    # /vxmog.input.copy is a throwaway fork of the input suitable for chroot
+    # /scratch is a mounted workarea with lots of space
+    # /vxmog.input.copy has bindmounts for dev, proc, sys, selinux, and
+    #         (NOT YET IMPLEMENTED)         input.sysimage, xmog.data 
+    # /output will hold the output, if a single file, it is returned as is
+    #                            if not, it is returned as a tarball
+    #
 
     export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/input/bin:/input/sbin"
+
 
     echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     echo "STATUS: viros transmogrify - STARTING"
     echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
     
     echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     echo "STATUS: viros transmogrify - creating swap"
     echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
-    swapk=$(( $( cat /proc/meminfo  | grep MemTotal | awk '{print $2}' ) * 2 ))
+    # see note elsewhere with references suggesting acceptability of 1*
+    #swapk=$(( $( cat /proc/meminfo  | grep MemTotal | awk '{print $2}' ) * 2 ))
+    swapk=$(( $( cat /proc/meminfo  | grep MemTotal | awk '{print $2}' ) * 1 ))
+    #  for debugging expediency if appropriate
+    #swapk=$(( 1024 * 256 ))
     dd if=/dev/zero of=/scratch/qswap \
 	bs=1k count=$(( $swapk )) > /dev/null 2>&1
 
@@ -82,7 +128,11 @@ function target_script_to_run_as_root {
     mkdir /vxmog.input.copy/output
     mount --bind /output /vxmog.input.copy/output
     
+    # example: of what can be done at this point
+    #/usr/sbin/chroot /vxmog.input.copy rpm -qa --last \
+    #	| tee -a /output/rpmqalast.txt
 
+    # boom boom boom
     /input/transmogrify
 
     umount /vxmog.input.copy/output
@@ -101,12 +151,30 @@ function target_script_to_run_as_root {
 
     echo "qfakeroot: ${progname}: done"
 }
+# run the qfakeroot special function and exit, if being called as such
 if [ "$progname" == "qfakeroot.command" ]; then
     target_script_to_run_as_root
     exit 0
 fi
+##
+## end embedded qfakeroot script
+##
+#############################################################################
 
 
+#############################################################################
+#############################################################################
+##
+## functions
+##
+#############################################################################
+#############################################################################
+
+
+#############################################################################
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "${progname} \\"
@@ -127,7 +195,13 @@ function usage {
     fi
 }
 
+##
+## functions
+##
 
+##
+## use TMPDIR environment if set
+##
 
 if [ "x${TMPDIR}" == "x1" ]; then
     default_vopt_tmpdir="/tmp"
@@ -135,6 +209,9 @@ else
     default_vopt_tmpdir="${TMPDIR}"
 fi
 
+##
+## define and parse options
+##
 export LIBVOPT_IGNORE_UNKNOWN_OPTIONS=true
 vregopt help boolean 0
 vregopt config string ""
@@ -149,6 +226,9 @@ if (( $vopt_help )); then
     usage clean 
 fi
 
+##
+## process command line arguments
+##
 
 if [ $vopts_numargs -ne 3 ]; then usage; fi
 
@@ -156,10 +236,14 @@ transmogrifier="${vopts_args[1]}"
 input="${vopts_args[2]}"
 output="${vopts_args[3]}"
 
+# error check arguments (todo: better)
 if [ ! -f "${input}" -a ! -b "${input}" ]; then
     die "error: could not find input system image: ${input}"
 fi
 
+##
+## initialization / set things up
+##
 
 verbose "initializing..."
 
@@ -179,10 +263,13 @@ export vopt_debug
 export vopt_verbose
 export vopt_quiet
 
+##
+## prepare target transmogrifier payload
+##
 
-verbose "NOT running get_dna_of_vsi in the name of developtment speed"
-distro="default"
-arch="default"
+# get distro and arch
+get_dna_of_vsi ${input} ${tmpdir}/vsidna
+. ${tmpdir}/vsidna
 
 verbose "vsi distro appears to be ${distro}, vsi arch appears to be ${arch}"
 
@@ -198,25 +285,31 @@ pushd ${xmogdir} > /dev/null 2>&1
 tar cf ${tmpdir}/vxmog.tar .
 popd > /dev/null 2>&1
 
+# pass specified vxmog options as a file
 echo -en "${vopt_vxmogopts}" > ${tmpdir}/vxmogopts
 
+##
+## major processing
+##
 
 touch ${tmpdir}/qfr.log
 
 qfakeroot \
     --quiet \
+    --guest_smirf \
     --command="${progdir}/${progname}" \
     --qflags="-m ${viros_transmogrify_qmem}" \
     --scratch=${viros_transmogrify_scratch} \
     --add_files="/bin/bash" \
     --add_files="bindir:/usr/bin:755" \
     --add_files="bindir:/usr/sbin:755" \
-    --add_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
-    --add_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
-    --add_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
-    --add_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
-    --add_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
-    --add_files="$( which splitter ):/bin/splitter" \
+    --add_nonvsi_files="${viros_scripts_dir}/libvsys.sh:${viros_prefix}/lib/viros/scripts/libvsys.sh" \
+    --add_nonvsi_files="${viros_scripts_dir}/vdefs:${viros_prefix}/lib/viros/scripts/vdefs" \
+    --add_nonvsi_files="${viros_scripts_dir}/libvopt.sh:${viros_prefix}/lib/viros/scripts/libvopt.sh" \
+    --add_nonvsi_files="${viros_scripts_dir}/functions:${viros_prefix}/lib/viros/scripts/functions" \
+    --add_nonvsi_files="${viros_scripts_dir}/vcommon:${viros_prefix}/lib/viros/scripts/vcommon" \
+    --add_nonvsi_files="${viros_scripts_dir}/smirfgen:${viros_prefix}/bin/smirfgen" \
+    --add_nonvsi_files="$( which splitter ):/bin/splitter" \
     --add_files="/bin/date" \
     --add_files="/bin/mount" \
     --add_files="/bin/umount" \
@@ -237,8 +330,8 @@ qfakeroot \
     --add_files="/usr/bin/tee" \
     --add_files="/usr/sbin/chroot" \
     --config="${xmogdir}/qfakeroot.config" \
-    --add_files="${tmpdir}/vxmog.tar:/input/vxmog.tar" \
-    --add_files="${tmpdir}/vxmogopts:/input/vxmogopts" \
+    --add_nonvsi_files="${tmpdir}/vxmog.tar:/input/vxmog.tar" \
+    --add_nonvsi_files="${tmpdir}/vxmogopts:/input/vxmogopts" \
     --disk_image="ro:${input}" \
     --outputdir=${tmpdir}/qfakeroot.outputdir \
     --debug --verbose \
@@ -263,7 +356,12 @@ else
 fi
 
 
+##
+## final output formatting
+##
 
+# temporary development
+# final version should check if single file...
 numoutputfiles=$( ls -1A ${tmpdir}/qfakeroot.outputdir | wc -l )
 if [ $numoutputfiles -eq 1 ]; then
     mv ${tmpdir}/qfakeroot.outputdir/* ${output}
@@ -273,6 +371,9 @@ else
 fi
 
 
+##
+## clean up and exit
+##
 
 veva $cleanup_command
 

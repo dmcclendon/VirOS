@@ -1,0 +1,10 @@
+<gconfentryfile>
+  <entrylist base="/">   
+     <entry>
+      <key>/example/entry</key>
+      <value>
+        <string>example</string>
+      </value>
+    </entry>
+  </entrylist>   
+</gconfentryfile>

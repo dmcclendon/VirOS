@@ -1,0 +1,46 @@
+#!/bin/bash
+
+mv /etc/rc.d/rc.local \
+    /etc/rc.d/init.d/rc.local.pre-marinade
+
+ln -s init.d/rc.local.marinade \
+    /etc/rc.d/rc.local
+
+cp /boot/grub/grub.conf \
+    /boot/grub/grub.conf.pre-marinade
+
+# note: if acpi causes too many problems, can always go
+# to some form of qreaper, be it serial port, or 3rd disk
+# (tar polling)
+cat /boot/grub/grub.conf.pre-marinade \
+    | sed -e 's/acpi=[^\s]*//g' \
+    | sed -e 's/quiet/verbose/g' \
+    | sed -e 's/rhgb/norhgb/g' \
+    | sed -e 's/^\(\s*kernel.*\)$/\1 fatime zyx/' \
+    > /boot/grub/grub.conf
+
+cp /etc/fstab /etc/fstab.pre-marinade
+cat /etc/fstab.pre-marinade \
+    | sed -e 's/relatime/atime/g' \
+    | sed -e 's/noatime/atime/g' \
+    | sed -e 's/atime/atime,diratime/g' \
+    > /etc/fstab
+
+#do_livefs_ordering=1
+do_livefs_ordering=0
+if (($do_livefs_ordering)); then
+
+    timestamps="199912211221.42"
+    atimestamps="199812211221.42"
+    if [ "x${timestamps}" != "x" ]; then
+	echo "changing timestamps to $timestamps"
+	find / -xdev \
+	    -exec touch -t $timestamps '{}' ';'
+    fi
+    if [ "x${atimestamps}" != "x" ]; then
+	echo "changing atimestamps to $atimestamps"
+	find / -xdev \
+	    -exec touch -a -t $atimestamps '{}' ';'
+    fi
+
+fi

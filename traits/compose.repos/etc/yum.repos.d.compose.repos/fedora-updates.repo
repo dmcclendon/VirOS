@@ -3,7 +3,8 @@ name=Fedora $releasever - $basearch - Updates
 failovermethod=priority
 #baseurl=http://download.fedora.redhat.com/pub/fedora/linux/updates/$releasever/$basearch/
 #mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=updates-released-f$releasever&arch=$basearch
-baseurl=http://mirrors1.kernel.org/fedora/updates/10/i386/
+#baseurl=http://mirrors1.kernel.org/fedora/updates/$releasever/$basearch/
+baseurl=http://mirrors1.kernel.org/fedora/updates/11/i386
 enabled=1
 gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora

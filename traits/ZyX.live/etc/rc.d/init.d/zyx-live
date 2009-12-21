@@ -65,6 +65,7 @@ echo -en $"Initializing: ZyX LiveOS...\n"
 
 touch /.zyxlive-configured
 
+# for anaconda
 if [ -b /dev/zyx_root_base_min ]; then
     ln -s zyx_root_base_min /dev/live-osimg
 elif [ -b /dev/zyx_root_base ]; then
@@ -72,6 +73,7 @@ elif [ -b /dev/zyx_root_base ]; then
 fi
 
 
+# read some variables out of /proc/cmdline
 for o in `cat /proc/cmdline` ; do
     case $o in
     ks=*)
@@ -87,6 +89,7 @@ for o in `cat /proc/cmdline` ; do
 done
 
 
+# if liveinst or textinst is given, start anaconda
 if strstr "`cat /proc/cmdline`" liveinst ; then
    /usr/sbin/liveinst $ks
 fi
@@ -94,15 +97,21 @@ if strstr "`cat /proc/cmdline`" textinst ; then
    /usr/sbin/liveinst --text $ks
 fi
 
+# if hhuey is given, default kablui
 if strstr "`cat /proc/cmdline`" hhuey ; then
     cp -a /etc/gdm/custom.conf /etc/gdm/custom.conf.pre-zyx-live
+#    sed -i -e 's/guest/kablui/g' /etc/gdm/custom.conf
     sed -i -e 's/^TimedLogin=.*$/TimedLogin=kablui/g' /etc/gdm/custom.conf
 fi
 
+# mount a tmpfs for jack
 mkdir -p /tmp/jack
 mount -t tmpfs none /tmp/jack
 
+## zyxnugs allow you to gain some of the benefits of persistence, without
+##            the downside of fragmenting overlay files
 
+# if persistant zyxnug file is present, extract it 
 if strstr "`cat /proc/cmdline`" nozyxnug ; then
     true
 else
@@ -113,11 +122,29 @@ else
     fi
 fi
 
+# if persistant zyxnug init script is present, execute it
 if [ -x /tmp/zyxnugi ]; then /tmp/zyxnugi; fi
 
 
+# zyx: nah
+# enable swaps unless requested otherwise
+#swaps=`blkid -t TYPE=swap -o device`
+#if ! strstr "`cat /proc/cmdline`" noswap -a [ -n "$swaps" ] ; then
+#  for s in $swaps ; do
+#    action "Enabling swap partition $s" swapon $s
+#  done
+#fi
 
+# configure X, allowing user to override xdriver
+#system-config-display --noui --reconfig --set-depth=24 \$xdriver
+### configure X the ZyX way
 
+# qemu special case environment info
+#/dev/disk/by-id/scsi-SATA_QEMU_HARDDISK_QM000001
+#/dev/disk/by-id/scsi-SATA_QEMU_HARDDISK_QM000002
+#/sys/block/sda/device/model=QEMU HARDDISK
+#/sys/block/sr0/device/model=QEMU CD-ROM
+#if /dev/cdrom and /dev/cdrom-sr0 are links to /dev/scd0
 
 if ( which system-config-display > /dev/null 2>&1 ); then
     if [ -f /etc/X11/xorg.conf ]; then
@@ -147,6 +174,7 @@ if ( which system-config-display > /dev/null 2>&1 ); then
 	fi
     fi
     
+    # apie custom case
     host_is_apie=0
     if ( lspci | grep VGA | grep -q "Apollo CLE266" ); then 
 	host_is_apie=1
@@ -165,8 +193,10 @@ if ( which system-config-display > /dev/null 2>&1 ); then
 	system-config-display --noui --reconfig --set-depth=24 $xdriver
     fi
     
+    ### end configure X the ZyX way
 fi
 
+# turn off firstboot for livecd boots
 if [ -f /etc/sysconfig/firstboot ]; then
     mv /etc/sysconfig/firstboot \
 	/etc/sysconfig/firstboot.pre-zyx-live
@@ -180,8 +210,10 @@ for service in ${services_disabled}; do
     fi
 done
 
+# Stopgap fix for RH #217966; should be fixed in HAL instead
 touch /media/.hal-mtab
 
+# workaround clock syncing on shutdown that we don't want (#297421)
 cp -a /etc/rc.d/init.d/halt /etc/rc.d/init.d/halt.pre-zyx-live
 sed -i -e 's/hwclock/no-such-hwclock/g' /etc/rc.d/init.d/halt
 

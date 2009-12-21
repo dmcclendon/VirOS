@@ -1,0 +1,398 @@
+#!/bin/bash
+#
+#############################################################################
+#
+#  kablui : KickAssBestLiveUserInterface (massive automated preference mods)
+#
+#############################################################################
+#
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+# Inspired by similar programs from a bunch of other distributions.
+#
+#############################################################################
+#
+# This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, version 3 of the License.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+#############################################################################
+#
+#  kablui - KickAssBestLiveUserInterface
+#
+# kablui is a tool to I wrote to import my desktop preferences into a 
+# new installation, in an automated fashion using a series of commandline
+# invocations.  This is because I loathe the amount of thought it takes
+# to consider which homedir dotfiles need to be saved and migrated.  Basically
+# I want to keep all my personal files in a homedir subdir, e.g. ~/org/ and
+# have a script which can install all my prefs into a fresh installation after
+# copying over my org dir.
+#
+# Yes, it would have been simpler to just use gconftool-2 to dump an entire
+# profile, but I think there must be at least a couple other people in the
+# world that will appreciate the ability to do it from a pure text editing
+# UI.  I.e. no manual mousing and clicking required to manage preferences.
+#
+#############################################################################
+
+
+#############################################################################
+##
+## constants
+##
+
+gconf_prefs_xml="/usr/share/kablui/gconf.prefs.xml/"
+icon_dir="/usr/share/kablui/icons"
+dotfiles_dir="/usr/share/kablui/dotfiles"
+bin_dir="/usr/share/kablui/bin"
+
+
+#############################################################################
+#############################################################################
+##
+## functions
+##
+#############################################################################
+#############################################################################
+
+# usage: kabconftool <key> <type> <value>
+function kabconftool {
+    confkey=$1
+    conftype=$2
+    confval=$3
+    
+    xmltext="
+<gconfentryfile>
+  <entrylist base=\"/\">
+    <entry>
+      <key>${confkey}</key>
+      <value>
+        <${conftype}>${confval}</${conftype}>
+      </value>
+    </entry>
+  </entrylist>
+</gconfentryfile>
+"
+
+    echo "$xmltext" > /tmp/kabconftool.$$
+    ${gct} --load=/tmp/kabconftool.$$
+    #echo "kablui DEBUG: dumping kabconftool xml"
+    #cat /tmp/kabconftool.$$  
+    #echo "kablui DEBUG: done dumping kabconftool xml"
+    rm -f /tmp/kabconftool.$$  
+
+}
+
+#############################################################################
+##
+## initialization
+##
+
+# are we running live or memorex(chroot)?
+if ( ps auwwxf | grep "^${whoami}" | grep -v grep | grep -q gconfd-2 ); then
+    gct="gconftool-2"
+    runninglive=1
+else
+    gct="gconftool-2 --direct --config-source=xml:readwrite:${HOME}/.gconf"
+    runninglive=0
+fi
+
+mkdir -p ${HOME}/.gconf/kablui
+
+
+##
+## (perhaps this should go somewhere else...)
+##
+
+cp ${dotfiles_dir}/gtkrc-2.0 ${HOME}/.gtkrc-2.0
+mkdir -p ${HOME}/.config
+cp -av ${dotfiles_dir}/config/* ${HOME}/.config/
+cp -av ${dotfiles_dir}/local/* ${HOME}/.local/
+
+#############################################################################
+##
+## kabluification
+##
+
+# background wallpaper remove
+kabconftool /desktop/gnome/background/color_shading_type string "solid"
+kabconftool /desktop/gnome/background/picture_filename string "/etc/zyx/kablui-desktop-background.jpg"
+#kabconftool /desktop/gnome/background/picture_options string "none"
+kabconftool /desktop/gnome/background/picture_options string "stretched"
+kabconftool /desktop/gnome/background/primary_color string "#123321"
+kabconftool /desktop/gnome/background/secondary_color string "#000000"
+
+# background set black
+#kabconftool /desktop/gnome/background/primary_color string "#000000"
+kabconftool /desktop/gnome/background/primary_color string "#123321"
+
+# background nautilus/file-manager disable
+# note: if setting this to true, you should launch nautilus -n or something
+kabconftool /apps/nautilus/preferences/show_desktop bool false
+
+#${gct} \
+#    --set \
+#    --type list \
+#    --list-type string \
+#    /apps/rhythmbox/library_locations \
+#    "['${HOME}/Music']"
+
+${gct} \
+    --set \
+    --type bool \
+    /apps/rhythmbox/monitor_library \
+    true
+
+
+# panel remove secondary/bottom panel
+${gct} --type list --list-type string --set /apps/panel/general/toplevel_id_list [top_panel]
+
+# panel move left
+${gct} --type string --set /apps/panel/toplevels/top_panel/orientation "right"
+
+# panel remove all applets
+${gct} --set /apps/panel/general/applet_id_list --type list --list-type string "[]"
+
+# panel remove all objects
+${gct} --set /apps/panel/general/object_id_list --type list --list-type string "[]"
+
+# panel width 36 pixels
+${gct} --set /apps/panel/toplevels/top_panel/size --type int 36
+
+# panel background black
+${gct} --set /apps/panel/toplevels/top_panel/background/type --type string "color"
+${gct} --set /apps/panel/toplevels/top_panel/background/color --type string "#000000"
+
+# panel add mainmenu
+${gct} --set /apps/panel/objects/kablui_menu/use_custom_icon --type bool true
+cp ${icon_dir}/* ${HOME}/.gconf/kablui/
+${gct} --set /apps/panel/objects/kablui_menu/custom_icon --type string "/etc/zyx/kablui-mainmenu-icon.png"
+${gct} --set /apps/panel/objects/kablui_menu/menu_path --type string "applications:/"
+${gct} --set /apps/panel/objects/kablui_menu/object_type --type string "menu-object"
+${gct} --set /apps/panel/objects/kablui_menu/position --type int 0
+${gct} --set /apps/panel/objects/kablui_menu/tooltip --type string "ZyX Main Menu"
+${gct} --set /apps/panel/objects/kablui_menu/toplevel_id --type string "top_panel"
+${gct} --set /apps/panel/objects/kablui_menu/locked --type bool true
+
+# windowmanager focusfollowsmouse
+#kabconftool /apps/metacity/general/focus_mode string "click"
+kabconftool /apps/metacity/general/focus_mode string "sloppy"
+
+# gnome-terminal kablui profile
+${gct} --set /apps/gnome-terminal/global/profile_list --type list --list-type string "[kablui,Default]"
+
+${gct} --load=${gconf_prefs_xml}/gnome-terminal.kablui_profile.xml
+
+kabconftool /apps/gnome-terminal/global/default_profile string "kablui"
+
+${gct} --load=${gconf_prefs_xml}/gnome-terminal.panel_object.xml
+
+# gnome-terminal keyboard shortcuts (new tab, next tab, prev tab)
+${gct} --load=${gconf_prefs_xml}/gnome-terminal.keyboard_shortcuts.xml
+
+# gnome keyboard shortcuts (next workspace, prev workspace)
+${gct} --load=${gconf_prefs_xml}/gnome.keyboard_shortcuts.xml
+
+#############################################################################
+##
+## gnome applets
+##
+
+# gnome applet workspace switcher
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.workspace_switcher.xml
+${gct} --load=${gconf_prefs_xml}/kablui.metacity.window_switcher.xml
+
+# gnome applet windowlist
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.window_list.xml
+
+# gnome applet monitor
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.system_monitor.xml
+
+# gnome applet notification area
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.notification_area.xml
+
+# gnome applet clock
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.clock.xml
+
+# gnome applet mixer
+# gone in f11, replaced by something else?
+#${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.volume.xml
+
+
+#############################################################################
+##
+## ZyX drawer
+##
+
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.drawer.xml
+
+kabconftool /apps/panel/objects/kablui_drawer/custom_icon string "/etc/zyx/kablui-zyxmenu-icon.png"
+kabconftool /apps/panel/objects/kablui_drawer/use_custom_icon bool true
+
+# panel background black
+kabconftool /apps/panel/toplevels/kablui_drawer_panel/background/type string "color"
+kabconftool /apps/panel/toplevels/kablui_drawer_panel/background/color string "#123321"
+
+#############################################################################
+##
+## ZyX Panel objects and applets
+##
+
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.cmdline.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_gterm.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_web.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_mail.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_music.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_office.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.brightness.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_suspend.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.fus.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.zyx_show_desktop.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_lockscreen.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.applet.zyx_trash.xml
+${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_search.xml
+
+#############################################################################
+##
+## KABLUI Panel objects and applets (including ZyX Panel Drawer)
+##
+
+${gct} --set /apps/panel/general/object_id_list --type list --list-type string "[kablui_menu,kablui_term,kablui_drawer,zyx_gterm,zyx_web,zyx_mail,zyx_music,zyx_office,zyx_suspend,zyx_lockscreen,zyx_search]"
+${gct} --set /apps/panel/general/applet_id_list --type list --list-type string "[kablui_switcher,kablui_windowlist,kablui_monitor,kablui_notification,kablui_clock,kablui_mixer,kablui_cmdline,kablui_brightness,zyx_fus,zyx_show_desktop,zyx_trash]"
+
+${gct} --set /apps/gnome-packagekit/frequency_get_upgrades --type string "never"
+${gct} --set /apps/gnome-packagekit/frequency_get_updates --type string "never"
+
+#############################################################################
+##
+## install swifttabs firefox extension
+##
+
+# get profile dir
+ff_profile_dir=$( cat ${HOME}/.mozilla/firefox/profiles.ini | \
+    grep "^Path=" | sed -e 's/^Path=//' )
+
+if ( ! grep -q "5d702c56\-6be8\-414c\-aa50\-cf73ced87ff4" \
+	${HOME}/.mozilla/firefox/${ff_profile_dir}/extensions.ini ); then
+    zyx-ff-addext \
+	${HOME}/.mozilla/firefox/${ff_profile_dir}/extensions.ini \
+	"${HOME}/.mozilla/firefox/${ff_profile_dir}/extensions/{5d702c56-6be8-414c-aa50-cf73ced87ff4}"
+    
+    mkdir "${HOME}/.mozilla/firefox/${ff_profile_dir}/extensions/{5d702c56-6be8-414c-aa50-cf73ced87ff4}"
+    pushd "${HOME}/.mozilla/firefox/${ff_profile_dir}/extensions/{5d702c56-6be8-414c-aa50-cf73ced87ff4}"
+#    unzip /usr/share/kablui/swifttabs/swifttabs-0.3.3.1-fx.xpi 
+# chrome registration fail??
+#    unzip /usr/share/kablui/swifttabs/swifttabs-0.3.3.2-fx.xpi 
+#    unzip /usr/share/kablui/swifttabs/swifttabs-0.3.3.2-fx.zyx.xpi 
+    unzip /usr/share/kablui/swifttabs/swifttabs-0.3.3.1-fx.zyx.xpi 
+    popd
+
+    mv ${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js \
+	${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js.tmp
+
+    cat ${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js.tmp \
+	| grep -v swifttabs \
+	> ${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js
+	
+    rm -f ${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js.tmp
+	
+    cat <<EOF >> ${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js
+user_pref("swifttabs.close", 1087);
+user_pref("swifttabs.closeCancelOnForm", false);
+user_pref("swifttabs.closeModKeys", "1000");
+user_pref("swifttabs.closeOverride", true);
+user_pref("swifttabs.next", 39);
+user_pref("swifttabs.nextCancelOnForm", false);
+user_pref("swifttabs.nextModKeys", "1000");
+user_pref("swifttabs.nextOverride", false);
+user_pref("swifttabs.prev", 37);
+user_pref("swifttabs.prevCancelOnForm", false);
+user_pref("swifttabs.prevModKeys", "1000");
+user_pref("swifttabs.prevOverride", true);
+user_pref("extensions.newAddons", false);
+EOF
+
+fi
+
+#############################################################################
+##
+## install more firefox prefs
+##
+
+#user_pref("browser.startup.homepage", "file:///usr/share/doc|file://${HOME}");
+#pref("startup.homepage_override_url", "");
+#pref("startup.homepage_welcome_url", "");
+if [ ! -f ${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js.kabluificated ]; then
+    touch ${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js.kabluificated 
+    cat <<EOF >> ${HOME}/.mozilla/firefox/${ff_profile_dir}/prefs.js
+user_pref("browser.preferences.advanced.selectedTabIndex", 1);
+user_pref("font.minimum-size.x-western", 18);
+user_pref("security.enable_java", false);
+user_pref("security.warn_entering_secure", false);
+user_pref("security.warn_leaving_secure", false);
+user_pref("security.warn_submit_insecure", false);
+user_pref("security.warn_viewing_mixed", false);
+# simpler file formats of yesteryear have their uses
+user_pref("browser.bookmarks.autoExportHTML", true);
+# default is 5, go with less stored history
+user_pref("browser.bookmarks.max_backups", 1);
+EOF
+
+    # purty ugly... hope it works...
+    cp ${HOME}/.mozilla/firefox/${ff_profile_dir}/localstore.rdf ${HOME}/.mozilla/firefox/${ff_profile_dir}/orig.localstore.rdf.orig
+    sed -i -e 's|\(  </RDF:Description>\)|    <NC:persist RDF:resource="chrome://browser/content/browser.xul#PersonalToolbar"/>\n\1|' -e 's|\(</RDF:RDF>\)|  <RDF:Description RDF:about="chrome://browser/content/browser.xul#PersonalToolbar"\n                   collapsed="true" />\n\1|' ${HOME}/.mozilla/firefox/${ff_profile_dir}/localstore.rdf
+fi
+
+#############################################################################
+##
+## install kablui-session
+##
+# old <f10 way
+#if [ -f ${HOME}/.gnome2/session ]; then
+#    mv ${HOME}/.gnome2/session ${HOME}/.gnome2/session.prekablui-session
+#fi
+#cat /usr/lib/kablui/gnome2.session.ks | sed -e "s|___HOME___|${HOME}|" > ${HOME}/.gnome2/session
+#rm -f ${HOME}/.gconf/kablui/kablui-session
+#cp -a /usr/lib/kablui/kablui-session ${HOME}/.gconf/kablui/
+
+# new f10+ way
+${gct} \
+    --set \
+    --type list \
+    --list-type string \
+    /desktop/gnome/session/required_components_list \
+    "[windowmanager]"
+
+${gct} \
+    --set \
+    --type string \
+    /desktop/gnome/session/required_components/windowmanager \
+    "kablui-session"
+
+
+
+# shortcircuit
+sleep 7
+killall -HUP gnome-panel
+exit 0
+
+#############################################################################
+#############################################################################
+##
+## end main and code, only notes below
+##
+#############################################################################
+#############################################################################

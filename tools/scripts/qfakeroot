@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,8 +26,14 @@
 #
 #############################################################################
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -38,6 +43,9 @@ else
     exit 1
 fi
 
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "qfakeroot \\"
@@ -47,7 +55,9 @@ function usage {
     echo "    [--native] \\"
     echo "    [--config=<config-file>] \\"
     echo "    [--command=<program-to-run-as-root>] \\"
-    echo "    [[--disk_image=[ro:]<disk-image-device-or-file>]] \\"
+    echo "    [--disk_image=[ro:]<disk-image-device-or-file>] \\"
+    echo "    [--guest_smirf] \\"
+    echo "    [[--add_nonvsi_files=<file-list>]] \\"
     echo "    [[--add_files=<file-list>]] \\"
     echo "    [[--add_links=<link-list>]] \\"
     echo "    [[--add_modules=<module-list>]] \\"
@@ -63,13 +73,22 @@ function usage {
     fi
 }
 
+##
+## globals
+##
 if [ "$( whoami )" == "root" ]; then
     native_default=1
 else
     native_default=0
 fi
 
+##
+## functions
+##
 
+##
+## use TMPDIR environment if set
+##
 
 if [ "x${TMPDIR}" == "x1" ]; then
     default_vopt_tmpdir="/tmp"
@@ -78,18 +97,25 @@ else
 fi
 
 
+##
+## define and parse options
+##
 vregopt help boolean 0
 vregopt verbose boolean 0 inherit
 vregopt debug boolean 0 inherit
 vregopt quiet boolean 0 inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 vregopt native boolean $native_default
+# experiment, was having tar zyx-live.iso 1024 of 10240 blabla...
+#vregopt scratch string "10G"
 vregopt scratch string "24G"
 vregopt qflags string ""
 vregopt config string ""
 vregopt command string ""
 vregopt disk_image string ""
+vregopt guest_smirf boolean 0
 vregopt add_files cumulative ""
+vregopt add_nonvsi_files cumulative ""
 vregopt add_links cumulative ""
 vregopt add_modules cumulative ""
 vregopt add_module_groups cumulative ""
@@ -115,6 +141,12 @@ fi
 export TMPDIR=${tmpdir}
 verbose "temporary directory is ${tmpdir}"
 
+##
+## handle disk_image initialization
+##
+## note: qcow2 base image is an extra layer of protection for readonly, as
+##       dm-parts should also provide adequate protection.
+##
 if [ "x${vopt_disk_image}" == "x" ]; then
     use_disk_image=0
     qemu-img create ${tmpdir}/fqdi.img 1G
@@ -138,6 +170,12 @@ else
 fi
 
 cat <<EOF > ${tmpdir}/qfakeroot.init
+#!/bin/bash
+#
+# qfakeroot.init: having been bootstrapped by the ZyX-LiveOS initramfs init,
+#                 now prepare the qfakeroot environment for the target
+#                 qfakeroot command
+#
 
 PATH="/sbin:/bin:/usr/sbin:/usr/bin"
 
@@ -149,7 +187,9 @@ mknod /dev/initctl p
 modprobe ata_piix
 modprobe sd_mod
 
-udevsettle --timeout=30 || :
+mknod /dev/urandom c 1 9
+
+udevadm settle --timeout=30 || :
 
 cd /
 
@@ -195,6 +235,8 @@ umount /output
 umount /input
 umount /space
 
+# I can't figure out a way to get this to work... back to qreaper
+#halt -f
 echo -en "\n\nqfakeroot.init QEMU_DONE_IN_NEED_OF_SHUTDOWN\n\n"
 sleep 3
 echo -en "\n\nqfakeroot.init QEMU_DONE_IN_NEED_OF_SHUTDOWN\n\n"
@@ -210,6 +252,10 @@ else
     optional_extra_config_string="config ${vopt_config}"
 fi
 
+
+##
+## write smirfgen config
+##
 cat<<SGCEOF > ${tmpdir}/qfakeroot.smirfgen.cfg
 verbose $vopt_verbose
 debug $vopt_debug
@@ -218,19 +264,24 @@ quiet $vopt_quiet
 config ZyX-Live-OS/smirfgen.cfg
 $optional_extra_config_string
 
+
 add_files ${vopt_command}:/sbin/qfakeroot.command:755
 
 add_files ${tmpdir}/qfakeroot.init:/qfakeroot.init:755
+
 add_files ZyX-Live-OS/live.init:/init:755
 add_files scripts/dm-parts:/sbin/:755
+# readlink and sfdisk are for dm-parts
 add_files /sbin/sfdisk
 add_files /usr/bin/readlink
 add_files dir:/input:755
 add_files /sbin/mkfs.ext2
 add_files /sbin/mkfs.ext3
+add_files /sbin/mkfs.ext4
 add_files /bin/date
 add_files /bin/tar
 add_files /bin/sleep
+# I really wish I could get one of the following four to do the right thing
 add_files /sbin/shutdown
 add_files /sbin/reboot
 add_files /sbin/poweroff
@@ -244,6 +295,24 @@ add_tar_dirs /input:input.tar
 add_modules $vopt_add_modules
 add_module_groups $vopt_add_module_groups
 SGCEOF
+
+if (($vopt_guest_smirf)); then
+    host_vsi=$( echo "${vopt_disk_image}" | sed -e 's/^ro://' )
+    cat<<EOF >> ${tmpdir}/qfakeroot.smirfgen.cfg
+quiet 0
+debug 1
+verbose 1
+
+kversion __latest
+host_vsi $host_vsi
+add_nonvsi_files $vopt_add_nonvsi_files
+add_nonvsi_files ${vopt_command}:/sbin/qfakeroot.command:755
+add_nonvsi_files ${tmpdir}/qfakeroot.init:/qfakeroot.init:755
+# TODO: autodetect list of stuffs, or seperate config, or something...
+add_nonvsi_files ZyX-Live-OS/live.init:/init:755
+add_nonvsi_files scripts/dm-parts:/sbin/:755
+EOF
+fi
 
 if (($vopt_debug)); then
     debug "about to dump ${tmpdir}/qfakeroot.smirfgen.cfg"
@@ -262,7 +331,11 @@ smirfgen \
 
 if (($vopt_native)); then
     
+    ##
+    ## run natively as root in a chroot if requested
+    ##
 
+    # build a chroot environment to run the user command
     mkdir ${tmpdir}/nativechroot
     mkdir ${tmpdir}/nativechroot/output
     mkdir ${tmpdir}/nativechroot/scratch
@@ -270,9 +343,11 @@ if (($vopt_native)); then
     tar --sparse -xpsf ${tmpdir}/qfakeroot.initramfs.input.tar
     popd > /dev/null 2>&1
 
+    # expand smirfgen's irfs into the chroot
     zcat ${tmpdir}/qfakeroot.initramfs | \
 	( cd ${tmpdir}/nativechroot ; cpio --extract )
 
+    # bindmount system directories into the chroot
     mkdir -p ${tmpdir}/nativechroot/dev
     mount --bind /dev ${tmpdir}/nativechroot/dev
     mount --bind /dev/pts ${tmpdir}/nativechroot/dev/pts
@@ -286,18 +361,22 @@ if (($vopt_native)); then
     mkdir -p ${tmpdir}/nativechroot/sys
     mount --bind /sys ${tmpdir}/nativechroot/sys
 
+    # set up the disk_image device nodes
     if (( $use_disk_image )); then
 	dm-parts setup $disk_image ${tmpdir}/dm-parts $disk_image_readonly \
 	    ${tmpdir}/nativechroot/dev/qfrdi
     fi
 
+    # do stuff
     /usr/sbin/chroot ${tmpdir}/nativechroot /sbin/qfakeroot.command
 
+    # tear down the disk_image device nodes
     if (( $use_disk_image )); then
 	dm-parts teardown $disk_image ${tmpdir}/dm-parts $disk_image_readonly \
 	    ${tmpdir}/nativechroot/dev/qfrdi
     fi
 
+    # clean up bind mounts
     umount ${tmpdir}/nativechroot/sys
     rmdir ${tmpdir}/nativechroot/sys
 
@@ -311,27 +390,38 @@ if (($vopt_native)); then
     umount ${tmpdir}/nativechroot/dev
     rmdir ${tmpdir}/nativechroot/dev
 
+    # give the user the final output
     mv ${tmpdir}/nativechroot/output ${vopt_outputdir}
 
 else
 
+    ##
+    ## run command in qemu environment
+    ##
 
     veva qemu-img create ${tmpdir}/qscratch ${vopt_scratch}
     veva qemu-img create ${tmpdir}/qoutput 777G
 
+    # pad input to at least traditional blocksize, just in case
     dd if=/dev/zero of=${tmpdir}/qfakeroot.initramfs.input.tar \
 	conv=notrunc oflag=append bs=4k count=1 > /dev/null 2>&1
 
     touch ${tmpdir}/q.log
 
+    # prevent noise to terminal when qreaper time comes
     trap "/bin/true" SIGCHLD
     trap "/bin/true" SIGHUP
 
+    # note, had been using acpi=force, but ran into a spurious divide error crash
+    # (and this may resolve a few other oopses I had encountered historically)
+    # certainly since I'm using the qreaper hack, acpi is meaningless.  Though
+    # hopefully one day I'll solve both the qreaper necessity, and qemu will
+    # provide a working acpi environment.
     qemu \
 	${vopt_qflags} \
 	-boot c \
 	-nographic \
-	-kernel /boot/vmlinuz-$( uname -r ) \
+	-kernel ${tmpdir}/qfakeroot.initramfs.kernel \
 	-initrd ${tmpdir}/qfakeroot.initramfs \
 	-append "debug verbose console=ttyS0 acpi=off drop=early:/qfakeroot.init" \
 	-hdd ${tmpdir}/qscratch \
@@ -345,6 +435,8 @@ else
     trap "kill $qpid ; exit 1" SIGTERM
     trap "kill $qpid ; exit 1" SIGINT
     
+    # annoying workaround to inability to poweroff qemu from initramfs
+    # (there must be a way, I just haven't figured it out... yet)
     if ((${vopt_verbose})); then
 	debug "tailing q.log"
 	tail -f --pid=${qpid} ${tmpdir}/q.log &
@@ -359,6 +451,7 @@ else
 	    debug "killing qemu subprocess again for good measure"
 	    kill -KILL $qpid > /dev/null 2>&1
 	    qdone=1
+	    # restore traps
 	    trap SIGCHLD
 	    trap SIGHUP
 	    trap SIGTERM
@@ -368,6 +461,7 @@ else
 	fi
     done
     
+    # end annoying qreaper workaround
 
     mkdir ${tmpdir}/tmpoutput
     pushd ${tmpdir}/tmpoutput > /dev/null 2>&1
@@ -377,6 +471,7 @@ else
 
     if [ -f ${tmpdir}/fqdi.img ]; then rm -f ${tmpdir}/fqdi.img; fi
     rm -f ${tmpdir}/qscratch
+#    rm -f ${tmpdir}/qfakeroot.initramfs.input.tar
     rm -rf ${tmpdir}/qoutput
 
 fi

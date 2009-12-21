@@ -1,3 +1,0 @@
-#!/bin/bash
-rpm -Uvh /trait-expanded/trait-install/zyx-liveinstaller*.i386.rpm
-

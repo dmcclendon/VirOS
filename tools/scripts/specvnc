@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,9 +26,23 @@
 #
 #############################################################################
 
+#
+## VirOS specvnc
+##
+## usage viros vspecvnc --display=<displaynumber> --confdir=<> <start|stop|view>
+##
+## this command can be used to launch a dedicated vnc server, and thereafter
+## to attach to it or stop it.
+##
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -39,6 +52,9 @@ else
     exit 1
 fi
 
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "${progname} \\"
@@ -56,6 +72,9 @@ function usage {
 }
 
 function cleanup_and_exit {
+    ##
+    ## cleanup and exit
+    ##
     if (( $vopt_debug )); then
 	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
     else
@@ -66,18 +85,26 @@ function cleanup_and_exit {
     exit 0
 }
 
+##
+## process command line arguments
+##
 
 if [ $# -ne 3 ]; then
     echo "usage: ${progname} --display=<displaynumber> --confdir=<> <start|stop|view>"
     exit 1
 fi
 
+# TODO: error check arguments
+# TODO: don't assume argument order
 specvnc_display=$( echo $1 | sed -e 's/.*=//' )
 specvnc_confdir=$( echo $2 | sed -e 's/.*=//' )
 specvnc_action=$3
 
 specvnc_port=$(( $specvnc_display + 5900 ))
 
+###
+### local functions
+###
 
 function launch_specvnc {
     if [ -d "${specvnc_confdir}" ]; then
@@ -90,6 +117,7 @@ function launch_specvnc {
 	die "port ${specvnc_port} is not available"
     fi
 
+    # make tmp config directory
     
     cleanup_command="${cleanup_command} ; \
 	rm -rf ${specvnc_confdir} \
@@ -98,15 +126,23 @@ function launch_specvnc {
 	die "could not make config dir ${specvnc_confdir}"
     fi
     
+    ##
+    ## create custom vnc configuration
+    ##
     status "configuring special vnc server..."
 
+    # create random password
     vsys_vncpassword=$( cat /dev/random | hexdump -n 4 -e '"%02x\n"' )
     echo -e "${vsys_vncpassword}\n${vsys_vncpassword}\n" | \
         veva env HOME=${specvnc_confdir} vncpasswd 
 
     veva make_vncstartup ${specvnc_confdir}/.vnc/xstartup
 
+#    veva make_twmrc ${specvnc_confdir}/.vnc/twmrc
 
+    ##
+    ## launch special vnc server
+    ##
     status "starting special vnc server..."
 
     cleanup_command="${cleanup_command} ; \
@@ -115,13 +151,24 @@ function launch_specvnc {
         veva env HOME=${specvnc_confdir} vncserver -kill :${specvnc_display} \
         "
 
+# note: f7 transition, depth 24 failed, and not in a well indicated way
+# note: depth 32 succeeds, but results in a bizarre case where 
+#       xdpyinfo on the vnc server yields _only_ 32-bit visuals, which
+#       causes qemu to give the 'failed to initialize SDL' thing.
+#       For reasons that aren't yet clear to me, using depth 16, yields
+#       xdpyinfo which shows all visuals available.
 
+# this is a bug in veva argument handling, I went as far as
+# doing a foreach loop on $@ and $1, $2... and enclosing in ''s, 
+# which did succeed in getting this particular problem solved,
+# but there were other issues and the problem deprioritized for now.
 
     if [ "x${viros_stupid_vncname}" == "x" ]; then
 	vncname="VirOS___Synthesis___Monitor    "
     else
 	vncname="${viros_stupid_vncname}"
     fi
+#    vncname="VirOS Synthesis Monitor    "
     vevastupid env HOME=${specvnc_confdir} vncserver :${specvnc_display} \
 	-name "${vncname}" \
 	-depth 16 \
@@ -129,14 +176,16 @@ function launch_specvnc {
 
     sleep 2
 
-
 }
 
 function destroy_specvnc {
     veva env HOME=${specvnc_confdir} vncserver -kill :${specvnc_display} 
+    # debug
+#    rm -rf ${specvnc_confdir}
 }
 
 function view_specvnc {
+    # lack of functionality in vncviewer
     if [ ! -f "${specvnc_confdir}/vsm" ]; then
 	cp $( which vncviewer ) ${specvnc_confdir}/vsm
 	sed -i -e 's/VNC:/\ \ \ \ /' ${specvnc_confdir}/vsm
@@ -148,6 +197,7 @@ function view_specvnc {
 }
 
 function viewonly_specvnc {
+    # lack of functionality in vncviewer
     if [ ! -f "${specvnc_confdir}/vsm" ]; then
 	cp $( which vncviewer ) ${specvnc_confdir}/vsm
 	sed -i -e 's/VNC:/\ \ \ \ /' ${specvnc_confdir}/vsm
@@ -158,7 +208,13 @@ function viewonly_specvnc {
 	>> ${specvnc_confdir}/viewers.log 2>&1 
 }
 
+###
+### end local functions
+###
 
+###
+### main 
+###
 if [ "$specvnc_action" = "start" ]; then
     launch_specvnc
 elif [ "$specvnc_action" = "stop" ]; then

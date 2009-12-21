@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,10 +26,25 @@
 #
 #############################################################################
 
+#
+##
+##
+## VirOS synthesize
+##
+## usage: vsys [options] synthesize [options]
+##
+## for detailed usage information: vsys help synthesize
+##
 
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -40,13 +54,19 @@ else
     exit 1
 fi
 
+##
+## functions
+##
 
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "${progname} \\"
     echo "    [--help] [--quiet] [--verbose] [--debug] \\"
     echo "    --strain=<strain> | --config=<config> \\ ### default: fz8"
-    echo "    [[--addtrait=<traitspec>]] \\"
+    echo "    [[--traits=<traitspec>]] \\"
     echo "    [[--vxmogopts=<transmogrifier options>]] \\"
     echo "    [--transmogrifier=<transmogrifier>] \\   ### default: zyx-live"
     echo "    [--output=<filename>]                    ### default: ./vsys.iso"
@@ -60,6 +80,9 @@ function usage {
 }
 
 function cleanup_and_exit {
+    ##
+    ## cleanup and exit
+    ##
     if (( $vopt_debug )); then
 	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
     else
@@ -71,6 +94,9 @@ function cleanup_and_exit {
 }
 
 
+##
+## use TMPDIR environment if set
+##
 
 if [ "x${TMPDIR}" == "x1" ]; then
     default_vopt_tmpdir="/tmp"
@@ -79,7 +105,13 @@ else
 fi
 
 
+##
+## define and parse options
+##
 
+#
+# general vsys options
+#
 export LIBVOPT_IGNORE_UNKNOWN_OPTIONS=true
 vregopt config string ""
 vregopt help boolean 0
@@ -89,26 +121,30 @@ vregopt quiet boolean 0 inherit
 vregopt cachedir string "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 
+# this is the size of the qemu vsi rootfs
 vregopt vsysgen_output_container_size string "7G" inherit
-vregopt vsysgen_distro string "fedora-10" inherit
+vregopt vsysgen_distro string "fedora-11" inherit
 vregopt vsysgen_arch string "x86" inherit
-vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/10/Fedora/i386/iso/Fedora-10-i386-netinst.iso" inherit
-vregopt vsysgen_install_boot_iso_sha1sum string "8f34cf6b8996c2a49578928aa437244f357ab0c2" inherit
-vregopt vsysgen_distro_config string "f10.ks" inherit
+vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/11/Fedora/i386/iso/Fedora-11-i386-netinst.iso" inherit
+vregopt vsysgen_install_boot_iso_sha256sum string "b61cf796fa1602ca003b340ca8073d783576507e88db3499d86640b0d20034cd" inherit
+vregopt vsysgen_distro_config string "f11.ks" inherit
 vregopt vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" inherit
 vregopt vsysgen_screencast_output string "" inherit
 
 vregopt output string "./viros.vsi"
 vregopt mirrorlist string "" inherit
 
+# parse options
 vparseopt "$@"
 
 if (( $vopt_help )); then 
     usage clean 
 fi
 
+# convert any relative paths in output filename
 outputfile=$( normalize_path "${vopt_output}" )
 
+# TODO: verify configfile syntax and values (BETTER)
 
 if [ -f "${vopt_vsysgen_distro_config}" ]; then
     vsysgen_distro_configfile=$( normalize_path "${vopt_vsysgen_distro_config}" )
@@ -118,15 +154,25 @@ fi
 
 debug "vsysgen_distro_configfile is ${vsysgen_distro_configfile}"
 
+##
+## END: ingest config
+##
 
 if [ -f "$outputfile" ]; then
     die "${progname}: error: output file $outputfile already exists"
 fi
 
+# TODO: check that outputfile is writable, and has sufficient filesystem space
 
+##
+## begin processing
+##
 
 verbose "initializing..."
 
+##
+## create temp directory
+##
 
 verbose "creating temporary directory..."
 export TMPDIR=${vopt_tmpdir}
@@ -142,6 +188,7 @@ if [ "x${vopt_cachedir}" == "x" ]; then
     vopt_cachedir="${tmpdir}/cachedir"
 fi
 
+# ugh (there must be a less ugly way to get ~/.viros/cachedir to work here)
 vopt_cachedir=$( eval echo "${vopt_cachedir}" )
 veva mkdir -p "${vopt_cachedir}"
 
@@ -154,32 +201,45 @@ intlogfile="${tmpdir}/vsys.log"
 vhttpdroot="${tmpdir}/vsys_docroot"
 
 
+# mainly this is for qrap callback assumption
+# TODO: change this, make it so callback takes an arg of its initial dir
 cd $tmpdir
 
+# create intlogfile
 veva touch $intlogfile
 logfiles="$intlogfile"
 
 verbose "preparing synthesis materials..."
 
+## get boot iso
 boot_iso_basename=$( basename ${vopt_vsysgen_install_boot_iso} )
 
 if [ ! -f "${vopt_cachedir}/${boot_iso_basename}" ]; then
+#    pushd "${vopt_cachedir}" > /dev/null 2>&1
     pushd "${vopt_cachedir}" 
     veva urlgrabber --copy-local "${vopt_vsysgen_install_boot_iso}"
     popd > /dev/null 2>&1
 fi
 
-boot_iso_sha1sum=$( sha1sum "${vopt_cachedir}/${boot_iso_basename}" | sed -e 's/\s.*//' )
-if [ "$boot_iso_sha1sum" != "${vopt_vsysgen_install_boot_iso_sha1sum}" ]; then
-    die "install boot iso image ${vopt_cachedir}/${boot_iso_basename} has the wrong sha1sum $boot_iso_sha1sum which does not match the expected ${vopt_vsysgen_install_boot_iso_sha1sum} .  Please try removing this file so that it is downloaded again"
+boot_iso_sha256sum=$( sha256sum "${vopt_cachedir}/${boot_iso_basename}" | sed -e 's/\s.*//' )
+if [ "$boot_iso_sha256sum" != "${vopt_vsysgen_install_boot_iso_sha256sum}" ]; then
+    die "install boot iso image ${vopt_cachedir}/${boot_iso_basename} has the wrong sha256sum $boot_iso_sha256sum which does not match the expected ${vopt_vsysgen_install_boot_iso_sha256sum} .  Please try removing this file so that it is downloaded again"
 fi
 
+##
+## prepare a local copy of runpre/post for target.  qrap callback
+## will edit and package later
+##
+#note: more frontend implicit selection
 veva cp -a ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpre ${tmpdir}/runpre
 
+#note: more frontend implicit selection
 veva cp -a ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpost ${tmpdir}/runpost
 
+# prepare docroot for private webserver
 mkdir -p ${vhttpdroot}
 
+# future refactoring note: this code started as a copy of similar from mutate
 if [ "x${vopt_mirrorlist}" != "x" ]; then
     if [ ! -f "${vopt_mirrorlist}" ]; then
         die "specified mirrorlist ${mirrorlist} is not a file"
@@ -188,8 +248,12 @@ if [ "x${vopt_mirrorlist}" != "x" ]; then
         mirror_listconfig=$( basename ${vopt_mirrorlist} )
     fi
     ln -s ${mirror_docroot} ${vhttpdroot}/mirrors
+    # todo: should also run vmirmog on kickstart
 fi
 
+####
+#### BEGIN VSYS INSTALL
+####
 
 status "creating target system image"
 
@@ -204,6 +268,7 @@ cat uos.cfg \
     > uos.stripped.cfg
 sed -i -e 's/VKICKSTARTFILE/uos\.stripped\.cfg/' kswrap.cfg
 ksflatten --output=os.cfg ./kswrap.cfg
+# pykickstart bug needs to be filed
 sed -i os.cfg -e 's/shutdown/poweroff/'
 if ( ! grep -q "^rootpw" os.cfg ); then
     cat <<EOF >> os.cfg
@@ -219,9 +284,12 @@ if ( ! grep -q "^install" os.cfg ); then
     cat os.cfg | grep -v "^repo" > os.norepos.cfg
     numrepos=$( cat os.repos.cfg | wc -l )
     numrepos_minus_one=$(( $numrepos - 1 ))
+    # todo: basearch should be replaced even outside this if clause, but
+    # I need to make sure I only do it for repo lines
     cat os.repos.cfg | tail -${numrepos_minus_one} | sed -e 's/\$basearch/i386/' > os.extrarepos.cfg
     cat os.repos.cfg | head -1 > os.instrepo.cfg
     if ( grep -q mirrorlist os.instrepo.cfg ); then
+	# todo: don't assume basearch
 	mirrorlisturl=$( cat os.instrepo.cfg | \
 	    sed -e 's/.*\-\-mirrorlist=//' | \
 	    sed -e 's/\$basearch/i386/' )
@@ -248,7 +316,9 @@ veva cp ${tmpdir}/os.cfg  ${vhttpdroot}/os.cfg
 
 veva qemu-img create ${tmpdir}/outimage.vsi ${vopt_vsysgen_output_container_size}
 
+# inelegant: the following is very fedora specific
 
+# extract kernel and initrd
 isoinfo -R -x /isolinux/isolinux.cfg \
     -i ${vopt_cachedir}/${boot_iso_basename} \
     > ${tmpdir}/inst.bootloaderconfig
@@ -262,7 +332,22 @@ isoinfo -R -x /isolinux/initrd.img \
     > ${tmpdir}/inst.initrd
 
 
+##
+## synthesize callback script to tweak vrun with info about http port and stuff
+##
 cat <<EOF>>${tmpdir}/synthesize.callback.sh
+#!/bin/bash
+#
+# the pwd here should be the vsys synthesize main tmpdir
+#
+# the following environment variables should exist:
+#        QRAP_HOST_IP
+#        QRAP_HTTPD_PORT
+#        QRAP_HTTPD_DOCROOT
+#        QRAP_VDISPLAY
+#
+#
+# 1) 
 
 vreplace \
     QRAP_HOST_IP "\${QRAP_HOST_IP}" \
@@ -279,6 +364,7 @@ vreplace \
     QRAP_HOST_IP "\${QRAP_HOST_IP}" \
     -- \${QRAP_HTTPD_DOCROOT}/os.cfg
 
+# totally untested code
 if [ -f \${QRAP_HTTPD_DOCROOT}/mirrors/${mirror_listconfig} ]; then
     vmirmog \
         \${QRAP_HTTPD_DOCROOT}/mirrors/${mirror_listconfig} \
@@ -312,6 +398,8 @@ cleanup_command="${cleanup_command} ; \
     kill ${vsysgen_qrap_pid} ; sleep 3 ; kill -KILL ${vsysgen_qrap_pid} \
     "
 
+# note: a bug exists seeing spewage from this after ctrl-c and cleanup.
+#       this is because qrap for some reason isn't shutting down (why?)
 
 if (($vopt_debug)); then
     tail -f --lines=9999 --pid=$vsysgen_qrap_pid ${tmpdir}/vsys.build.log | \

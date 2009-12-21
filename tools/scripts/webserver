@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,10 +26,26 @@
 #
 #############################################################################
 
+#
+## VirOS webserver
+##
+## usage viros webserver --port=<> --docroot=<> --confdir=<> <start|stop>
 
+##
+## this command launches a simple dedicated apache webserver, listening
+## on the specified port, serving the contents of docroot, and leaving a
+## temporary generated configuration/run/log directory in the specified
+## confdir
+##
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -40,7 +55,13 @@ else
     exit 1
 fi
 
+##
+## functions
+##
 
+##
+## override libvopt.sh usage function
+##
 function usage {
     echo ""
     echo "${progname} \\"
@@ -61,6 +82,9 @@ function usage {
     fi
 }
 
+##
+## use TMPDIR environment if set
+##
 
 if [ "x${TMPDIR}" == "x1" ]; then
     default_vopt_tmpdir="/tmp"
@@ -68,6 +92,9 @@ else
     default_vopt_tmpdir="${TMPDIR}"
 fi
 
+##
+## define and parse options
+##
 vregopt help boolean 0
 vregopt verbose boolean 0 inherit
 vregopt debug boolean 0 inherit
@@ -82,6 +109,9 @@ if (( $vopt_help )); then
     usage clean 
 fi
 
+##
+## process command line arguments
+##
 
 if [ $vopts_numargs -ne 1 ]; then 
     debug "vopts_numargs is $vopts_numargs"
@@ -93,6 +123,9 @@ mode="${vopts_args[1]}"
 
 httpdserverroot="${vopt_confdir}/webserver_conf"
 
+###
+### local functions
+###
 
 function launch_webserver {
 
@@ -106,17 +139,24 @@ function launch_webserver {
 	die "docroot ${vopt_docroot} is not accessable"
     fi
     
+    # make tmp config directory
     
      if $(! mkdir -p ${httpdserverroot} > /dev/null 2>&1 ); then
 	die "could not make config dir ${httpdserverroot}"
     fi
     
+    ##
+    ## create temporary test file
+    ##
 
     veva mkdir ${httpdserverroot}/testdir
     date > ${httpdserverroot}/testdir/testfile
 
     veva cp ${httpdserverroot}/testdir/testfile ${vopt_docroot}/testfile
     
+    ##
+    ## create apache confdir in tempdir 
+    ##
 
     veva mkdir -p ${httpdserverroot}
     veva mkdir -p ${httpdserverroot}/run
@@ -125,6 +165,9 @@ function launch_webserver {
     veva mkdir -p ${httpdserverroot}/conf.d
     veva ln -s /usr/lib/httpd/modules ${httpdserverroot}/
     
+    ##
+    ## create custom apache configuration
+    ##
     status "configuring special http server..."
     
     veva cp ${viros_libdir}/ancestors/common/arap.orig.httpd.conf \
@@ -135,6 +178,9 @@ function launch_webserver {
 	VSYS_DOCROOT "${vopt_docroot}" \
 	-- ${httpdserverroot}/conf/httpd.conf 
     
+    ##
+    ## launch special httpd server
+    ##
     status "starting special http server..."
 
     cleanup_command="${cleanup_command} ; \
@@ -144,11 +190,15 @@ function launch_webserver {
 	-f ${httpdserverroot}/conf/httpd.conf -k graceful-stop ; \
 	veva /usr/sbin/httpd \
 	-f ${httpdserverroot}/conf/httpd.conf -k stop ; \
+	#rm -rf ${httpdserverroot}
 	"
 
     veva /usr/sbin/httpd -f ${httpdserverroot}/conf/httpd.conf 
     sleep 3
 
+    ##
+    ## test httpd server
+    ##
     status "testing special http server..."
 
     veva wget -q -O ${httpdserverroot}/testdir/retrievedfile \
@@ -160,6 +210,7 @@ function launch_webserver {
 	die "TEST FAILED: user httpd server is not working"
     fi
 
+#    veva rm -f ${vopt_docroot}/testfile
     return 0
 }
 
@@ -170,9 +221,16 @@ function destroy_webserver {
     veva /usr/sbin/httpd \
 	-f ${httpdserverroot}/conf/httpd.conf -k stop \
 	> /dev/null 2>&1
+#    veva rm -rf ${httpdserverroot}
 }
 
+###
+### end local functions
+###
 
+###
+### main
+###
 
 if [ "$mode" = "start" ]; then
     launch_webserver
@@ -182,3 +240,4 @@ else
     die "unknown mode $mode"
 fi
 
+exit 0

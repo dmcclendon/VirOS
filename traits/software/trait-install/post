@@ -1,6 +1,21 @@
 #!/bin/bash
 
+# viros trait post-install script for trait: software
+#
+# options/usage
+#
+# install=<package/list>
+# erase=<package/list>
+#
+# where arg is a package/list that 'yum -y install <package/list>' would
+# understand.
+#
+# e.g. 
+# --addtrait=software::addpackages=livecd-tools
 
+##
+## get runtime environment
+##
 progname="$( basename $0 )"
 progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
     pwd ; popd > /dev/null 2>&1 ) )

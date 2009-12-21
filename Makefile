@@ -27,13 +27,13 @@ all clean install uninstall: $(SUBDIRS)
 
 all_also:
 	ln -s ./tools/scripts/vsys ./viros
-	ln -s fedora-9 ./ancestors/gzyx-0.6
+	ln -s fedora-11 ./ancestors/gzyx-0.4
 	ln -s M-ZyX.vml ./strains/min.vml
 	ln -s M-ZyX.vml ./strains/minimal.vml
 
 clean_also:
 	rm -vf ./viros
-	rm -vf ./ancestors/gzyx-0.6
+	rm -vf ./ancestors/gzyx-0.4
 	rm -vf ./strains/min.vml
 	rm -vf ./strains/minimal.vml
 

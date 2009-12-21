@@ -42,8 +42,10 @@ targetisodir=/scratch/iso
 
 fs_label="zyx-live-$( date +%Y%m%d-%H%M )"
 
+# this default is in line with livecd size
 uncompressed_size_mb=4096
 
+# TODO: this may be removable with ext4
 ext3_blocksize=4096
 
 selinux=0
@@ -76,20 +78,23 @@ bootloader_isolinux_menu_width="80"
 bootloader_isolinux_menu_rows="5"
 bootloader_isolinux_menu_tabmsgrow="11"
 bootloader_isolinux_menu_cmdlinerow="11"
+#bootloader_isolinux_menu_startrow="1"
 bootloader_isolinux_menu_vshift="20"
 bootloader_isolinux_menu_endrow="17"
 bootloader_isolinux_menu_timeoutrow="13"
 
+# TODO: (optional via vml) genisoimage_options, -dvd-video, -udf, needs AUDIO_TS and VIDEO_TS
 mkisofs_options="-no-emul-boot -boot-load-size 4 -boot-info-table -J -r -hide-rr-moved"
 
+### TODO: really grub.conf should be respected, and each kernel version along with the
+###       default choice should be reflected in the livecd bootloader config
 
 echo "calculating user_kernel_version"
 if [ -L ${targetroot}/boot/kernel-liveos-default ]; then
     use_kernel_version=$( readlink -f ${targetroot}/boot/kernel-liveos-default | \
 	sed -e 's/.*vmlinuz-//' )
 else
-    use_kernel_version=$( ls -1A ${targetroot}/boot/vmlinuz* | sort | \
-	tail -1 | sed -e 's/.*vmlinuz-//' )
+    # NOTE: /bin/sort is not sufficient for this purpose
     use_kernel_version="$( chroot ${targetroot} rpm -qa --last | grep kernel-2.6 | head -1 | awk '{print $1}' | sed -e 's/^kernel-//' ).i686"
 fi
 echo "ukv $use_kernel_version"
@@ -153,20 +158,28 @@ else
 	> ${targetroot}/etc/selinux/config
 fi
 
+# obsolete?
 if [ -f ${targetroot}/etc/modprobe.conf ]; then
     cp ${targetroot}/etc/modprobe.conf ${targetroot}/etc/modprobe.conf.qemu
     echo -en "\n" > ${targetroot}/etc/modprobe.conf
 fi
 
+##
+## BEGIN de-qemu-ification
+##
 
 rm -f ${targetroot}/etc/sysconfig/network-scripts/ifcfg-eth0
 rm -f ${targetroot}/boot/initrd*
 rm -f ${targetroot}/etc/X11/xorg.conf
 rm -f ${targetroot}/etc/sysconfig/hwconf
+# stupid lvm and blockid caches
 rm -f ${targetroot}/etc/lvm/cache/.cache
 rm -f ${targetroot}/etc/blkid/blkid.tab
 rm -f ${targetroot}/etc/blkid/blkid.tab.old
 
+##
+## END de-qemu-ification
+##
 
 if (( $prelink )); then
     verbose "running prelink, this will take awhile"
@@ -216,7 +229,15 @@ cp ${targetroot}/boot/vmlinuz-${use_kernel_version} \
 mv ${targetroot}/boot/initrd-${use_kernel_version}.zyx.img \
     ${targetisodir}/boot/initrd.1
 
+# save space
 rm -f ${targetroot}/boot/initrd-*
+# this was wrong to begin with, but below HHH comment is still useful
+#for kernel in $( ls -1A ${targetroot}/boot/vmlinuz-* ); do
+#    rm -f ${kernel}
+#    # HHH need some mapping /boot/mappings.txt to 
+#    #     map vmlinuz.1, .2,... to right thing
+#    ln -s /mnt/.LiveOS/prime_rootfs/boot/vmlinuz.1 ${kernel}
+#done
 rm -f ${targetroot}/boot/vmlinuz-${use_kernel_version}
 ln -s /mnt/.LiveOS/prime_rootfs/boot/vmlinuz.1 \
     ${targetroot}/boot/vmlinuz-${use_kernel_version}
@@ -312,6 +333,8 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
   menu label InstaJam ResetOverlay
   kernel /boot/vmlinuz.1
   append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg instajam reset_overlay "
+	# disable for now
+	isolinux_ijro_entry=""
     else
 	isolinux_ijro_entry=""
     fi
@@ -325,6 +348,7 @@ menu width  ${bootloader_isolinux_menu_width}
 menu rows  ${bootloader_isolinux_menu_rows}
 menu tabmsgrow  ${bootloader_isolinux_menu_tabmsgrow}
 menu cmdlinerow ${bootloader_isolinux_menu_cmdlinerow}
+#menu startrow ${bootloader_isolinux_menu_startrow} 
 menu vshift ${bootloader_isolinux_menu_vshift} 
 menu endrow ${bootloader_isolinux_menu_endrow}
 menu timeoutrow ${bootloader_isolinux_menu_timeoutrow}
@@ -339,12 +363,12 @@ menu color unsel 0 #ff999999 #00000000
 menu color hotsel 0 #ff000000 #ffffffff
 menu color hotkey 7 #ffffffff #ff000000
 
-${isolinux_instajam_entry}
-${isolinux_ijro_entry}
 label linux
   menu label Boot ${fs_label} LiveOS
   kernel /boot/vmlinuz.1
   append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append}
+${isolinux_instajam_entry}
+${isolinux_ijro_entry}
 ${isolinux_hhuey_entry}
 ${isolinux_sdmc_entry}
 ${isolinux_verify_entry}
@@ -360,26 +384,29 @@ fi
 
 
 mkdir -p /scratch/squashfs/boot/LiveOS/zyx
-dd if=/dev/zero of=/scratch/squashfs/boot/LiveOS/zyx/${fs_label}.ext3.img bs=512 count=1 seek=$(( $uncompressed_size_mb * 1024 * 1024 / 512 ))
-verbose "about to ls -lh and du -cms on /scratch/squashfs/boot/LiveOS/zyx/${fs_label}.ext3.img"
-ls -lh /scratch/squashfs/boot/LiveOS/zyx/${fs_label}.ext3.img
-du -cms /scratch/squashfs/boot/LiveOS/zyx/${fs_label}.ext3.img
+dd \
+    if=/dev/zero \
+    of=/scratch/squashfs/boot/LiveOS/zyx/${fs_label}.ext3.img \
+    bs=512 \
+    count=1 \
+    seek=$(( $uncompressed_size_mb * 1024 * 1024 / 512 ))
 loopdevice=$( losetup -f )
 verbose "loopdevice is ${loopdevice}"
 losetup ${loopdevice} \
     /scratch/squashfs/boot/LiveOS/zyx/${fs_label}.ext3.img \
     > /tmp/losetup.out 2>&1
 
-verbose "/tmp/losetup.out is..."
-cat /tmp/losetup.out
-verbose "...eof, dmesg coming"
-dmesg
-verbose "about to losetup -a"
-losetup -a
+# 4224 is a static uuid that live.init checks against to determine 
+# if a new random one is needed
 verbose "about to mkfs.ext3"
-verbose "about to /sbin/mkfs.ext3 -v -b ${ext3_blocksize} -L \"${fs_label}\" -m 1 ${loopdevice} $(( $uncompressed_size_mb * 1024 * 1024 / ${ext3_blocksize} ))"
-mkfs.ext3 -v -b ${ext3_blocksize} -L "${fs_label}" -m 1 ${loopdevice} $(( $uncompressed_size_mb * 1024 * 1024 / ${ext3_blocksize} ))
-
+mkfs.ext3 \
+    -v \
+    -b ${ext3_blocksize} \
+    -L "${fs_label}" \
+    -U "42244224-4224-4224-4224-422442244224" \
+    -m 1 \
+    ${loopdevice} \
+    $(( $uncompressed_size_mb * 1024 * 1024 / ${ext3_blocksize} ))
 
 verbose "about to tune2fs"
 ${targetroot}/sbin/tune2fs -c 0 -i 0 ${loopdevice}
@@ -394,6 +421,9 @@ top -d 30 -b &
 pushd ${targetroot}
 
 if [ -d ./VirOS.prime_rootfs ]; then
+    # note: mv here failed with 'inter-device move failed',
+    #       which seems to be the result of the boot subdir existing
+    #       in the target (bah??).
     cp -av ./VirOS.prime_rootfs/* ${targetisodir}/
     rm -rf ./VirOS.prime_rootfs 
 fi
@@ -403,15 +433,48 @@ if [ -f ./var/log/viros.boot.afiles.sorted_by_size.txt ]; then
     rm -f ./var/log/viros.*
     while read filename; do
 	echo "XMOG STATUS: sort copying ${filename}"
-	tar ${tarsel} -S --no-recursion -cpsf - ./${filename} | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - ) 
+	tar \
+	    ${tarsel} \
+	    -S \
+	    --no-recursion \
+	    -cpsf - \
+	    ./${filename} | \
+	    ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - ) 
+
     done < /scratch/sortlist
-    tar ${tarsel} -S --no-recursion -cpsf - ./lib/modules | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - )
-    tar ${tarsel} -S --no-recursion -cpsf - ./usr/lib/xorg/modules | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - )
-    rsync -avuHX ./usr/lib/xorg/modules/ /scratch/target/usr/lib/xorg/modules
-    rsync -avuHX ./lib/modules/ /scratch/target/lib/modules
-    rsync -avuHX ./ /scratch/target
+
+    tar \
+	${tarsel} \
+	-S \
+	--no-recursion \
+	-cpsf - \
+	./lib/modules | \
+	( cd /scratch/target ; tar ${tarsel} -S -xvpsf - )
+    tar \
+	${tarsel} \
+	-S \
+	--no-recursion \
+	-cpsf - \
+	./usr/lib/xorg/modules | \
+	( cd /scratch/target ; tar ${tarsel} -S -xvpsf - )
+
+    rsync \
+	-avuHX \
+	./usr/lib/xorg/modules/ \
+	/scratch/target/usr/lib/xorg/modules
+
+    rsync \
+	-avuHX \
+	./lib/modules/ \
+	/scratch/target/lib/modules
+
+    rsync \
+	-avuHX \
+	./ \
+	/scratch/target
 else
-    ( tar --one-file-system ${tarsel} -S -cpsf - . | ( cd /scratch/target ; tar ${tarsel} -S -xvpsf - ) ) 
+    ( tar --one-file-system ${tarsel} -S -cpsf - . | \
+	( cd /scratch/target ; tar ${tarsel} -S -xvpsf - ) ) 
 fi
 
 verbose "tar done" 
@@ -436,6 +499,9 @@ fi
 
 if [ "x${timestamps}" != "x" ]; then
     verbose "changing timestamps to $timestamps"
+    # devnull is because I'm too lazy to write an inline generated script
+    # which checks for the type to be f, or adding -f here, as I really
+    # want it to try on everything.
     /usr/sbin/chroot /scratch/target find / -xdev \
 	-exec touch -t $timestamps '{}' ';' > /dev/null 2>&1
 fi

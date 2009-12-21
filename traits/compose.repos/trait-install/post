@@ -7,6 +7,9 @@
 # mode=install|uninstall
 #
 
+##
+## get runtime environment
+##
 progname="$( basename $0 )"
 progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
     pwd ; popd > /dev/null 2>&1 ) )
@@ -16,6 +19,12 @@ source ${progdir}/trait-options
 
 if [ "x${mode}" == "xinstall" ]; then
 
+# example for using a 3rd party repo via a repo release rpm
+#
+#    rpm -ivh /trait-expanded/trait-install/dmc*.rpm
+#    cp /usr/share/dmcrpms/RPM-GPG-KEY.dmc \
+#	/etc/pki/rpm-gpg/RPM-GPG-KEY.dmc
+#    rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY.dmc
 
     mv /etc/yum.repos.d /etc/yum.repos.d.not.compose.repos
     mv /etc/yum.conf /etc/yum.conf.not.compose.repos
@@ -26,7 +35,9 @@ if [ "x${mode}" == "xinstall" ]; then
 	>> /etc/yum.conf
 
 elif [ "x${mode}" == "xuninstall" ]; then
+#    rpm -e dmc-release-1-1
 
+#    rm -f /etc/pki/rpm-gpg/RPM-GPG-KEY.dmc
 
     rm -rf /etc/yum.repos.d.compose.repos
     rm -rf /etc/yum.repos.d

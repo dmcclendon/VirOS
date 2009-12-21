@@ -1,0 +1,8 @@
+#!/bin/bash
+
+cat <<EOF >> /etc/rc.d/rc.local
+
+### awaiting module-init-tools-3.x.10 (currently in updates-testing)
+modprobe snd-seq-oss
+
+EOF

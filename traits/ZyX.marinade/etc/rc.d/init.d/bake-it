@@ -1,0 +1,240 @@
+#!/bin/bash
+
+##
+## functions
+##
+function wait_for_io {
+    threshold_io_amount=$1
+    threshold_periods=$2
+    timeout=$3
+
+    xdone=0
+    while (( ! $xdone )); do
+        current_io=$( vmstat 1 2 | awk '{print $9 " " $10}' | tail -1 )
+        timeout=$(( $timeout - 2 ))
+        io_amount=0
+        for num in $current_io; do
+            io_amount=$(( $io_amount + $num ))
+        done
+        echo "debug: io amount is $io_amount"
+        if (( $io_amount < $threshold_io_amount )); then
+            threshold_periods=$(( $threshold_periods - 1 ))
+            echo "debug: io below threshold, tp is now $threshold_periods ..."
+        else
+            true
+            echo "debug: io above threshold..."
+        fi
+        if (( $threshold_periods == 0 )); then
+            xdone=1
+        fi
+        if (( $timeout <= 0 )); then
+            echo "debug: timeout expired..."
+            xdone=1
+        else
+            echo "debug: timeout not yet expired, $timeout seconds left..."
+            true
+        fi
+    done
+}
+
+##
+## main
+##
+
+# 10 is a very low threshold
+# 11 periods should be quite acquiessed
+# 15 minutes is the timeout
+wait_for_io 10 11 900
+
+sleep 42
+
+# qemu + f10 + qemu == sucks sucks sucks sucks
+wait_for_io 10 11 900
+
+sleep 42
+
+wait_for_io 10 11 900
+
+sleep 42
+
+wait_for_io 10 11 900
+
+sleep 42
+
+wait_for_io 10 11 900
+
+sleep 42
+
+wait_for_io 10 11 900
+
+sleep 42
+
+wait_for_io 10 11 900
+
+sleep 42
+
+# nice idea, but new save and quit dialog thwarted me
+#ff_win_id=$( runuser - guest -c "env DISPLAY=:0.0 wmctrl -l" | grep "Mozilla Firefox" | awk '{print $1}' )
+#runuser - guest -c "env DISPLAY=:0.0 wmctrl -i -c ${ff_win_id}"
+
+killall firefox
+
+#sleep 7
+sleep 42
+
+# sigh, really horrible place for this, but its just yet another thing to be cleaned up later...
+mkdir /home/guest/.tuxguitar-1.1
+cat <<EOF > /home/guest/.tuxguitar-1.1/plugin.properties
+#TuxGuitar Plugin Properties
+#Thu Feb 19 07:47:42 GMT-06:00 2009
+org.herac.tuxguitar.player.impl.jsa.MidiPluginList.enabled=false
+# useless (or not sigh... tradeoff, not enough panel space)
+org.herac.tuxguitar.tray.TGTrayPlugin.enabled=false
+# causes error
+org.herac.tuxguitar.io.gervill.MidiToAudioPlugin.enabled=false
+
+EOF
+
+cat <<EOF > /home/guest/.tuxguitar-1.1/config.properties
+midi.port=tuxguitar-oss_1
+EOF
+
+mkdir /tmp/output
+cp -av /var/lib/gdm /tmp/output/varlibgdm.cooked
+cp -av /home/guest /tmp/output/guest.cooked
+# only file with hardcoded full user homedir path in it, and not needed
+rm -f /tmp/output/guest.cooked/.mozilla/firefox/*.default/secmod.db
+runuser - guest -c "env DISPLAY=:0.0 gnome-screensaver-command --deactivate"
+sleep 7
+# needs to have imagemagick installed
+#runuser - guest -c "env DISPLAY=:0.0 import -window root /tmp/output/screenshot.jpg"
+
+rm -rf /home/kablui
+cp -av /tmp/output/guest.cooked /home/kablui
+# probably /usr/bin/kablui should do this
+rm -f /home/kablui/.config/autostart/bakefox.desktop
+chown -R kablui:kablui /home/kablui
+runuser - kablui -c "/usr/bin/kablui"
+
+
+pushd /tmp/output
+
+# HHH need 2nd bake it phase in here, do init 3, custom.conf-mod, init 5
+
+#do_livefs_ordering=1
+do_livefs_ordering=0
+if (($do_livefs_ordering)); then
+    find / -xdev \
+	-atime -7 \
+	-exec ls -ld --time=atime '{}' ';' \
+	> boot.afiles.list.txt 2>&1
+
+    cp boot.afiles.list.txt \
+	/var/log/viros.boot.afiles.list.txt
+    gzip /var/log/viros.boot.afiles.list.txt
+    
+    find / -xdev \
+	-exec ls -ld --time=atime '{}' ';' \
+	> boot.allfiles.list.txt 2>&1
+    
+    cp boot.allfiles.list.txt \
+	/var/log/viros.boot.allfiles.list.txt
+    gzip /var/log/viros.boot.allfiles.list.txt
+    
+    cat boot.afiles.list.txt | \
+	awk '{print $5 " " $8}' | \
+	sort -g | \
+	awk '{print $2}' | \
+	grep -v "^/tmp" \
+	> boot.afiles.sorted_by_size.txt
+    
+    cp boot.afiles.sorted_by_size.txt \
+	/var/log/viros.boot.afiles.sorted_by_size.txt
+    
+    cat boot.allfiles.list.txt | \
+	awk '{print $5 " " $8}' | \
+	sort -g | \
+	awk '{print $2}' | \
+	grep -v "^/tmp" \
+	> boot.allfiles.sorted_by_size.txt
+    
+    cp boot.afiles.sorted_by_size.txt \
+	/var/log/viros.boot.afiles.sorted_by_size.txt
+    
+    cp boot.allfiles.sorted_by_size.txt \
+	/var/log/viros.boot.allfiles.sorted_by_size.txt
+    
+    find / -xdev \
+	-type l \
+	-exec ls -ld --time=atime '{}' ';' \
+	> boot.lfiles.list.txt 2>&1
+    
+    find / -xdev \
+	-type d \
+	-exec ls -ld --time=atime '{}' ';' \
+	> boot.dfiles.list.txt 2>&1
+
+fi
+
+popd
+
+pushd /tmp
+cp /var/log/sysinfo.srpms output/
+tar cvf /dev/sdb output
+popd
+
+rm -rf /tmp/output
+
+rm -f /etc/rc.d/rc.local
+rm -f /etc/rc.d/init.d/rc.local.marinade
+mv /etc/rc.d/init.d/rc.local.pre-marinade \
+    /etc/rc.d/rc.local
+
+rm -f /boot/grub/grub.conf
+mv /boot/grub/grub.conf.pre-marinade \
+    /boot/grub/grub.conf
+
+rm -f /etc/fstab
+mv /etc/fstab.pre-marinade \
+    /etc/fstab
+
+runuser - guest -c "env DISPLAY=:0.0 gnome-session-save --kill --silent"
+
+wait_for_io 10 11 900
+
+### HHH XXX VERY fork-zyx specfic, need to copy for g-zyx (or not)
+
+#rm -f /home/guest/.mozilla/firefox/*.default/sessionstore.*
+rm -f /home/kablui/.mozilla/firefox/*.default/sessionstore.*
+
+# ~/.gvfs is 'mounted'
+# shouldn't be though, as above gnome-session-save should log user out
+#rm -rf /home/guest
+umount /home/guest/.gvfs
+mv /home/guest /tmp/trash.guest
+rm -rf /tmp/trash.guest
+cp -av /etc/skel /home/guest
+chown -R guest:guest /home/guest
+
+/etc/rc.d/init.d/zyx-live unwind
+
+# HHH: this is very G-ZyX specific, and just generally indicative of a 
+#      less than graceful solution
+#
+# The basic issue here is that ZyX.marinade assumes an adduser guest and
+# gdm autologin user=guest scenario, *AND* that it's output should have
+# kablui as the default user.  Fine for Fork-ZyX and G-ZyX at the moment,
+# but really ZyX.marinade should create its own baking user, and restore
+# state completely when done
+if [ -f /etc/gdm/custom.conf ]; then
+    sed -i -e 's/guest/kablui/g' /etc/gdm/custom.conf
+fi
+
+echo -en "\n\nQEMU_DONE_IN_NEED_OF_SHUTDOWN\n\n" > /dev/ttyS0
+sleep 7
+echo -en "\n\nQEMU_DONE_IN_NEED_OF_SHUTDOWN\n\n" > /dev/ttyS0
+sleep 7
+
+
+init 0
+

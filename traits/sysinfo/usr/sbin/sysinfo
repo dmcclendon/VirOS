@@ -42,8 +42,10 @@
 #
 
 
+#showdesc=0
 showdesc=1
 
+#rm -f tttmp.*
 
 if [ ! -f tttmp.rpmqalast ]; then
     rpm -qa --last > tttmp.rpmqalast
@@ -80,6 +82,7 @@ for instpkg in $instpkgs; do
 	cat tttmp.rpmetestout | grep "is needed by (installed)" | sed -e 's/.*\(installed\)..//' | sed -e 's/\(.*\)\..*$/\1/' | sort | uniq  > tttmp.dependencies
 	deps=$( cat tttmp.dependencies )
 	for dep in $deps; do
+#	    echo "debug: checking dependency $dep"
 	    pkgsize=$( rpm -q --queryformat="%{SIZE}" $dep )
 	    pkgsizemb=$( echo "$pkgsize / 1024 / 1024" | bc -l | sed -e 's/\(.*\...\).*/\1/' )
 	    echo "$pkgsizemb megs --- $dep" >> tttmp.deppkgsizes.unsorted

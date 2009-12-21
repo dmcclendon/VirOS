@@ -1,5 +1,8 @@
 #!/bin/bash
 
+##
+## get runtime environment
+##
 progname="$( basename $0 )"
 progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
     pwd ; popd > /dev/null 2>&1 ) )
@@ -8,14 +11,19 @@ username=zguest
 usercomment="ZyX Guest User"
 source ${progdir}/trait-options
 
+# add LiveOS user with no passwd
 useradd -c "$usercomment" $username
 passwd -d $username > /dev/null
 
+# .dmrc is a possible workaround for a known gdm bug (hence debug enabled above)
+#echo -en "\n\n" > /home/${username}/.dmrc
+#chown ${username}:${username} /home/${username}/.dmrc
 if [ -e /usr/share/zyx/face-icon.png ] ; then
     cp /usr/share/zyx/face-icon.png /home/${username}/.face
     chown ${username}:${username} /home/${username}/.face
 fi
 
+# from fedora: "apparently, the gconf keys aren't enough"
 mkdir -p /home/${username}/.config/autostart
 echo "X-GNOME-Autostart-enabled=false" >> /home/${username}/.config/autostart/gpk-update-icon.desktop
 chown -R ${username}:${username} /home/${username}/.config

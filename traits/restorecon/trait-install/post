@@ -1,1 +1,2 @@
 #!/bin/bash
+/sbin/restorecon -v -r /

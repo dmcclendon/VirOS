@@ -10,12 +10,11 @@
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,9 +26,25 @@
 #
 #############################################################################
 
+#
+## VirOS vsys findfreeport
+##
+## usage vsys findfreeport <minportnum> <maxportnum>
+##
+## this command looks for an available port on the localhost.  If none is 
+## found, the command fails and outputs that no ports are available.  If
+## an available port is found within the specified range, the only output
+## is that port number.
+##
 
+##
+## constant definitions
+##
 viros_prefix=/usr
 
+##
+## load viros system library
+##
 if [ -f "$( dirname $0 )/libvsys.sh" ]; then
     source "$( dirname $0 )/libvsys.sh"
 elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
@@ -39,17 +54,32 @@ else
     exit 1
 fi
 
+##
+## process command line arguments
+##
 
 if [ $# -ne 2 ]; then
     echo "usage: ${progname} <minportnum> <maxportnum>"
     exit 1
 fi
 
+# get ports
 minport=$1
 maxport=$2
 
+# TODO: sanity check that ports are numbers and max>min
 
+###
+### local functions
+###
 
+#
+# usage: inlist <item> <list>
+# e.g. inlist 3 "0 1 2 3 4"
+#
+# inlist returns 0(success) if the first argument is an item in the list 
+# inlist returns 1(failure) otherwise.
+#
 function inlist {
     result=1
     for item in $2; do
@@ -60,6 +90,9 @@ function inlist {
     return $result
 }
 
+###
+### end local functions
+###
 
 numports=$(( $maxport - $minport + 1 ))
 checkedports=""
@@ -76,4 +109,5 @@ for (( i=0 ; $i < $numports ; i=$(($i + 1)) )) ; do
     fi
 done
 
+# if this is reached, no free port was found
 exit 1

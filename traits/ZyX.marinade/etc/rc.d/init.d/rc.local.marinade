@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# outline
+#
+# 1) check for sda=2048 * MB (2527234 = 1234)
+
+second_disk_size_mb=$( echo "$( < /sys/block/sdb/size ) / 2048" | bc -l | sed -e 's/\.[0-9]*$//' )
+if [ "x${second_disk_size_mb}" == "x1234" ]; then
+    /etc/rc.d/init.d/bake-it > /var/log/viros.bake-it.log 2>&1 &
+fi
+
+# finish with the normal rc.local
+/etc/rc.d/init.d/rc.local.pre-marinade
+

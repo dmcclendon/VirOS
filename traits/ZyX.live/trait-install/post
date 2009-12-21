@@ -1,20 +1,24 @@
 #!/bin/bash
 
+##
+## get runtime environment
+##
 progname="$( basename $0 )"
 progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
     pwd ; popd > /dev/null 2>&1 ) )
 
 /sbin/chkconfig --add zyx-live
 
+# workaround, maybe fixed upstream in f12
+chmod +x /usr/share/applications/liveinst.desktop
+
+# lock it down I say
 lokkit -f --quiet --nostart --enabled
-lokkit -q -p 24642:tcp
 
 cp /boot/grub/grub.conf  /boot/grub/grub.conf.stock
 cat /boot/grub/grub.conf.stock | \
     sed -e 's/^\(\s*kernel.*\)$/\1 acpi=force/' \
     > /boot/grub/grub.conf
-
-
 
 mkdir -p /var/trash/etc/event.d
 cp -a /etc/event.d/rcS /var/trash/etc/event.d/
@@ -25,9 +29,13 @@ sed -i \
 rm -f /etc/event.d/tty[1236]
 
 cat <<EOF >> /etc/rc.d/rc.local
+#
+# zyx misc
+#
 
+# stupid Load_Cycle_Count issue (smartctl -i -a /dev/sda)
 if [ -b /dev/sda ]; then
-    hdparm -B 254 /dev/sda
+    hdparm -B 254 /dev/sda >> /var/log/zyx-live.log 2>&1
 fi
 
 modprobe kqemu > /dev/null 2>&1
@@ -35,4 +43,9 @@ chmod 666 /dev/kqemu > /dev/null 2>&1
 
 rm -f /etc/event.d/tty[1236]
 
+EOF
+
+cat <<EOF >> /etc/sudoers
+ALL guitar-zyx= NOPASSWD: /usr/sbin/pm-hibernate
+ALL guitar-zyx= NOPASSWD: /usr/sbin/pm-suspend
 EOF

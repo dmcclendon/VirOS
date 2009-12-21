@@ -1,0 +1,21 @@
+#!/bin/bash
+
+##
+## get runtime environment
+##
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+user=none
+source ${progdir}/trait-options
+
+# workaround some race condition easily triggered by running under qemu
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type bool \
+    /apps/gnome_settings_daemon/plugins/screensaver/active \
+    false

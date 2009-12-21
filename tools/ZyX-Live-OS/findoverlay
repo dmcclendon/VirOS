@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,7 +26,9 @@
 #
 #############################################################################
 
+#set -o verbose
 
+# the overlay option value is pulled by init's parsing of /proc/cmdline
 zyx=$1
 overlay=$2
 loopdev=$3
@@ -45,36 +46,63 @@ function fodebug {
 
 fodebug "starting..."
 
+# get the (safe)label and uuid of the live media
+# /dev/root is still the cdrom/usb at this point in time
+#LIVEOS_SAFELABEL=$( vol_id -l /dev/root )
+#LIVEOS_UUID=$( vol_id -u /dev/root )
+# 
+# new way is via zyx= cmdline arg
 LIVEOS_SAFELABEL="$zyx"
 
 fodebug "LiveOS SAFELABEL is ${LIVEOS_SAFELABEL}"
 
+# calculate pathspec from overlay option, i.e. stuff following the ':'
 if ( echo $overlay | grep -q ":" ); then
+    # pathspec specified, extract
     pathspec=$( echo $overlay | sed -e 's/^.*://' )
 else
+    # no pathspec specified, set default
     pathspec="/boot/LiveOS/zyx/overlay-${LIVEOS_SAFELABEL}"
 fi
 
+# handle special formats of pathspec
 if [ "x${pathspec}" == "x" -o "${pathspec}" == "auto" ]; then
+    # empty or auto pathspec specified, set to default
     pathspec="/boot/LiveOS/zyx/overlay-${LIVEOS_SAFELABEL}"
 elif ( echo $pathspec | grep -v -q "/" ); then
+    # no leading slash implies prepending of default
     pathspec="/boot/LiveOS/zyx/overlay-${LIVEOS_SAFELABEL}-${pathspec}"
 fi
 
 fodebug "calculated pathspec is ${pathspec}"
 
+# calculate devspec from overlay option, i.e. stuff preceding the ':'
 devspec=$( echo $overlay | sed -e 's/:.*$//' )
 if [ ! -n "$devspec" ]; then
+    # no devspec, revert to default of auto
     devspec="auto"
 fi
 
 fodebug "calculated devspec is ${devspec}"
 
+# load filesystem modules that may be required for overlay
+# TODO: only load these conditionally if vol_id detects a fs that needs them
+#       or find out if they are autoloaded autmatically 
 
+# for typical vfat on usbstick
+# testing autoload
+#modprobe vfat
+# for typical ntfs on usbstick or host disk
+#modprobe fuse
+# for typical ext3
+# assumption: ext3 is already loaded
 
+# check if devspec is auto
 numcandidates=0
 candidates=""
 if [ "$devspec" == "auto" ]; then
+    # if devspec is auto, search all possible devices, for now that means:
+    # /dev/sd* /dev/scd* /dev/sr*
     devices="$( find /dev -name "sd*" -print 2> /dev/null ) $( find /dev -name "scd*" -print 2> /dev/null ) $( find /dev -name "sr*" -print 2> /dev/null)"
     fodebug "found devices are $devices"
     mkdir /testmount
@@ -96,6 +124,9 @@ if [ "$devspec" == "auto" ]; then
 	    fstype=$( vol_id -t $device )
 	    if  [ "$fstype" == "vfat" ]; then
 		mountcom="mount -n -t vfat -o ro"
+# ntfs currently unsupported
+#	    elif [ "$fstype" == "ntfs" ]; then
+#		mountcom="mount.ntfs-3g -t ntfs -o ro"
 	    elif  [ "$fstype" == "ext3" ]; then
 		mountcom="mount -n -t ext3 -o ro"
 	    else
@@ -119,6 +150,9 @@ if [ "$devspec" == "auto" ]; then
     done
     rmdir /testmount
     
+    # if more than one possible overlay images were found, the user must
+    # be prompted.  This input mechanism is pretty simplistic.  Hopefully
+    # there will be some slick gdm/X gui at some point.
     if [ $numcandidates -gt 1 ]; then
 	xdone=0
 	while (( ! $xdone )); do
@@ -159,7 +193,16 @@ if [ "$devspec" == "auto" ]; then
 	pdev=$candidates
     fi
 else
+    # specific devspec given
     
+    # normalize devicename
+    #
+    # devspec may be of the following forms:
+    #
+    # /dev/sda1             # normalized form
+    # sda1
+    # LABEL=MyLABEL
+    # UUID=MyUUID
     if ( echo $devspec | grep -q "^UUID=" ); then
 	cuuid=$( echo $devspec | sed -e 's/^UUID=//' )
 	pdev=$( findfs UUID=${cuuid} )
@@ -173,6 +216,9 @@ else
     fi
 fi
 
+# now that we have the normalized reference to the persistence device
+# set it up
+# remove leading and trailing whitespace, perhaps unnecessary
 pdev=$( echo $pdev | sed -e 's/^\s*//' | sed -e 's/\s*$//' )
 fodebug "persistence device is: $pdev"
 pmounted=0
@@ -198,6 +244,7 @@ if [ "x${reset_overlay}" == "xon" ]; then
 	    echo -en "   : overlay, or enter to continue with a temporary RAM overlay.\n"
 	    read reset_overlay_sizemb
 	    if [ "x${reset_overlay_sizemb}x" != "xx" ]; then
+		#TODO: error check input
 		echo -en "\n\n\nZyX: initializing overlay to ${reset_overlay_sizemb}MB, this may take a little while...\n\n\n"
 		dd if=/dev/zero of="/mnt/.LiveOS/overlayfs${pathspec}" bs=1M count=${reset_overlay_sizemb} > /dev/null 2>&1
 	    fi
@@ -212,9 +259,15 @@ if [ -w "/mnt/.LiveOS/overlayfs${pathspec}" ]; then
     fodebug "setting up overlay file"
     losetup ${loopdev} /mnt/.LiveOS/overlayfs${pathspec}
     losetup -r ${rloopdev} /mnt/.LiveOS/overlayfs${pathspec}
+# todo- perhaps implement this and below notes
+#    date > /mnt/.LiveOS/overlayfs${pathspec}.inuse
 else
     echo "findoverlay: failed to find usable overlay image, setting up non-persistenct ram overlay"
+    # ugly way to emphasize this failure case to the user
     sleep 7
+#
+# OPEN DM-SNAPSHOT BUG (BUG#4XXXXX)
+#
     if ( grep -q nobwa /proc/cmdline ); then
 	mount -n -t tmpfs -o mode=0755 none /mnt/.LiveOS/overlayfs  
     else
@@ -228,7 +281,42 @@ else
 fi
 
 
+# TODO: while mount scanning find a way to determine if the filesystem was 
+#       not cleanly unmounted.  If so, IGNORE IT as it may be part of a 
+#       hibernated OS !!
+#
+#       However, If the overlay file has a kin file with the suffix .inuse, 
+#       this is evidence that that the overlay device was not unmounted 
+#       cleanly.  In _this_ case, look at the filesystem(???) and determine 
+#       whether or not the most recent mount of the filesystem is more recent
+#       than the inuse file.  *If and only if* NOT, then it is safe to assume
+#       that the filesystem is not part of a hibernated OS, and rather was
+#       most recently used as a persistence device that failed to be
+#       shutdown cleanly, thus it is safe to fsck the overlayfs, and then 
+#       fsck the overlay-rootfs
+
+# TODO: since ext3 is impossible to truly mount readonly*, and since 
+#       similar issues may exist in other fs (ntfs???),  it may be useful
+#       to have a function called really_mount_readonly() which does a 
+#       blockdev --setro, then does a devicemapper snapshot to ram, then 
+#       does a mount of the snapshotted device, then checks for existence of 
+#       overlay and .inuse files.
+#
+#       Given the above function, if a persistence file is detected, but the 
+#       above above inuse/recent-mount-stamp test fails, give the user a 30-60
+#       second timeout option to force an fsck and mount of the uncleanly 
+#       mounted overlayfs, defaulting to not using it.
+#
+# * this is verified.  After taking an uncleanly unmounted ext3fs, and doing
+#   a blockdev --setro, trying to mount ro as ext3 gets
+#   "EXT3-fs: INFO: recovery required on readonly filesystem"
+#   "EXT3-fs: write access unavailable, connot proceed"
+#   and what is worse, is trying to mount ro as ext2 gets
+#   "EXT2-fs: sdb1: couldn't mount becuase of unsupported optional features (4)"
+#
 
 
-
+# TODO: handle nfs/network(fuse-httpfs?) persistence devices.  This will
+#       require the ability to set up the network here, which is probably
+#       not trivial.
 

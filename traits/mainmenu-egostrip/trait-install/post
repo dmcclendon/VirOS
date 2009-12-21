@@ -1,0 +1,49 @@
+#!/bin/bash
+
+#############################################################################
+##
+## get runtime environment
+##
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+user=none
+source ${progdir}/trait-options
+
+#############################################################################
+##
+## remove gnome desktop credits from main menu
+##
+
+# adding NoDisplay=true didn't seem to work
+mkdir /usr/share/applications.other
+
+cat <<EOF >> /etc/rc.d/rc.local
+
+
+#############################################################################
+#
+# ZyX: ego strip
+#
+# justification: I don't feel the need to let the gnome project
+#                dictate the main credits for the workstation.
+#                It is my goal with *ZyX-OS to make it pushbutton/kid
+#                simple to infect this 100% free and open source
+#                operating system with a trait that swaps out all
+#                ego/logo for the ego/logo of the user.  Or alternately
+#                a fairer implementation of the system credits might
+#                be a randomized list of names scraped from the rpm
+#                changelogs.  Either way, the gnome credits are still
+#                a few clicks away if you want to view them.
+#
+if [ -f /usr/share/applications/gnome-about.desktop ]; then
+    mv \
+        /usr/share/applications/gnome-about.desktop \
+        /usr/share/applications.other/gnome-about.desktop 
+fi
+#
+#############################################################################
+
+
+EOF

@@ -1,0 +1,26 @@
+sigh... no real documentation yet.
+
+fitness/zbuild is the script used by the author, 
+and not a bad place to start.
+
+Though 
+
+./viros generate \
+    --strain=F-ZyX \
+    --output=mylive.iso 
+
+should work as well.
+
+ymmv...
+
+feedback and patches are encouraged
+
+---
+
+note: the VirOS package currently does contain
+trademarked artwork that is not redistributable
+within a modified version of VirOS without 
+permission.  If this is an inconvenience, let the
+author know and refactoring to ease the process of
+redistribution will be hastened.
+

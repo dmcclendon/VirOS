@@ -1,0 +1,441 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# kablui-session - run the K.A.B.L.U.I. session
+#
+#############################################################################
+#
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+# Inspired by similar programs from a bunch of other distributions.
+#
+#############################################################################
+#
+# This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, version 3 of the License.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+#############################################################################
+##
+## constants
+##
+#
+
+#############################################################################
+##
+## libraries
+##
+
+# for strstr ( but keep PATH unchanged )
+# TODO: find better way to isolate environment changes
+path_was="${PATH}"
+source /etc/init.d/functions
+export PATH="${path_was}"
+
+#############################################################################
+#############################################################################
+##
+## functions
+##
+#############################################################################
+#############################################################################
+
+# note, that below, the use of this function may no longer be as 
+# necessary because kabluisplash is doing a pretty good job of
+# hiding stuff.  But until I get a better smooth progressbar 
+# infrastructure down, this does make the user experience look
+# a bit better, if perhaps a bit slower.
+function wait_for_io {
+    threshold_io_amount=$1
+    threshold_periods=$2
+    timeout=$3
+
+    xdone=0
+    while (( ! $xdone )); do
+	current_io=$( vmstat 1 2 | awk '{print $9 " " $10}' | tail -1 )
+	timeout=$(( $timeout - 2 ))
+	io_amount=0
+	for num in $current_io; do
+	    io_amount=$(( $io_amount + $num ))
+	done
+	echo "debug: io amount is $io_amount"
+	if (( $io_amount < $threshold_io_amount )); then
+	    threshold_periods=$(( $threshold_periods - 1 ))
+	    echo "debug: io below threshold, tp is now $threshold_periods ..."
+	else
+	    true
+	    echo "debug: io above threshold..."
+	fi
+	if (( $threshold_periods == 0 )); then
+	    xdone=1
+	fi
+	if (( $timeout <= 0 )); then
+	    echo "debug: timeout expired..."
+	    xdone=1
+	else
+	    echo "debug: timeout not yet expired, $timeout seconds left..."
+	    true
+	fi
+    done
+}
+
+#############################################################################
+#
+# get_ws_id_by_name
+#
+# Gets workspace id by name
+#
+function get_ws_id_by_name {
+    wsname=$1
+
+    done=0
+
+    wmctrl -d | while read line; do
+#	echo "debug line is $line" >> /tmp/k2log
+	if [ "$( echo $line | awk '{print $10}' )" == "$wsname" ]; then
+	    echo $line | awk '{print $1}'
+#	    echo "debug line thru awk is -" >> /tmp/k2log
+#	    echo $line | awk '{print $1}' >> /tmp/k2log
+	    return 0
+	fi
+    done 
+    
+    # not found, return error (rc=1)
+    echo "notfound"
+    return 1
+}
+#
+#############################################################################
+
+
+#############################################################################
+#
+# get_ws_name_by_id
+#
+# Gets workspace name by id
+#
+function get_ws_name_by_id {
+    ws_num=$1
+    shift
+    
+    ws_name=$( wmctrl -d | head -${ws_num} | tail -1 | awk '{print $10}' )
+
+    echo $ws_name
+}
+#
+#############################################################################
+
+
+#############################################################################
+#
+# ensure_ws_exists <ws_name>
+#
+# Create the workspace <ws_name> if it does not already exist
+#
+function ensure_ws_exists {
+    wsname=$1
+
+#    echo "entering ensure_ws_exists with arg of ${wsname}" >> /tmp/klog
+
+    if [ "$( get_ws_id_by_name $wsname )" != "notfound" ]; then 
+#	echo "debug x $( get_ws_id_by_name $wsname ) x notfound x"  >> /tmp/klog
+	return
+    else
+	true
+#	echo "debug y $( get_ws_id_by_name $wsname ) y notfound y"  >> /tmp/klog
+    fi
+
+#    echo "continuing in ensure_ws_exists with arg of ${wsname}" >> /tmp/klog
+#    echo "debug xxx $( gwt_ws_id_by_name $wsname ) xxx" >> /tmp/klog
+
+    # alternately could use wmctrl here
+
+    num_ws=$( gconftool-2 --get /apps/metacity/general/num_workspaces )
+    new_num_ws=$(( $num_ws + 1 ))
+    gconftool-2 --set --type=integer \
+	/apps/metacity/general/num_workspaces \
+	"${new_num_ws}"
+
+    gconftool-2 --set --type=string \
+	/apps/metacity/workspace_names/name_${new_num_ws} \
+	"${wsname}"
+
+#    echo "exiting ensure_ws_exists new_num_ws is ${new_num_ws} " >> /tmp/klog
+}
+#
+#############################################################################
+
+
+#############################################################################
+#
+# check_for_window <pid> "<title>"
+#
+# checks to see if a gui app is on the desktop, returning the windowid
+#
+function check_for_window {
+    pid=$1
+    title="$2"
+
+    wmctrl -p -l | while read line; do
+	if ( echo "$line" | awk '{print $3}' 2>&1 | grep -q $pid ); then
+	    echo "$line" | awk '{print $1}'
+	    return
+	elif ( echo "$line" | grep -q "${title}" ); then
+	    echo "$line" | awk '{print $1}'
+	    return
+	fi
+    done
+    
+    echo "notfound"
+    return
+}
+#
+#############################################################################
+
+
+#############################################################################
+#
+# kablui_launch_wait_n_move 
+#
+# Something like an eval wrapper that also sends gui windows to a
+# named desktop if in a kablui compatable desktop environment.
+#
+function kablui_launch_wait_n_move {
+    program_name=$1
+    program_logfile=$2
+    window_name=$3
+    target_ws_name=$4
+    maximize=$5
+
+    datestamp=$( date +%Y%m%d%H%M%S )
+#    wmctrl -d > /tmp/${USER}.${datestamp}.wmctrl.prelookforx
+#    wmctrl -l >> /tmp/${USER}.${datestamp}.wmctrl.prelookforx
+
+    if [ "$( get_ws_id_by_name x )" != "notfound" ]; then
+	kablui_mode=1
+	ensure_ws_exists $target_ws_name 
+	target_ws_id=$( get_ws_id_by_name $target_ws_name )
+    else
+	kablui_mode=0
+    fi
+
+    datestamp=$( date +%Y%m%d%H%M%S )
+#    wmctrl -d > /tmp/${USER}.${datestamp}.wmctrl.postlookforx
+#    wmctrl -l >> /tmp/${USER}.${datestamp}.wmctrl.postlookforx
+
+    # launch
+    eval "$program_name >> ${program_logfile} 2>&1 &"
+    program_pid=$!
+
+    if (($kablui_mode)); then
+	
+        # wait
+	xdone=0
+	while (( ! $xdone )); do
+	    winid=$( check_for_window $program_pid "${window_name}" )
+	    if [ "$winid" != "notfound" ]; then
+		xdone=1
+	    else
+		sleep 1
+	    fi
+	done
+	
+	
+        # move to target desktop
+	wmctrl -i -r $winid -t $target_ws_id
+
+    fi
+
+    if (($maximize)); then
+	wmctrl -i -r $winid -b add,maximized_vert,maximized_horz
+    fi
+
+    return 0
+}
+#
+#############################################################################
+
+#############################################################################
+#############################################################################
+##
+## main
+##
+#############################################################################
+#############################################################################
+
+# remove remembered session (PERHAPS NOT A GREAT IDEA)
+#rm -f .mozilla/firefox/*.default/sessionstore.js 
+
+# launch window manager
+metacity --sm-client-id default2 &
+# old f9 style
+#gnome-wm --default-wm gnome-wm --sm-client-id default2 &
+
+# hmm? # rm -f /tmp/runksplash.wmctrlog
+# wait for kabluisplash to be ready enough
+xdone=0
+while (( ! $xdone )); do
+    wmctrl -l > /dev/null 2>&1
+    diditwork=$?
+    if (( $diditwork )); then
+	sleep 1
+    else
+	xdone=1
+    fi
+done
+
+progress_pipe="/tmp/kasplash.${USER}.$$.pipe"
+/etc/zyx/kasplash \
+    --pipe="${progress_pipe}" \
+    --image=/etc/zyx/kablui-splash-login.img \
+    --text="$( echo -en '       K.A.B.L.U.I. - Initializing...\n\nKick Ass Best LiveOS User Interface' )" \
+    &
+
+# wait for kabluisplash to be ready enough
+xdone=0
+while (( ! $xdone )); do
+    if [ -p "${progress_pipe}" ]; then
+	echo "0.01" > "${progress_pipe}"
+	xdone=1
+    else
+	sleep 1
+    fi
+done
+
+# experiment, maybe avoid thrashing
+wait_for_io 10 2 60
+
+winid=$( wmctrl -l | grep "kablui initialization\$" | awk '{print $1}' )
+
+wmctrl -i -r $winid -b add,fullscreen
+wmctrl -i -r $winid -b add,above
+wmctrl -i -r $winid -b add,sticky
+
+echo "0.15" > "${progress_pipe}"
+
+# possible race condition, two 'main' workspaces getting created??
+wait_for_io 10 2 60
+
+# if this is a guitar-zyx mcp style liveusb with a user configured wifi ssid,
+# go ahead and try to connect to it if possible
+# ugly, but supercool triplearch livecloud, buzz buzz buzz....
+if [ -f /mnt/.LiveOS/prime_rootfs/gzmcp/defaults ]; then
+    gzmcp_ssid=$( cat /mnt/.LiveOS/prime_rootfs/gzmcp/defaults  | grep "^ap_ssid" | tail -1 | sed -e 's/^ap_ssid=//' )
+    if [ "x${gzmcp_ssid}" != "x" ]; then
+	if [ "${gzmcp_ssid}" != "gzmcp_no_ssid_set_yet" ]; then
+	    /usr/bin/nm-wifi-config-n-connect "${gzmcp_ssid}"
+	fi
+    fi
+fi
+
+echo "0.20" > "${progress_pipe}"
+
+# HHH XXX workaround....
+#kablui_launch_wait_n_move \
+#    "$( which gnome-terminal ) --geometry=80x1024-0+0" \
+#    "/dev/null" \
+#    "$( whoami )@$( hostname -s ):~" \
+#    "main" 0
+
+# sigh.. below is a no-op due to the bug (can be used to 
+# generate debug log info from k_l_w_n_m and subfuncs
+#
+#kablui_launch_wait_n_move \
+#    "$( which gnome-terminal ) --geometry=80x1024-0+0" \
+#    "/dev/null" \
+#    "$( whoami )@$( hostname -s ):~" \
+#    "main" 0
+#killall gnome-terminal 
+#sleep 1
+#killall -KLL gnome-terminal
+#gconftool-2 --set --type=integer \
+#    /apps/metacity/general/num_workspaces 7
+
+gnome-terminal  --geometry=80x1024-0+0 > /dev/null 2>&1 &
+
+wait_for_io 10 2 60
+echo "0.25" > "${progress_pipe}"
+
+nm-applet < /dev/null > /dev/null 2>&1 &
+
+kablui_launch_wait_n_move \
+    "$( which firefox )" \
+    "/dev/null" \
+    "Mozilla Firefox" \
+    "web" 1
+
+echo "0.30" > "${progress_pipe}"
+wait_for_io 10 2 60
+echo "0.35" > "${progress_pipe}"
+
+#kablui_launch_wait_n_move \
+#    "$( which thunderbird )" \
+#    "/dev/null" \
+#    "Thunderbird" \
+#    "mail" 1
+
+kablui_launch_wait_n_move \
+    "$( which rhythmbox )" \
+    "/dev/null" \
+    "Music Player" \
+    "music" 1
+
+
+# now gnome-volume-control (but doesn't seem necessary here?)
+#gnome-volume-manager --sm-client-id default4 &
+#nautilus --no-default-window --sm-client-id default3 &
+
+wait_for_io 10 3 180
+echo "0.40" > "${progress_pipe}"
+
+if strstr "`cat /proc/cmdline`" autojam ; then
+    export KASPLASH_PIPE="${progress_pipe}"
+    ${HOME}/bin/zyx-instajam on \
+	> ${HOME}/.zyx-instajam.log 2>&1
+fi
+echo "0.90" > "${progress_pipe}"
+
+wait_for_io 10 2 60
+
+gnome-panel --sm-client-id default2 &
+sleep 2
+pam-panel-icon --sm-client-id default0 &
+sleep 1
+
+wait_for_io 10 2 60
+
+echo "0.99" > "${progress_pipe}"
+
+if strstr "`cat /proc/cmdline`" autojam ; then
+    wmctrl -s $( get_ws_id_by_name eroc-guitar-fx )
+else
+    wmctrl -s $( get_ws_id_by_name web )
+fi
+
+sleep 2
+
+echo "1.0" > "${progress_pipe}"
+
+exit 0
+
+#############################################################################
+#############################################################################
+##
+## end of main and code // only notes below
+##
+#############################################################################
+#############################################################################

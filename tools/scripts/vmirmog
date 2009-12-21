@@ -6,16 +6,15 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    the Free Software Foundation, version 3 of the License.
 #
 #    VirOS is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,6 +27,41 @@
 #############################################################################
 
 
+#
+# vmirmog: vmirror transmogrifier
+#
+# usage: vmirmog <MirrorListFile> <Target> <VMirrorBaseUrl>
+#
+# context:
+#
+# The VirOS/vsys vmirror facilities ease the process of caching 
+# source materials when performing many similar vsys builds.
+# (though livecd-creator --cachedir functionality is planned for the future)
+#
+# description:
+#
+# vmirmog will scan the specified Target.  If it is a file, it will
+# modify any text files found.  If it is a directory, it will modify
+# all text files found within it.  Specifically, any urls covered by 
+# the specified MirrorListFile will be replaced, using the specified 
+# VMirrorBaseUrl.
+#
+# E.g. if the MirrorListFile looks like this:
+# "
+# mirrors1.kernel.org___fedora__core__6__i386__os
+# mirrors1.kernel.org___fedora__core__updates__6__i386
+# mirrors1.kernel.org___fedora__extras__6__i386
+# "
+# And the VMirrorBaseUrl is "http://10.0.2.2:1234/mirrors", Then any line
+# found in a textfile in the TargetDirectory such as this:
+# "
+# baseurl=http://mirrors1.kernel.org/fedora/core/6/i386/os/
+# "
+# will be transmogrified into this: 
+# "
+# baseurl=http://10.0.2.2:1234/mirrors/mirrors1.kernel.org___fedora__core__6__i386__os/
+# "
+#
 
 origcom=$0
 progname=$( basename $0 )

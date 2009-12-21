@@ -8,10 +8,19 @@ if [ ! -d "${firefox_dir}" ]; then
 fi
 
 
+# pre-firefox-3.0
+#
+#tfile=$( echo /usr/lib/firefox-*/greprefs/all-redhat.js )
+#mv ${tfile} /tmp/stupidfile
+#cat /tmp/stupidfile | grep -v "fedoraproject" > ${tfile}
+#rm -f /tmp/stupidfile
 
 
 mv ${firefox_dir}/defaults/preferences/all-redhat.js \
     /tmp/tmpfile
+#cat /tmp/tmpfile | grep -v "fedoraproject" \
+#    > ${firefox_dir}/defaults/preferences/all-redhat.js 
+# experiment, less brutal
 cat /tmp/tmpfile | sed -e 's/\"http.*fedoraproject.*\"/file\:\/\/\//' \
     > ${firefox_dir}/defaults/preferences/all-redhat.js 
 rm -f /tmp/tmpfile
@@ -33,3 +42,4 @@ cp -av /usr/share/${ZYXTYPE}-ZyX/firefox/old-homepage-default.properties \
 
 cp -av /usr/share/${ZYXTYPE}-ZyX/firefox/prefs.js \
     ${firefox_dir}/defaults/profile/prefs.js
+

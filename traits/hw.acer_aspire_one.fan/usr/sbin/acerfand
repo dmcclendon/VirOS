@@ -1,0 +1,206 @@
+#!/bin/bash
+#
+# acerfand - Rudimentary automatic fan control for noisy Acer Aspire One models
+#
+# Author Rachel Greenham
+#
+ACERFAND_VERSION="0.06"
+# version 0.05 (2008-12-29)
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+#
+# Changelog:
+# 0.06 - getBiosVersion before reading acerfand.conf, to allow user to force version
+# 0.05 - Regognise bios 3309 and autoselect as default
+# 0.04 - Recognise bios 3305
+# 0.03 - Recognise bios 3109
+# 0.02 - Added support for recognising bios version and selecting ec reg values accordingly
+# 0.01 - Initial version, no bios checking, works on <=v0.3114
+
+
+LOGGER=$(which logger)
+if [ ! -x $LOGGER ] ; then
+	LOGGER="/usr/bin/logger"
+fi
+if [ ! -x $LOGGER ] ; then
+	echo "Warning, logger can't be found. Will log to stdout"
+	unset LOGGER
+fi
+
+LOGLEVEL="info"
+
+log() {
+	if [ ! -z "$LOGGER" ] ; then
+		$LOGGER -p daemon.$LOGLEVEL -t acerfand "$@"
+	else
+		echo "$@"
+	fi
+}
+
+info() {
+	LOGLEVEL="info"
+	log "$@"
+}
+
+notice() {
+	LOGLEVEL="notice"
+#	log "$@"
+}
+
+err() {
+	LOGLEVEL="err"
+	log "$@"
+}
+
+info "acerfand $ACERFAND_VERSION starting"
+
+if pgrep acerfand  | grep -v $$ > /dev/null; then
+	info "acerfand already running"
+	exit 0
+fi
+
+ME=$(readlink -f $0)
+
+BIOS_VERSION_3109="v0.3109"
+BIOS_VERSION_3114="v0.3114"
+BIOS_VERSION_3304="v0.3304"
+BIOS_VERSION_3305="v0.3305"
+BIOS_VERSION_3309="v0.3309"
+
+BIOS_VERSION_DEFAULT=$BIOS_VERSION_3309
+
+getBiosVersion() {
+	DMIDECODE=$(which dmidecode)
+	if [ -z $DMIDECODE ] ; then
+		info "Can't find dmidecode. Assuming bios $BIOS_VERSION_DEFAULT"
+		BIOS_VERSION=$BIOS_VERSION_DEFAULT
+	else
+		BIOS_VERSION=$($DMIDECODE -s bios-version)
+		info "Detected bios version $BIOS_VERSION"
+	fi
+}
+
+ACEREC=$(which acer_ec.pl)
+if [ -z $ACEREC ] ; then
+	ACEREC=$(dirname $ME)/acer_ec.pl
+fi
+
+if [ ! -r $ACEREC ] ; then
+	err "acer_ec.pl can't be found"
+	exit 1
+fi
+
+INTERVAL=5
+FANOFF=60
+FANAUTO=70
+
+getBiosVersion
+
+if [ -r "/etc/acerfand.conf" ] ; then
+	source "/etc/acerfand.conf"
+fi
+
+case "$BIOS_VERSION" in
+	"${BIOS_VERSION_3304}" | "${BIOS_VERSION_3305}" | "${BIOS_VERSION_3309}")
+		R_FAN=55
+		R_TEMP=58
+		FAN_CMD_OFF=af
+		FAN_CMD_AUTO=00
+		RAW_FAN_STATE_OFF="0xaf"
+		;;
+	"${BIOS_VERSION_3114}" | "${BIOS_VERSION_3109}")
+		R_FAN=55
+		R_TEMP=58
+		FAN_CMD_OFF=1f
+		FAN_CMD_AUTO=00
+		RAW_FAN_STATE_OFF="0x1f"
+		;;
+	*)
+		err "Unsupported bios version ${BIOS_VERSION} found. Aborting."
+		exit 1
+	;;
+esac
+
+FAN_STATE_UNRECOGNIZED=0
+FAN_STATE_AUTO=1
+FAN_STATE_OFF=2
+FAN_STATE_NAMES=("Unrecognized" "Auto" "Off")
+FAN_STATE_CMDS=("$FAN_CMD_OFF" "$FAN_CMD_AUTO" "$FAN_CMD_OFF")
+
+acer_ec() {
+	perl $ACEREC $@
+}
+
+getTemp() {
+	TEMP=$[$(acer_ec ?= $R_TEMP | cut -f 3 -d' ')]
+	notice "temp: $TEMP"
+}
+
+getRawFanState() {
+	RAW_FAN_STATE=$(acer_ec ?= $R_FAN | cut -f 3 -d' ')
+}
+
+getFanState() {
+	FAN_STATE=$FAN_STATE_UNRECOGNIZED
+	getRawFanState
+	if [ "$RAW_FAN_STATE" == "$RAW_FAN_STATE_OFF" ]; then
+		FAN_STATE=$FAN_STATE_OFF
+	else
+		let A="$RAW_FAN_STATE & 0x10" || true
+		if [ "$A == 0" ] ; then
+			# ASSUMPTION: All values with nybble 1==0 denote auto
+			FAN_STATE=$FAN_STATE_AUTO
+		fi
+	fi
+	notice "read fan state ${FAN_STATE_NAMES[$FAN_STATE]}"
+}
+
+setFan() {
+	info "Set fan ${FAN_STATE_NAMES[$1]}"
+	acer_ec := $R_FAN ${FAN_STATE_CMDS[$1]} > /dev/null
+}
+
+govern() {
+trap "info exiting;setFan $FAN_STATE_AUTO; exit" INT TERM EXIT
+info "Starting to govern acer fan speed. Interval: $INTERVAL, fan-off: $FANOFF, fan-auto: $FANAUTO"
+while true; do
+	getTemp
+	getFanState
+	case "$FAN_STATE" in
+		$FAN_STATE_AUTO)
+			if [ "$TEMP" -le "$FANOFF" ] ; then
+				setFan $FAN_STATE_OFF
+			fi
+			;;
+		$FAN_STATE_OFF)
+			if [ "$TEMP" -ge "$FANAUTO" ] ; then
+				setFan $FAN_STATE_AUTO
+			fi
+			;;
+		*)
+			# weird state. Let's turn it off,
+			# then decide next time around
+			setFan $FAN_STATE_OFF
+			;;
+	esac
+	sleep $INTERVAL
+done
+}
+
+set -e
+
+govern &
+

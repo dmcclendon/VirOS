@@ -1,0 +1,22 @@
+<gconfentryfile>
+  <entrylist base="/">   
+    <entry>
+      <key>/apps/gnome-terminal/keybindings/new_tab</key>
+      <value>
+        <string>&lt;Control&gt;t</string>
+      </value>
+    </entry>
+    <entry>
+      <key>/apps/gnome-terminal/keybindings/next_tab</key>
+      <value>
+        <string>&lt;Control&gt;Right</string>
+      </value>
+    </entry>
+    <entry>
+      <key>/apps/gnome-terminal/keybindings/prev_tab</key>
+      <value>
+        <string>&lt;Control&gt;Left</string>
+      </value>
+    </entry>
+  </entrylist>   
+</gconfentryfile>

@@ -1,0 +1,16 @@
+trait: kablui
+version: 0.1
+
+The KickAssBestLiveUserInterface trait adds a default user to the system,
+named kablui, using SKEL_DIR=/etc/skel.kablui.
+
+The kablui user will be configured and enabled as the gdmautologin user.
+
+The kablui desktop philosophy can be summarized as
+- vertical desktop toolbar on the left (with dmc's prefs)
+- dark green background 0x125634
+- ctrl up/down arrows cycle 6 virtual desktops
+- ctrl right/left arrows cycle amonst terminal or browser tabs
+- ctrl t create new terminal or browser tab
+
+In the future, further enhancements will be made...
