@@ -6,14 +6,14 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 # Inspired by similar scripts from other LiveOS distributions, particularly
 # Fedora's mkliveinitrd, and Ubuntu's casper.
 #
 #############################################################################
 #
-#This file is part of VirOS.
+# This file is part of VirOS.
 #
 #    VirOS is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -45,6 +45,10 @@ function set_defaults {
     run_late=""
     
     locale=""
+
+    # to determine if cmdline is overriding selinux
+    selinux=1
+    enforcing=1
     
     rootfs_device=""
     rootfs_fstype=""
@@ -68,18 +72,31 @@ function set_defaults {
 
     fatime=0
 
-    ram_overlay_size=42000
+    ram_overlay_size=4224
 
+#    sdmc_megs=auto
 #    sdmc_megs=96
     sdmc_megs=0
-#    sdmc_megs=auto
+
+    bootsplash=0
+    # plymouth, dracut, mayflower, kadischi- I really dislike redhat's names...
+    # kms-bootsplash, mkinitramfs, live.init, viros... would have been my choices :)
+    if [ -x /bin/plymouth ]; then 
+	bootsplash=1
+    fi
 
     # set path
-    export PATH=/sbin:/bin:/lib/udev
+    export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/lib/udev
 }
 
 # drop user to a shell
 function debug_mode {
+    
+    # hide eyecandy if needed
+    if ( pidof plymouthd > /dev/null 2>&1 ); then
+	plymouth --hide-splash
+    fi
+
     echo ""
     echo ""
     echo ""
@@ -106,7 +123,7 @@ set -e
 function dropcheck {
     for drop in $drops; do
 	drop_name=$( echo $drop | sed -e 's/:.*//' )
-	if [ "x${drop_name}" != "x${1}" ]; then return; fi
+	if [ "${drop_name}" != "${1}" ]; then return; fi
         if ( echo $drop | grep -q ":" ); then
             drop_prog=$( echo $drop | sed -e 's/.*:\(.*\)/\1/' )
 	    if [ -x "$drop_prog" ]; then
@@ -164,7 +181,7 @@ function setup_special_system_mounts {
     mkdir /dev/pts
     mkdir --mode=1777 /dev/shm
 
-    if [ "x${cow_mode}" == "xdms" ]; then
+    if [ "${cow_mode}" == "dms" ]; then
 	mkdir /dev/mapper
 	mknod /dev/mapper/control c 10 63
     fi
@@ -181,6 +198,13 @@ function setup_special_system_mounts {
     # mount sys filesystem
     mount -n -t sysfs sysfs /sys
 
+    # mount devpts filesystem
+    # 5 is tty (in current ancestors)
+    mount -n -t devpts -o gid=5,mode=620 /dev/pts /dev/pts 
+    
+    # mount shared memory filesystem
+    mount -n -t tmpfs /dev/shm /dev/shm
+
 }
 
 # parse options given to the kernel by the bootloader/user
@@ -196,6 +220,9 @@ function parse_options {
 		;;
 	    quiet)
                 quiet=1
+		;;
+	    nobootsplash)
+                bootsplash=0
 		;;
 	    drop=*)
                 drops="$drops ${option#drop=}"
@@ -214,6 +241,12 @@ function parse_options {
 		;;
 	    locale=*)
                 locale=${option#locale=}
+		;;
+	    selinux=*)
+                selinux=${option#selinux=}
+		;;
+	    enforcing=*)
+                enforcing=${option#enforcing=}
 		;;
 	    language=*)
                 locale=${option#language=}
@@ -291,7 +324,7 @@ function parse_options {
 
     # calculate dynamic sdmc_megs default value based on
     # available memory
-    if [ "x${sdmc_megs}" == "xauto" ]; then
+    if [ "${sdmc_megs}" == "auto" ]; then
 	debug "calculating dynamic sdmc cache size"
 	sys_megs=$(( $( cat /proc/meminfo | grep MemTotal | sed -e 's/^MemTotal:\ //' | sed -e 's/\ kB.*//' ) / 1024 ))
 	debug "system memory size is $sys_megs mb"
@@ -318,7 +351,7 @@ function load_some_drivers {
     if ( modprobe loop max_loop=42 > /dev/null 2>&1 ); then true; fi
 
     # in f10 this is compiled into the kernel by default
-    if [ "x${cow_mode}" == "xdms" ]; then
+    if [ "${cow_mode}" == "dms" ]; then
 	# modprobe -q wasn't enough for set -e environment
 	if ( modprobe dm_snapshot > /dev/null 2>&1 ); then true; fi
     fi
@@ -352,13 +385,13 @@ function parse_fstab {
 
     while read device mountpoint fstype options dontcare; do
 	if [ "$device" == "/" ]; then
-	    if [ "x${rootfs_device}" == "x" ]; then
+	    if [ "${rootfs_device}" == "" ]; then
 		rootfs_device=$device
 	    fi
-	    if [ "x${rootfs_fstype}" == "x" ]; then
+	    if [ "${rootfs_fstype}" == "" ]; then
 		rootfs_fstype=$fstype
 	    fi
-	    if [ "x${rootfs_mount_flags}" == "x" ]; then
+	    if [ "${rootfs_mount_flags}" == "" ]; then
 		rootfs_mount_flags=$options
 	    fi
 	fi
@@ -413,34 +446,34 @@ function configure_udev {
             isolabel=${rootfs_device#ISOLABEL=}
 	    # TODO: research ATTRS{media} possibilities
 	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
-KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="root"
-KERNEL=="sr[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="root"
-KERNEL=="scd[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="root"
-KERNEL=="pcd[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="root"
+KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
+KERNEL=="sr[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
+KERNEL=="scd[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
+KERNEL=="pcd[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
 SLREOF
             ;;
 	/dev/disk/by-label/*)
 	    label=${rootfs_device#/dev/disk/by-label/}
 	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
-SUBSYSTEM=="block", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="root"
+SUBSYSTEM=="block", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${label}", SYMLINK+="root"
 SLREOF
 	    ;;
 	LABEL=*)
             label=${rootfs_device#LABEL=}
 	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
-SUBSYSTEM=="block", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="root"
+SUBSYSTEM=="block", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${label}", SYMLINK+="root"
 SLREOF
             ;;
 	/dev/disk/by-id/*)
 	    uuid=${rootfs_device#/dev/disk/by-id/}
 	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
-SUBSYSTEM=="block", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="root"
+SUBSYSTEM=="block", PROGRAM="/sbin/blkid -s UUID -o value %N", RESULT=="${uuid}", SYMLINK+="root"
 SLREOF
 	    ;;
         UUID=*)
 	    uuid=${rootfs_device#UUID=}
 	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
-SUBSYSTEM=="block", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="root"
+SUBSYSTEM=="block", PROGRAM="/sbin/blkid -s UUID -o value %N", RESULT=="${uuid}", SYMLINK+="root"
 SLREOF
 	    ;;
 	/dev/*)
@@ -451,6 +484,14 @@ SLREOF
 	    rootfs_mount_device=$rootfs_device
 	    ;;
     esac
+
+    cat <<SLREOF  >> /etc/udev/rules.d/00-zyx_liveos.rules
+SUBSYSTEM=="graphics",          GROUP="video"
+SUBSYSTEM=="drm",               GROUP="video"
+# console init
+KERNEL=="tty0",         RUN+="/lib/udev/console_init %k"
+
+SLREOF
 
     if (( $debug )); then
 	if [ -f /etc/udev/rules.d/00-zyx_liveos.rules ]; then
@@ -474,21 +515,60 @@ ACTION=="add", SUBSYSTEM=="?*", ENV{MODALIAS}=="?*", RUN+="/sbin/modprobe \$env{
 ACTION=="add", SUBSYSTEM=="scsi_device" RUN+="/sbin/modprobe -q sg"
 ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="0|7|14", RUN+="/sbin/modprobe -q sd_mod"
 ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="[45]", RUN+="/sbin/modprobe -q sr_mod"
+
 MPREOF
+
+}
+
+function start_bootsplash {
+
+    # the abyss needs to exist
+    if [ ! -c /dev/null ]; then mknod /dev/null c 1 3; fi
+    # and probably a few other handy character devnodes
+    if [ ! -c /dev/zero ]; then mknod /dev/zero c 1 5; fi
+    if [ ! -c /dev/systty ]; then mknod /dev/systty c 4 0; fi
+    if [ ! -c /dev/fb ]; then mknod /dev/fb c 29 0; fi
+    if [ ! -c /dev/hvc0 ]; then mknod /dev/hvc0 c 229 0; fi
+    
+    # poke graphics/tty
+    udevadm trigger \
+	--attr-match=class=0x030000 \
+	> /dev/null 2>&1
+    udevadm trigger \
+	--subsystem-match=graphics \
+	--subsystem-match=drm \
+	--subsystem-match=tty \
+	> /dev/null 2>&1
+    
+    # todo, rehide this output if it causes problems
+    udevadm settle --timeout=42 > /dev/null 2>&1
+
+    status "starting bootsplash daemon"
+    /bin/plymouthd --attach-to-session
+    /bin/plymouth --show-splash
 
 }
 
 function start_udev {
     status "starting udev"
 
+    # --resolve-names=never means root owns all devices, which
+    # is ok, since this initramfs udevd will be killed later
     status "launching udev daemon"
-    /sbin/udevd --daemon
+    /sbin/udevd --daemon --resolve-names=never
+
+    /sbin/udevadm settle --timeout=0
+
+    # do rocksplash stuff
+    if (( $bootsplash )); then start_bootsplash; fi
 
     status "launching udevtrigger to create device nodes"
-    /sbin/udevadm trigger
+    /sbin/udevadm trigger > /dev/null 2>&1
 
     status "waiting for udev to settle"
-    /sbin/udevadm settle --timeout=30 || status "udev is still unsettled"
+    if ( ! /sbin/udevadm settle --timeout=30 ); then
+	status "udev is still unsettled"
+    fi
 }
 
 function wait_for_udev_rootfs {
@@ -522,7 +602,7 @@ function run_media_verify {
 
     status "running media verification"
 
-    if [ "x${rootfs_fstype}" != "xiso9660" ]; then
+    if [ "${rootfs_fstype}" != "iso9660" ]; then
 	debug_mode panic "media_verify has been requested, but the root filesystem type is not iso9660.\n media_verify currently only supports iso9660 filesystems."
 	return
     fi
@@ -538,14 +618,14 @@ function run_media_verify {
        echo "Would you like to continue DESPITE verification failure?"
        echo "Type 'yes' to continue or control+alt+delete to reboot."
        read answer
-       if [ "x${answer}" != "xyes" ]; then debug_mode panic; fi
+       if [ "${answer}" != "yes" ]; then debug_mode panic; fi
    fi
 }
 
 function mount_prime_rootfs {
     status "mounting prime root filesystem"
 
-    if [ "x${rootfs_fstype}" == "x" ]; then rootfs_fstype="auto"; fi
+    if [ "${rootfs_fstype}" == "" ]; then rootfs_fstype="auto"; fi
 
     if (( $rootfs_mount_readonly )); then
 	addflag="ro"
@@ -553,7 +633,7 @@ function mount_prime_rootfs {
 	addflag="rw"
     fi
 
-    if [ "x${rootfs_mount_flags}" == "x" ]; then
+    if [ "${rootfs_mount_flags}" == "" ]; then
 	rootfs_mount_flags=$addflag
     else
 	rootfs_mount_flags="${rootfs_mount_flags},${addflag}"
@@ -629,7 +709,7 @@ function prep_cow_rootfs {
     zyx_root_overlay_rloopdev=$( losetup -f )
     losetup -d $zyx_root_overlay_loopdev 
     rm -f /fakefile
-    if [ "x${overlay}" != "xoff" ]; then
+    if [ "${overlay}" != "off" ]; then
         /sbin/findoverlay "$zyx" "$overlay" \
 	    $zyx_root_overlay_loopdev \
 	    $zyx_root_overlay_rloopdev \
@@ -637,14 +717,7 @@ function prep_cow_rootfs {
 	    $reset_overlay $reset_overlay_sizemb
     else
 
-#
-# OPEN DM-SNAPSHOT BUG (bug #4XXXXX)
-#      
-	if ( grep -q nobwa /proc/cmdline ); then
-            mount -n -t tmpfs -o mode=0755 none /mnt/.LiveOS/overlayfs
-	else
-	    touch /dev/.special.bwa
-	fi
+        mount -n -t tmpfs -o mode=0755 none /mnt/.LiveOS/overlayfs
 
 	dd if=/dev/null of=/mnt/.LiveOS/overlayfs/dmoverlay \
 	    bs=1024 count=1 seek=$((${ram_overlay_size}*1024)) > /dev/null 2>&1
@@ -653,7 +726,6 @@ function prep_cow_rootfs {
 	losetup -r $zyx_root_overlay_rloopdev /mnt/.LiveOS/overlayfs/dmoverlay
 
      fi
-
 
     dmsetup create zyx-liveos-rw --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8"
 
@@ -668,7 +740,7 @@ function mount_final_rootfs {
 	debug_mode panic "sorry, only dms cow_mode is currently supported"
     fi
 
-    if [ "$( /lib/udev/vol_id -u /dev/mapper/zyx-liveos-rw )" == \
+    if [ "$( /sbin/blkid -s UUID -o value /dev/mapper/zyx-liveos-rw )" == \
 	"42244224-4224-4224-4224-422442244224" ]; then
 	touch /etc/mtab
 	tune2fs -U random /dev/mapper/zyx-liveos-rw > /dev/null 2>&1
@@ -698,21 +770,14 @@ function mount_final_rootfs {
     mount --move /precow_rootfs /sysroot/mnt/.LiveOS/precow_rootfs
 
 # note: this isn't actually possible
-# note: nash's switchroot doesn't use pivotmount, it uses a movemount to /
+# note: switchroot (at least the old nash version) doesn't use pivotmount,
+# it uses a movemount to /
 #    mkdir -p /sysroot/mnt/.LiveOS/initramfs
 #    mount --bind / /sysroot/mnt/.LiveOS/initramfs
 
-#
-# OPEN DM-SNAPSHOT BUG (bug #4XXXXX) (bwa=bugworkaround)
-#      
-
     mkdir -p /sysroot/mnt/.LiveOS/overlayfs
-    if [ ! -f /dev/.special.bwa ]; then
-	mount --move /mnt/.LiveOS/overlayfs /sysroot/mnt/.LiveOS/overlayfs
-	echo "/mnt/.LiveOS/overlayfs" >> /dev/.fstab.live.special
-    else
-	rm -f /dev/.special.bwa
-    fi
+    mount --move /mnt/.LiveOS/overlayfs /sysroot/mnt/.LiveOS/overlayfs
+    echo "/mnt/.LiveOS/overlayfs" >> /dev/.fstab.live.special
 }
 
 function tweak_rootfs {
@@ -752,34 +817,34 @@ function tweak_rootfs {
 	sed -i -e 's/noatime/atime/g' /sysroot/etc/fstab
     fi
 
-    if [ "x${locale}" != "x" ]; then
+    if [ "${locale}" != "" ]; then
 	echo "LANG=${locale}" > /sysroot/etc/sysconfig/i18n
     fi
 
-    if [ "x${isolabel}" != "x" ]; then
+    if [ "${isolabel}" != "" ]; then
 	cat <<SLUREOF >> /sysroot/etc/udev/rules.d/50-udev.rules
-KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
-KERNEL=="sr[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
-KERNEL=="scd[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
-KERNEL=="pcd[0-9]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+KERNEL=="sr[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+KERNEL=="scd[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+KERNEL=="pcd[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
 SLUREOF
     fi
 
-    if [ "x${label}" != "x" ]; then
+    if [ "${label}" != "" ]; then
 	cat <<SLUREOF >> /sysroot/etc/udev/rules.d/50-udev.rules
-KERNEL=="hd[a-z]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
-KERNEL=="hd[a-z][0-9]*", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
-KERNEL=="sd[a-z]", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
-KERNEL=="sd[a-z][0-9]*", PROGRAM="/lib/udev/vol_id -l %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
+KERNEL=="hd[a-z]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
+KERNEL=="hd[a-z][0-9]*", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
+KERNEL=="sd[a-z]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
+KERNEL=="sd[a-z][0-9]*", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${label}", SYMLINK+="zyx_root_prime"
 SLUREOF
     fi
 
-    if [ "x${uuid}" != "x" ]; then
+    if [ "${uuid}" != "" ]; then
 	cat <<SLUREOF >> /sysroot/etc/udev/rules.d/50-udev.rules
-KERNEL=="hd[a-z]", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
-KERNEL=="hd[a-z][0-9]*", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
-KERNEL=="sd[a-z]", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
-KERNEL=="sd[a-z][0-9]*", PROGRAM="/lib/udev/vol_id -u %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
+KERNEL=="hd[a-z]", PROGRAM="/sbin/blkid -s UUID -o value %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
+KERNEL=="hd[a-z][0-9]*", PROGRAM="/sbin/blkid -s UUID -o value %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
+KERNEL=="sd[a-z]", PROGRAM="/sbin/blkid -s UUID -o value %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
+KERNEL=="sd[a-z][0-9]*", PROGRAM="/sbin/blkid -s UUID -o value %N", RESULT=="${uuid}", SYMLINK+="zyx_root_prime"
 SLUREOF
     fi
 
@@ -793,10 +858,66 @@ SLUREOF
     mount -n -t ext3 -o remount,ro /dev/mapper/zyx-liveos-rw /sysroot
 }
 
+
+function init_selinux {
+
+    # do nothing if selinux=0 on cmdline
+    if ((! ${selinux})); then return; fi
+    
+    # SELINUX should only be enabled if config exists
+    SELINUX="disabled"
+    if [ -e /sysroot/etc/selinux/config ]; then
+	source /sysroot/etc/selinux/config
+    fi
+
+    # do nothing if no config or selinux disabled via config
+    if ( echo "${SELINUX}" | grep -i -q disabled ); then
+	return
+    fi
+
+    status "initializing selinux"
+
+    # check if permissive mode
+    se_permissive_mode=0
+    if ( echo "${SELINUX}" | grep -i -q permissive ); then
+	se_permissive_mode=1
+    fi
+    # cmdline can override config
+    if ((! ${enforcing})); then
+	se_permissive_mode=1
+    fi
+    
+    # check if policy can be loaded
+    if [ ! -x /sysroot/usr/sbin/load_policy -a ! -x /sysroot/sbin/load_policy ]; then
+	if ((! ${se_permissive_mode})); then
+	    debug_mode panic "selinux enforcing, but policy could not be loaded"
+	else
+	    status "warning: selinux permissive, but policy could not be loaded"
+	    return
+	fi
+    fi
+
+    # load policy
+    chroot /sysroot load_policy -i
+    se_retval=$?
+
+    # 0 and 2 are apparently acceptable return values
+    if [ ${se_retval} -eq 0 ]; then return; fi
+    if [ ${se_retval} -eq 2 ]; then return; fi
+
+    status "warning: selinux failed to load policy"
+    if [ ${se_retval} -eq 3 -o ${se_permissive_mode} -eq 0 ]; then
+	debug_mode panic "selinux enforcing, but policy could not be loaded"
+    fi
+	    
+    return
+}
+
+
 function exit_initramfs {
     status "exiting initramfs, jumping to the real /sbin/init"
 
-    if [ "x${init}" == "x/sbin/init" ]; then
+    if [ "${init}" == "/sbin/init" ]; then
 	passopts=$( < /proc/cmdline )
     else
 	passopts=""
@@ -805,13 +926,28 @@ function exit_initramfs {
     if [ ! -x "/sysroot/${init}" ]; then
 	debug_mode panic "requested init: $init is not executable"
     else 
-	kill $( pidof udevd )
 
-	if ( grep -q qnash /proc/cmdline ); then
-	    sed -i -e 's/nash/nash\ \-\-quiet/' /sbin/nash_run_init
+	if (( $bootsplash )); then
+	    plymouth --newroot=/sysroot
+	    plymouth --sysinit
 	fi
 
-	exec /sbin/nash_run_init
+	# tell udev to stop executing new events (before we kill it)
+        udevadm control --stop-exec-queue
+
+        # kill udev, be nice ...
+        for pid in $( pidof udevd ); do
+            kill "${pid}"
+        done
+        # ... then be thorough
+        while ( pidof udevd > /dev/null 2>&1 ); do
+            for pid in $( pidof udevd ); do
+		# devnull perhaps due to first kill above taking time to work
+                kill -KILL "${pid}" > /dev/null 2>&1
+            done
+        done
+
+	exec /sbin/switch_root /sysroot "${init}" "${passopts}"
     fi
 }
 
@@ -854,6 +990,8 @@ runphase mount_final_rootfs
 
 runphase tweak_rootfs
 
+runphase init_selinux
+
 dropcheck late
 
 runphase exit_initramfs
@@ -868,5 +1006,3 @@ debug_mode panic "failed to exit initramfs"
 ## only notes/comments past here
 ##
 
-# bashquestion: is 'if [ "x${foo}" != "x" ]; then...' a useless use of x?
-#   perhaps you only use the x if you don't quote it.

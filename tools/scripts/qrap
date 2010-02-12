@@ -28,7 +28,6 @@
 
 #
 ## VirOS qrap
-## Date: 2007/02/27
 ##
 ## DESCRIPTION
 ##
@@ -82,7 +81,7 @@ function usage {
     echo "                 <Normal QEMU Options...>"
     echo ""
 
-    if [ "x${1}" == "xclean" ]; then
+    if [ "${1}" == "clean" ]; then
 	exit 0
     else 
 	exit 1
@@ -93,7 +92,7 @@ function cleanup_and_exit {
     ##
     ## cleanup and exit
     ##
-    if (( $vopt_debug )); then
+    if (( ${vopt_debug} )); then
 	verbose "debug enabled: NOT removing tmpdir ${tmpdir}"
     else
 	verbose "removing tmpdir, was ${tmpdir}"
@@ -108,7 +107,7 @@ function cleanup_and_exit {
 ## use TMPDIR environment if set
 ##
 
-if [ "x${TMPDIR}" == "x1" ]; then
+if [ "${TMPDIR}" == "" ]; then
     default_vopt_tmpdir="/tmp"
 else
     default_vopt_tmpdir="${TMPDIR}"
@@ -262,12 +261,12 @@ qoutputfile=$( mktemp "${tmpdir}/qoutput.XXXXXXXXXX" )
 # remember local display
 localdisplay=$DISPLAY
 
-if [ "${vsys_qrap_vdisplay}Y" == "Y" ]; then
+if [ "${vsys_qrap_vdisplay}" == "" ]; then
     status "no vdisplay specified, using environmental DISPLAY $DISPLAY"
     vsys_qrap_spawnvnc=0
     # HACKHACKHACK: assumes no display host , e.g. localhost:10.0
     vsys_qrap_vdisplay=$( echo "$DISPLAY" | sed -e 's/^://' )
-elif [ "X${vsys_qrap_vdisplay}" == "XX" ]; then
+elif [ "${vsys_qrap_vdisplay}" == "X" ]; then
     status "vdisplay X: probing for available display/port..."
     vsys_qrap_spawnvnc=1
     vsys_vnc_port=$( findfreeport $vsys_vnc_portmin $vsys_vnc_portmax )
@@ -307,7 +306,7 @@ if (($vsys_qrap_spawnvnc)); then
     sleep 3
 
     # start recording, to yet another headless vnc server, if desired
-    if [ "${vsys_qrap_recvideo}Y" != "Y" ]; then
+    if [ "${vsys_qrap_recvideo}" != "" ]; then
 	if ( ! which vnc2swf > /dev/null 2>&1 ); then
 	    status "cannot vind vnc2swf in path, screencast capture is not possible"
 	else
@@ -324,7 +323,12 @@ if (($vsys_qrap_spawnvnc)); then
     # give gui feedback if it is called for.  
     # --verbose gives you vnc viewonly, --debug will give interactive/rw
     if (($vopt_debug)); then
-	veva env DISPLAY=$localdisplay specvnc --display=${vsys_qrap_vdisplay} --confdir=${vnchome} view &
+	veva env \
+	    DISPLAY=$localdisplay \
+	    specvnc \
+	    --display=${vsys_qrap_vdisplay} \
+	    --confdir=${vnchome} \
+	    view &
 	qrap_specvnc_debug_viewer_pid=$!
 	cleanup_command="${cleanup_command} ; \
 	    status \"status: stopping debug vnc viewer...\" ; \
@@ -333,7 +337,12 @@ if (($vsys_qrap_spawnvnc)); then
 	    "
 
     elif (($vopt_verbose)); then 
-	veva env DISPLAY=$localdisplay specvnc --display=${vsys_qrap_vdisplay} --confdir=${vnchome} viewonly &
+	veva env \
+	    DISPLAY=$localdisplay \
+	    specvnc \
+	    --display=${vsys_qrap_vdisplay} \
+	    --confdir=${vnchome} \
+	    viewonly &
 	qrap_specvnc_verbose_viewer_pid=$!
 	cleanup_command="${cleanup_command} ; \
 	    status \"status: stopping debug vnc viewer...\" ; \
@@ -404,7 +413,7 @@ fi
 ## launch callback if needed
 ##
 
-if [ "${vsys_qrap_callback}Y" != "Y" ]; then
+if [ "${vsys_qrap_callback}" != "" ]; then
     eval "env \
 	QRAP_HOST_IP=${qrap_host_ip} \
 	QRAP_HTTPD_PORT=${vsys_qrap_vhttpdport} \
@@ -432,6 +441,17 @@ vopt_qopts="${vopt_qopts} -cpu qemu32,-nx,-pae"
 #vopt_qopts="${vopts_qopts} -net nic,model=i82557b"
 vopt_qopts="${vopt_qopts} -net nic -net user,hostname=zyxhost"
 
+# as of qemu 0.11.1 (not sure exactly which release) kqemu must be explicitly enabled,
+# and one cannot assume that support was enabled during compilation.  Idiots commenting
+# in redhat bugzilla claim for 2.6 there is no speedup.  I beg to differ by a speedup
+# factor of at least 100%.  Hardware snobs.  (said knowing that if the VirOS author owned
+# kvm supported hardware, he probably wouldn't care that much)
+if $( strings $( which qemu ) | grep -q "-enable-kqemu" ); then
+    if [ -w /dev/kqemu ]; then
+	vopt_qopts="${vopt_qopts} -enable-kqemu"
+    fi
+fi
+
 # do string replacement for any qemu args, with the private httpd server info
 numqargs=0
 while (($#)); do
@@ -442,6 +462,9 @@ while (($#)); do
     shift
 done
 
+status "about to run qemu $vopt_qopts -pidfile ${tmpdir}/qpid.txt -serial stdio \"${qargs[@]}\""
+echo "about to run qemu $vopt_qopts -pidfile ${tmpdir}/qpid.txt -serial stdio \"${qargs[@]}\"" \
+    > ${tmpdir}/qemu.command.txt
 qemu $vopt_qopts -pidfile ${tmpdir}/qpid.txt -serial stdio "${qargs[@]}" 2>&1 >> ${qoutputfile} &
 qrap_qemu_pid=$!
 
@@ -454,7 +477,7 @@ if (($vopt_debug)); then
     tail -f --pid=${qrap_qemu_pid} ${qoutputfile} &
 fi
 
-if [ "x${vsys_qrap_reaper}" != "x" ]; then
+if [ "${vsys_qrap_reaper}" != "" ]; then
     qdone=0
     while ((!$qdone)); do
 	if ( grep -q QEMU_DONE_IN_NEED_OF_SHUTDOWN ${qoutputfile} ); then

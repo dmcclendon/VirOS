@@ -1,0 +1,16 @@
+#!/bin/bash
+
+cat <<EOF >> /etc/rc.d/rc.local
+
+
+#############################################################################
+#
+# This works around the pulseaudio bleeding edge realtime
+# (seems to kill my acer aspire one)
+# 
+zyx-chronic-fixup.pulseaudio.nohipri
+#
+#############################################################################
+
+
+EOF

@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -98,7 +98,7 @@ function cleanup_and_exit {
 ## use TMPDIR environment if set
 ##
 
-if [ "x${TMPDIR}" == "x1" ]; then
+if [ "x${TMPDIR}" == "x" ]; then
     default_vopt_tmpdir="/tmp"
 else
     default_vopt_tmpdir="${TMPDIR}"
@@ -122,13 +122,21 @@ vregopt cachedir string "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 
 # this is the size of the qemu vsi rootfs
-vregopt vsysgen_output_container_size string "7G" inherit
-vregopt vsysgen_distro string "fedora-11" inherit
-vregopt vsysgen_arch string "x86" inherit
-vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/11/Fedora/i386/iso/Fedora-11-i386-netinst.iso" inherit
-vregopt vsysgen_install_boot_iso_sha256sum string "b61cf796fa1602ca003b340ca8073d783576507e88db3499d86640b0d20034cd" inherit
-vregopt vsysgen_distro_config string "f11.ks" inherit
-vregopt vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" inherit
+vregopt vsysgen_output_container_size \
+    string "${v_x_def__output_container_size}" inherit
+vregopt vsysgen_distro \
+    string "${v_x_def__distro}" inherit
+vregopt vsysgen_arch \
+    string "${v_x_def__arch}" inherit
+vregopt vsysgen_install_boot_iso \
+    string "${v_x_def__install_boot_iso}" inherit
+vregopt vsysgen_install_boot_iso_sha256sum \
+    string "${v_x_def__install_boot_iso_sha256sum}" inherit
+vregopt vsysgen_distro_config \
+    string "${v_x_def__distro_config}" inherit
+vregopt vsysgen_boot_cmdline \
+    string "${v_x_def__boot_cmdline}" inherit
+
 vregopt vsysgen_screencast_output string "" inherit
 
 vregopt output string "./viros.vsi"
@@ -231,10 +239,14 @@ fi
 ## will edit and package later
 ##
 #note: more frontend implicit selection
-veva cp -a ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpre ${tmpdir}/runpre
+veva cp -a \
+    ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpre \
+    ${tmpdir}/runpre
 
 #note: more frontend implicit selection
-veva cp -a ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpost ${tmpdir}/runpost
+veva cp -a \
+    ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/runpost \
+    ${tmpdir}/runpost
 
 # prepare docroot for private webserver
 mkdir -p ${vhttpdroot}
@@ -259,17 +271,32 @@ status "creating target system image"
 
 debug "creating build copy of OS installation configuration"
 ksflatten --output=${tmpdir}/uos.cfg ${vsysgen_distro_configfile} 
-veva cp -a ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/kswrap.cfg ${tmpdir}/kswrap.cfg
+veva cp -a \
+    ${viros_ancestors_dir}/${vopt_vsysgen_distro}/${vopt_vsysgen_arch}/vinsts/qrap/kswrap.cfg \
+    ${tmpdir}/kswrap.cfg
 pushd ${tmpdir} > /dev/null 2>&1
-user_req_rootfs_size=$( cat uos.cfg | grep "^part" | sed -e 's/.*\-\-size\=\([^\s]*\)\s.*/\1/' )
-user_req_rootfs_bytes_per_inode=$( cat uos.cfg | grep "^part" | sed -e 's/.*\-\-bytes\-per\-inode\=\([^\s]*\)\s.*/\1/' )
+user_req_rootfs_size=$( cat uos.cfg | \
+    grep "^part" | \
+    sed -e 's/.*\-\-size\=\([^\s]*\)\s.*/\1/' )
+user_req_rootfs_bytes_per_inode=$( cat uos.cfg | \
+    grep "^part" | \
+    sed -e 's/.*\-\-bytes\-per\-inode\=\([^\s]*\)\s.*/\1/' )
 cat uos.cfg \
     | grep -v "^part" \
     > uos.stripped.cfg
 sed -i -e 's/VKICKSTARTFILE/uos\.stripped\.cfg/' kswrap.cfg
-ksflatten --output=os.cfg ./kswrap.cfg
+
+# note: ksflatten for f11 has bug mentioned on fedora-livecd-list
+#ksflatten --output=os.cfg ./kswrap.cfg
+echo -en "\n\ntext\n\n" > os.cfg
+cat uos.stripped.cfg >> os.cfg
+cat kswrap.cfg | grep -v "uos.stripped.cfg" >> os.cfg
+# end workaround
+
 # pykickstart bug needs to be filed
 sed -i os.cfg -e 's/shutdown/poweroff/'
+
+# for live generation, no root password
 if ( ! grep -q "^rootpw" os.cfg ); then
     cat <<EOF >> os.cfg
 rootpw livefreeordie
@@ -278,7 +305,9 @@ passwd -d root
 %end
 EOF
 fi
+
 popd > /dev/null 2>&1
+
 if ( ! grep -q "^install" os.cfg ); then
     cat os.cfg | grep "^repo" > os.repos.cfg
     cat os.cfg | grep -v "^repo" > os.norepos.cfg
@@ -314,7 +343,12 @@ EOF
 fi
 veva cp ${tmpdir}/os.cfg  ${vhttpdroot}/os.cfg
 
-veva qemu-img create ${tmpdir}/outimage.vsi ${vopt_vsysgen_output_container_size}
+# note: -f qcow2 might be worth trying here after the f12 'feature' 
+#       of tolerable qcow2 performance is available
+veva qemu-img \
+    create \
+    ${tmpdir}/outimage.vsi \
+    ${vopt_vsysgen_output_container_size}
 
 # inelegant: the following is very fedora specific
 
@@ -379,6 +413,7 @@ status "launching system installer..."
 
 touch ${tmpdir}/vsys.build.log
 vsys qrap \
+    --reaper=X \
     --vdisplay=X \
     --vhttpdport=X \
     --vhttpdroot=${vhttpdroot} \
@@ -389,8 +424,11 @@ vsys qrap \
     -kernel ${tmpdir}/inst.kernel \
     -initrd ${tmpdir}/inst.initrd \
     -append "${vopt_vsysgen_boot_cmdline}" \
-    -hda ${tmpdir}/outimage.vsi > ${tmpdir}/vsys.build.log 2>&1 &
+    -drive file=${tmpdir}/outimage.vsi,index=0,media=disk,cache=${viros_qemu_cache_type} \
+    > ${tmpdir}/vsys.build.log 2>&1 &
+
 vsysgen_qrap_pid=$!
+
 echo "$vsysgen_qrap_pid" > ${tmpdir}/vsys.build.pid.qrap
 
 cleanup_command="${cleanup_command} ; \

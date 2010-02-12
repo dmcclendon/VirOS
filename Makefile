@@ -26,14 +26,15 @@ all clean install uninstall: $(SUBDIRS)
 	done
 
 all_also:
-	ln -s ./tools/scripts/vsys ./viros
-	ln -s fedora-11 ./ancestors/gzyx-0.4
-	ln -s M-ZyX.vml ./strains/min.vml
-	ln -s M-ZyX.vml ./strains/minimal.vml
+	ln -fs ./tools/scripts/vsys ./viros
+	ln -fs fedora-11 ./ancestors/zyx-0.4
+	ln -fs fedora-12 ./ancestors/zyx-0.5
+	ln -fs M-ZyX.vml ./strains/min.vml
+	ln -fs M-ZyX.vml ./strains/minimal.vml
 
 clean_also:
 	rm -vf ./viros
-	rm -vf ./ancestors/gzyx-0.4
+	rm -vf ./ancestors/zyx-*
 	rm -vf ./strains/min.vml
 	rm -vf ./strains/minimal.vml
 
@@ -53,7 +54,7 @@ install_also:
 uninstall_also:
 	rm -rvf $(PREFIX)/lib/viros
 	rm -rvf $(PREFIX)/share/doc/viros-$(VERSION)
-	
+
 tidy:
 	@ echo "removing temporary and backup files"
 	find . -name "*~" -exec rm -vf '{}' ';'
@@ -64,10 +65,11 @@ tidy:
 release:
 	@ echo "building release tarball"
 	./tools/scripts/makerelease $(VERSION) $(RELEASE)
+	sha512sum viros-$(VERSION).tar.bz2 > viros-$(VERSION).tar.bz2.sha512sum
 
 xrelease:
 	make release
-	tar xvjf viros-$(VERSION).tar.bz2
+	tar xvf viros-$(VERSION).tar.bz2
 
 distclean:
 	make tidy
@@ -90,10 +92,12 @@ rpm:
 	rpmbuild --rebuild viros-$(VERSION)-$(RELEASE).src.rpm 
 	mv ${HOME}/rpmbuild/RPMS/i386/viros-$(VERSION)-$(RELEASE).i386.rpm .
 
-vrepostuff:
-	make rpm
-	cp -av viros-$(VERSION)-$(RELEASE).i386.rpm ./vrepo/fedora/9/i386/
-	cp -av viros-$(VERSION)-$(RELEASE).src.rpm ./vrepo/fedora/9/SRPMS/
-	cp -av viros-$(VERSION).tar.bz2 ./vrepo/tarballs/
-	createrepo ./vrepo/fedora/9/i386
-	createrepo ./vrepo/fedora/9/SRPMS
+# note: archaic, but perhaps to be revived someday 
+#
+#vrepostuff:
+#	make rpm
+#	cp -av viros-$(VERSION)-$(RELEASE).i386.rpm ./vrepo/fedora/9/i386/
+#	cp -av viros-$(VERSION)-$(RELEASE).src.rpm ./vrepo/fedora/9/SRPMS/
+#	cp -av viros-$(VERSION).tar.bz2 ./vrepo/tarballs/
+#	createrepo ./vrepo/fedora/9/i386
+#	createrepo ./vrepo/fedora/9/SRPMS

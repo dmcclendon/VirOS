@@ -16,6 +16,7 @@ atd
 anacron
 readahead_early
 readahead_later
+mdmonitor
 "
 
 function unwind {
@@ -61,7 +62,8 @@ if ! strstr "`cat /proc/cmdline`" zyx || [ "$1" != "start" ] || [ -e /.zyxlive-c
     exit 0
 fi
 
-echo -en $"Initializing: ZyX LiveOS...\n"
+echo
+echo -en $"Initializing: ZyX LiveOS..."
 
 touch /.zyxlive-configured
 
@@ -100,8 +102,8 @@ fi
 # if hhuey is given, default kablui
 if strstr "`cat /proc/cmdline`" hhuey ; then
     cp -a /etc/gdm/custom.conf /etc/gdm/custom.conf.pre-zyx-live
-#    sed -i -e 's/guest/kablui/g' /etc/gdm/custom.conf
-    sed -i -e 's/^TimedLogin=.*$/TimedLogin=kablui/g' /etc/gdm/custom.conf
+#    sed -i -e 's/guest/zyxuser/g' /etc/gdm/custom.conf
+    sed -i -e 's/^TimedLogin=.*$/TimedLogin=zyxuser/g' /etc/gdm/custom.conf
 fi
 
 # mount a tmpfs for jack
@@ -215,6 +217,10 @@ touch /media/.hal-mtab
 
 # workaround clock syncing on shutdown that we don't want (#297421)
 cp -a /etc/rc.d/init.d/halt /etc/rc.d/init.d/halt.pre-zyx-live
-sed -i -e 's/hwclock/no-such-hwclock/g' /etc/rc.d/init.d/halt
+sed -i -e 's/hwclock/no-such-hw__clock/g' /etc/rc.d/init.d/halt
+
+# show green OK
+success
+echo
 
 exit 0

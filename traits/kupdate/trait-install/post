@@ -1,5 +1,5 @@
 #!/bin/bash
-
-yum -y update yum
-yum -y update grubby
-yum -y update kernel
+yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update glibc
+yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update yum
+yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update grubby
+yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update kernel

@@ -1,75 +1,62 @@
 #!/bin/bash
+#
+# zbuild: this is the phased building script used to develop *ZyX
+#
+# more docs/functionality coming soon(ish)...
 # 
-# todo: argument processing for (and usage) (see below comments)
+# todo: argument processing for (and usage) (see below/eof for comments)
 #
 
+# f11 performance issue, theoretically solved by a 'feature' in f12
+#qcow_too_slow=1
+# also solved by qemu-0.11.1 
+qcow_too_slow=0
+
+
+#
+# defaults to be overridden
+#
+
+# overrides md5verify and prelink (to off)
+quickbuild=0
+# mirrorcheck is not yet implemented
 domirrorcheck=0
 dosynthesis=0
 doupdate=0
 domutate=0
+doxmutate=0
 dobake=0
+# useful for debugging smirfgen development
+dosmirf=0
 doxmog=0
+# gathers srpms and does checksums
 dopackage=0
 
+#
+# current overrides (need to be script args)
+#
+
+#quickbuild=1
 #domirrorcheck=1
 dosynthesis=1
 doupdate=1
 domutate=1
 dobake=1
+dosmirf=1
 doxmog=1
-#dopackage=1
+dopackage=1
 
-strain_name=F-ZyX
-#strain_name=Fork-ZyX
+#strain_name=F-ZyX
+strain_name=Fork-ZyX
 #strain_name=G-ZyX
 #strain_name=Guitar-ZyX
 #strain_name=D-ZyX
 #strain_name=min
-#strain_version="0.9.2"
-strain_version="0.4"
-mirrorlist=/var/mirrors/f11/viros.mirrors.cfg
+strain_version="0.9.3"
+#strain_version="0.5.0"
+mirrorlist=/var/mirrors/f12/viros.mirrors.cfg
+#mirrorlist=/mnt/big/pub/org/info/mirrors/f12/viros.mirrors.cfg
 
-
-#
-#            --sig=<sigdir>
-#            [--check-keys=<check_key_dir>]
-#            --check-mirror
-#            [--mirrorlist=/var/mirrors/f10/viros.mirrors.cfg]
-#
-#            --nox (hide viros synth monitor)
-#            --reuse-synthesis
-#            --reuse-update
-#            --reuse-mutate
-#            --reuse-bake
-#            --reuse-xmog
-#            --strain=
-#
-# retry for synth, 
-#   - first pass is checking for pre script string at 15min
-#
-# retry for mutate
-#   - wait until failure to implement
-#
-# disk space checking - check for 31G to be on the safe side
-#
-# done - retry for baking
-#
-# (DEFER) start with a make release, remaking the viros trait, then copying elsewhere.
-#
-#
-#
-# final packaging
-#  - create new outputdir
-#  - move&rename buildlog
-#  - m&r traits.tar
-#  - use srpmlist to find (not ydl) srpms
-#
-#
-#    (DEFER)- (use builddep to expand) 
-#      - just pass over rpmqa doing query on each packages src,
-#        - then iter again skipping already done packages,
-#          - iter till no new packages
-#   
 
 workarea=$( pwd )
 
@@ -111,18 +98,26 @@ else
 fi
 
 if (($doupdate)); then
+
     qemu-img create -b ${strain}.vsi \
 	-f qcow2 ${strain}-updated.vsi 
+
+    if (($qcow_too_slow)); then
+	rm -f ${strain}-updated.vsi 
+	cp -av --sparse=always \
+	    $( readlink -f ${strain}.vsi ) \
+	    ${strain}-updated.vsi 
+    fi
 
     time \
 	${virosdir}/viros mutate \
 	--verbose --debug \
 	--mirrorlist=${mirrorlist} \
 	--tmpdir=${builddir} \
-	--traits=splice-compose.repos::no_mutate_prepost=1:mode=install \
+	--traits=splice-compose.repos.f12::no_mutate_prepost=1:mode=install \
 	--traits=splice-kupdate \
 	--traits=splice-software::update=yes \
-	--traits=splice-compose.repos::no_mutate_prepost=1:mode=uninstall \
+	--traits=splice-compose.repos.f12::no_mutate_prepost=1:mode=uninstall \
 	${builddir}/${strain}-updated.vsi \
 	2>&1 | tee -a ${builddir}/zmakeit.phased.log
     rm -f ${rundir}/${strain}-updated.vsi
@@ -134,8 +129,17 @@ else
 fi
 
 if (($domutate)); then
+
     qemu-img create -b ${strain}-updated.vsi \
 	-f qcow2 ${strain}-mutated.vsi 
+
+    if (($qcow_too_slow)); then
+	rm -f ${strain}-mutated.vsi 
+	cp -av --sparse=always \
+	    $( readlink -f ${strain}-updated.vsi ) \
+	    ${strain}-mutated.vsi 
+    fi
+
 
     time \
 	${virosdir}/viros mutate \
@@ -160,24 +164,31 @@ if (($dobake)); then
 	iter_datestamp=$( date +%Y-%m-%d--%H-%M-%S )
 	mkdir ${builddir}/vtmp.iter.${iter_datestamp}
 
-	if [ -f bake.img ]; then
-	    mv bake.img bake.${iter_datestamp}.img
+	if [ -f ${strain}-bake.img ]; then
+	    mv ${strain}-bake.img ${strain}-bake.${iter_datestamp}.img
 	fi
 
 	if [ -f ${strain}-mutated-cooked.vsi ]; then
 	    mv ${strain}-mutated-cooked.vsi ${strain}-mutated-cooked.${iter_datestamp}.vsi
 	fi
 
-	qemu-img create bake.img 1234M
+	qemu-img create ${strain}-bake.img 1234M
 	qemu-img create \
 	    -b ${strain}-mutated.vsi \
 	    -f qcow2 \
 	    ${strain}-mutated-cooked.vsi
 
+	if (($qcow_too_slow)); then
+	    rm -f ${strain}-mutated-cooked.vsi 
+	    cp -av --sparse=always \
+		$( readlink -f ${strain}-mutated.vsi ) \
+	    ${strain}-mutated-cooked.vsi 
+	fi
+
 	# builddir is probably not getting expanded here, eval perhaps
 	# now seems like it may be expanced, but not what we want in the
 	# retry scenario, i.e. it kills the new one as well
-	eval "( sleep 1800 ; kill -KILL \$( < ${builddir}/vtmp.iter.${iter_datestamp}/vtmp.qrap*/qpid.txt ) ) &"
+	eval "( sleep 3600 ; kill -KILL \$( < ${builddir}/vtmp.iter.${iter_datestamp}/vtmp.qrap*/qpid.txt ) ) &"
 
 	time \
 	    env \
@@ -192,13 +203,13 @@ if (($dobake)); then
 	    -net none -m 512 -boot c \
 	    -full-screen \
 	    -hda ./${strain}-mutated-cooked.vsi \
-	    -hdb ./bake.img
+	    -hdb ./${strain}-bake.img
 	rm -f ${rundir}/${strain}-mutated-cooked.vsi
 	ln -fs ${builddir}/${strain}-mutated-cooked.vsi \
 	    ${rundir}/${strain}-mutated-cooked.vsi
 
-	if ( tar tvf ./bake.img | grep -q "output/guest.cooked/.mozilla/firefox/.*\.default/prefs.js" ); then
-	    if ( tar tvf ./bake.img | grep -q "output/guest.cooked/.mozilla/firefox/.*\.default/extensions.ini" ); then
+	if ( tar tvf ./${strain}-bake.img | grep -q "output/guest.cooked/.mozilla/firefox/.*\.default/prefs.js" ); then
+	    if ( tar tvf ./${strain}-bake.img | grep -q "output/guest.cooked/.mozilla/firefox/.*\.default/extensions.ini" ); then
 		xdone=1
 	    fi
 	fi
@@ -207,14 +218,40 @@ if (($dobake)); then
 else
     ln -s $( readlink -f ${rundir}/${strain}-mutated.vsi ) \
 	${builddir}/${strain}-mutated-cooked.vsi
+    ln -s $( readlink -f ${rundir}/${strain}-bake.img ) \
+	${builddir}/${strain}-bake.img
 fi
 
-if (($doxmog)); then
+if (($dosmirf)); then
     time \
 	${virosdir}/viros transmogrify \
 	--verbose --debug \
 	--tmpdir=${builddir} \
 	--config=${strain} \
+	zyx-smirf \
+	${builddir}/${strain}-mutated-cooked.vsi \
+	${builddir}/${strain}.smirf \
+	2>&1 | tee -a ${builddir}/zmakeit.phased.log
+    rm -f ${rundir}/${strain}.smirf
+    ln -fs ${builddir}/${strain}.smirf \
+	${rundir}/${strain}.smirf
+fi
+
+if (($doxmog)); then
+
+    # things to override config values with
+    xvxmogopts='--vxmogopts=bogus=0'
+    if (($quickbuild)); then
+	xvxmogopts="${xvxmogopts} --vxmogopts=md5verify=0"
+	xvxmogopts="${xvxmogopts} --vxmogopts=prelink=0"
+    fi
+
+    time \
+	${virosdir}/viros transmogrify \
+	--verbose --debug \
+	--tmpdir=${builddir} \
+	--config=${strain} \
+	${xvxmogopts} \
 	zyx-live \
 	${builddir}/${strain}-mutated-cooked.vsi \
 	${builddir}/${strain}.iso \
@@ -249,26 +286,55 @@ if (($dopackage)); then
 
     mkdir ./${strain}.srpms
 
-    cp ${mutated_vsi_dir}/vtmp.mutate.*/vtmp.qfakeroot.*/qfakeroot.initramfs.input.tar "./${strain}.traits.tar"
-
-    tar xvf "${mutated_cooked_vsi_dir}/bake.img" output/sysinfo.srpms
+    echo "extracting srpm list from baked image ..."
+    tar xf "${mutated_cooked_vsi_dir}/${strain}-bake.img" output/sysinfo.srpms
     mv output/sysinfo.srpms "./${strain}.srpms.txt"
     rmdir output
     
-    for srpm in $( < "./${strain}-${strain}.srpms.txt" ); do
-	find "${mirror_dir}" -name "${srpm}" -exec cp -av '{}' "./${strain}.srpms/" ';'
+    echo "collecting srpms ..."
+    for srpm in $( < "./${strain}.srpms.txt" ); do
+	find "${mirror_dir}" -name "${srpm}" -exec cp -a '{}' "./${strain}.srpms/" ';'
     done
 
-    sha512sum "./${strain}-${strain}.srpms/*" > \
+    echo "creating checksums for srpms ..."
+    sha512sum "./${strain}.srpms/"* > \
 	"./${strain}.srpms.sha512sums.txt"
     
-    cat "${builddir}"/build.*/zmakeit.phased.log >> \
+    # the .. is to facilitate the case when the phased run had to be split across multiple builds
+    echo "copying build logs to goldbits/${strain}.build.log ..."
+    cat "${builddir}"/../build.*/zmakeit.phased.log >> \
 	"./${strain}.build.log"
 
-    cp -av "${golden_iso}" "./${strain}.iso"
-    cp -av "${golden_iso}" "./${strain}.x.iso"
+    echo "copying output live iso to goldbits..."
+    cp -a "${golden_iso}" "./${strain}.iso"
 
+    echo "running checksum of liveiso, and other bits to be embedded in livesrc iso..."
     sha512sum * > "./${strain}.sha512sums.txt"
+
+    echo "cloning live iso to livesrc iso..."
+    cp -a "${golden_iso}" "./${strain}.wsource.iso"
+
+    echo "creating source appendage for livesrc iso..."
+    tar cf - "./${strain}.srpms" *sha512sums* \
+	>> "./${strain}.wsource.append.tar"
+
+    cat "./${strain}.sha512sums.txt" \
+	>> "./${strain}.wsource.append.tar"
+
+    echo "appending source in reverse to livesrc iso..."
+    tac "./${strain}.wsource.append.tar" >> "./${strain}.wsource.iso"
+
+    rm -rf "./${strain}.srpms" *sha512sums* 
+
+    echo "final checksumming of live and livesrc iso in progress..."
+    sha512sum \
+	"./${strain}.iso" \
+	"./${strain}.wsource.append.tar" \
+	"./${strain}.wsource.iso" \
+	"./${strain}.build.log" \
+	>> "./${strain}.sha512sum.txt"
+
+    bzip2 "./${strain}.build.log" 
 
     popd
 
@@ -278,3 +344,27 @@ if (($dopackage)); then
 
 fi
 
+# TODO
+#
+#            --sig=<sigdir>
+#            [--check-keys=<check_key_dir>]
+#            --check-mirror
+#            [--mirrorlist=/var/mirrors/f10/viros.mirrors.cfg]
+#
+#            --nox (hide viros synth monitor)
+#            --reuse-synthesis
+#            --reuse-update
+#            --reuse-mutate
+#            --reuse-bake
+#            --reuse-xmog
+#            --strain=
+#
+# - possibly need retry for synth and mutate
+# - disk space checking - check for 31G to be on the safe side
+#  start with a make release, remaking the viros trait, then copying elsewhere.
+# - save traits.tar in packaging, for nonsavetraits case
+# - (use builddep to expand) 
+#  - just pass over rpmqa doing query on each packages src,
+#    - then iter again skipping already done packages,
+#       - iter till no new packages
+#

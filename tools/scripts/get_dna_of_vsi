@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -72,28 +72,25 @@ function target_script_to_run_as_root {
     
     mkdir -p /mnt/test
     mount -o ro /dev/qfrdi-copy-p1 /mnt/test
-    if [ -f /mnt/test/etc/gzyx-release ]; then
-	if [ "$( < /mnt/test/etc/gzyx-release)" == \
-	    "G-ZyX release 0.5 (alpha)" ]; then
-	    echo "gzyx-0.5" > output/distro
-	else
-	    echo "gzyx-unknown" > output/distro
-	fi
-    elif [ -f /mnt/test/etc/fedora-release ]; then
-	if [ "$( < /mnt/test/etc/fedora-release)" == \
-	    "Fedora release 7 (Moonshine)" ]; then
-	    echo "fedora-7" > output/distro
-	elif [ "$( < /mnt/test/etc/fedora-release)" == \
-	    "Fedora release 8 (Werewolf)" ]; then
-	    echo "fedora-8" > output/distro
-	else
-	    echo "fedora-unknown" > output/distro
-	fi
+    if ( grep -q 'Guitar-ZyX release 0.4' /mnt/test/etc/system-release ); then
+	echo "zyx-0.4" > /output/distro
+    elif ( grep -q 'Fork-ZyX release 0.9.2' /mnt/test/etc/system-release ); then
+	echo "zyx-0.4" > /output/distro
+    elif ( grep -q 'Guitar-ZyX release 0.5' /mnt/test/etc/system-release ); then
+	echo "zyx-0.5" > /output/distro
+    elif ( grep -q 'Fork-ZyX release 0.9.3' /mnt/test/etc/system-release ); then
+	echo "zyx-0.5" > /output/distro
+    elif ( grep -q 'Fedora release 11' /mnt/test/etc/system-release ); then
+	echo "fedora-11" > /output/distro
+    elif ( grep -q 'Fedora release 12' /mnt/test/etc/system-release ); then
+	echo "fedora-12" > /output/distro
     else
-	echo "unknown" > output/distro
+	echo "unknown" > /output/distro
     fi
 
-    /usr/sbin/chroot /mnt/test rpm -q --qf "%{Arch}\n" kernel > /output/arch
+    # since the running kernel here is not the same as the target (not guest_smirf?)
+    # just assume all kernel arches are the same and take the first
+    /usr/sbin/chroot /mnt/test rpm -q --qf "%{Arch}\n" kernel | head -1 > /output/arch
 
     umount /mnt/test
 
@@ -163,9 +160,9 @@ output="${vopts_args[2]}"
 # TODO: error check arguments
 
 # XXX:HACKHACKHACK: development expediency
-echo -en "distro=default\n" >> ${output}
-echo -en "arch=default\n" >> ${output}
-exit 0
+#echo -en "distro=default\n" >> ${output}
+#echo -en "arch=default\n" >> ${output}
+#exit 0
 # end XXX
 
 verbose "initializing..."
@@ -173,7 +170,7 @@ verbose "initializing..."
 sysimage=$( normalize_path "${sysimage}" )
 output=$( normalize_path "${output}" )
 
-tmpdir=$( mktemp -t -d tmp.vsys.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
+tmpdir=$( mktemp -t -d vtmp.${progname}.${starttime}.${mypid}.XXXXXXXXXX )
 mkdir -p ${tmpdir}
 export TMPDIR=${tmpdir}
 
@@ -207,6 +204,7 @@ qfakeroot \
     --add_files="/bin/zcat" \
     --add_files="/bin/rm" \
     --add_files="/bin/sh" \
+    --add_files="/usr/bin/head" \
     --add_files="/usr/sbin/chroot" \
     --disk_image="${sysimage}" \
     --outputdir=${tmpdir}/qfakeroot.outputdir

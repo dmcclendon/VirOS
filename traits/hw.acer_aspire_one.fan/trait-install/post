@@ -28,7 +28,6 @@ fi
 if [ "\$system_manufacturer" == "Sony Corporation" ]; then
     if [ "\$system_product_name" == "VGN-N250E" ]; then
         echo "zyx-sony-vgn_n250e" > /var/run/ZyX.systype.txt
-        acerfand
     fi
 fi
 

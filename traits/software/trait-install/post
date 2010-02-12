@@ -29,21 +29,22 @@ source ${progdir}/trait-options
 
 if [ "x${update}" == "xyes" ]; then
     echo "${progname}: updating system software ..."
-    yum -y --enablerepo=updates update yum
-    yum -y --enablerepo=updates update
-    yum -y update
+    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update glibc
+    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update yum
+    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update
+    yum -y --disableplugin=refresh-packagekit,presto update
     echo "${progname}: done updating system software."
 fi
 
 if [ "x${install}" != "x" ]; then
     echo "${progname}: installing software: $install"
-    yum -y install $install
+    yum -y --disableplugin=refresh-packagekit,presto install $install
     echo "${progname}: done installing software: $install"
 fi
 
 if [ "x${erase}" != "x" ]; then
     echo "${progname}: uninstalling software: $erase"
-    yum -y erase $erase
+    yum -y --disableplugin=refresh-packagekit,presto erase $erase
     echo "${progname}: done uninstalling software: $erase"
 fi
 

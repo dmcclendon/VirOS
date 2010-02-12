@@ -46,7 +46,7 @@ getdisk() {
        return
     fi
 
-    p=$(udevinfo -q path -n $DEV)
+    p=$(udevadm info -q path -n $DEV)
     if [ -e /sys/$p/device ]; then
 	device=$(basename /sys/$p)
     else

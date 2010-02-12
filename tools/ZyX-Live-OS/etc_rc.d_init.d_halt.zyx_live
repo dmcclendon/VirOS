@@ -202,7 +202,7 @@ dmsetup resume zyx-liveos-rw
 # now the read-write overlay device can be torn down
 losetup -d /dev/zyx_root_overlay
 
-overlayfs_fstype="$( /lib/udev/vol_id --type /dev/zyx_root_prime )"
+overlayfs_fstype="$( /sbin/blkid -s TYPE -o value /dev/zyx_root_prime )"
 # todo: fix this ugly liveusb assumptions
 overlayfs_dev=/dev/zyx_root_prime
 

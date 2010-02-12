@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+#
+#############################################################################
+#
+# zyx-chronic-fixup.pulseaudio: the cess pool of inelegant workarounds (pa)
+#
+#############################################################################
+#
+# Copyright 2009-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+# This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, version 3 of the License.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+#############################################################################
+#
+# zyx-chronic-fixup: the cess pool of inelegant workarounds
+#
+# This script gets run nightly, to fix up things. 
+#
+#############################################################################
+
+
+
+#############################################################################
+##
+## constants
+##
+
+
+
+#############################################################################
+#############################################################################
+##
+## functions
+##
+#############################################################################
+
+
+#############################################################################
+#############################################################################
+##
+## main
+##
+#############################################################################
+
+
+if $( ! grep -q zyx /usr/bin/start-pulseaudio-x11 ); then
+    mv /usr/bin/start-pulseaudio-x11 \
+	/usr/bin/start-pulseaudio-x11.orig
+    cat <<EOF > /usr/bin/start-pulseaudio-x11
+#!/usr/bin/env bash
+
+
+#############################################################################
+#############################################################################
+#############################################################################
+# zyx volume default workaround/fix
+do_init_volume=0
+if [ x"\$DISPLAY" != x ] ; then
+    if [ -f "\${HOME}/.pulse_uninit" ]; then
+        do_init_volume=1
+        rm -f "\${HOME}/.pulse_uninit"
+    fi
+fi
+#############################################################################
+#############################################################################
+#############################################################################
+
+
+EOF
+
+    chmod +x /usr/bin/start-pulseaudio-x11
+    cat /usr/bin/start-pulseaudio-x11.orig \
+	>> /usr/bin/start-pulseaudio-x11
+    cat <<EOFB >> /usr/bin/start-pulseaudio-x11
+
+#############################################################################
+#############################################################################
+#############################################################################
+# volume default workaround/fix
+if ((\$do_init_volume)); then
+    pacmd set-sink-volume \$( pacmd stat 2> /dev/null | grep "^Default sink name" | sed -e 's/^Default sink name: //' ) 0x08000 2>&1 > /dev/null
+fi
+#############################################################################
+#############################################################################
+#############################################################################
+
+
+EOFB
+
+fi

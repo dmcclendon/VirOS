@@ -7,6 +7,8 @@
 rundir=$( dirname $0 )
 cd ${rundir}
 
+rpm -qa --last > /var/log/sysinfo.rpmqalast.txt
+
 for rpm in $( rpm -qa ); do 
     rpm -qi $rpm | \
 	grep "Source RPM" | \
@@ -15,21 +17,10 @@ for rpm in $( rpm -qa ); do
 done 
 
 cat /tmp/sysinfo.srpms \
-    | sort | uniq \
+    | sort \
+    | uniq \
+    | grep -v "(none)" \
     > /var/log/sysinfo.srpms
 
 rm -f /tmp/sysinfo.srpms
 
-mkdir -p /VirOS.prime_rootfs/repo
-
-pushd /VirOS.prime_rootfs/repo >> /var/log/sysinfo.srpms.log 2>&1
-for rpm in $( < /var/log/sysinfo.srpms ); do
-#    yumdownloader gcc >> /var/log/sysinfo.srpms.log 2>&1
-# this worked
-#    yumdownloader --source gcc >> /var/log/sysinfo.srpms.log 2>&1
-# but this seemed to take forever, try with tee next time
-#    yumdownloader --source ${rpm} >> /var/log/sysinfo.srpms.log 2>&1
-#    yumdownloader --source ${rpm} 2>&1 | tee -a /var/log/sysinfo.srpms.log 
-# XXX probably needs munging on the srpm from above (i.e. .srpm)
-done
-popd >> /var/log/sysinfo.srpms.log 2>&1

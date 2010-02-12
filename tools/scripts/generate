@@ -98,7 +98,7 @@ function cleanup_and_exit {
 ## use TMPDIR environment if set
 ##
 
-if [ "x${TMPDIR}" == "x1" ]; then
+if [ "x${TMPDIR}" == "x" ]; then
     default_vopt_tmpdir="/tmp"
 else
     default_vopt_tmpdir="${TMPDIR}"
@@ -112,7 +112,7 @@ fi
 #
 # general vsys options
 #
-vregopt config string "f10"
+vregopt config string "f12"
 vregopt help boolean 0
 vregopt verbose boolean 0 inherit
 vregopt debug boolean 0 inherit
@@ -124,13 +124,21 @@ vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 # phase1-generate options
 #
 # this is the size of the qemu vsi rootfs
-vregopt vsysgen_output_container_size string "7G" inherit
-vregopt vsysgen_distro string "fedora-11" inherit
-vregopt vsysgen_arch string "x86" inherit
-vregopt vsysgen_install_boot_iso string "http://mirrors.kernel.org/pub/fedora/releases/11/Fedora/i386/iso/Fedora-11-i386-netinst.iso" inherit
-vregopt vsysgen_install_boot_iso_sha256sum string "b61cf796fa1602ca003b340ca8073d783576507e88db3499d86640b0d20034cd" inherit
-vregopt vsysgen_distro_config string "f11.ks" inherit
-vregopt vsysgen_boot_cmdline string "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force" inherit
+vregopt vsysgen_output_container_size \
+    string "${v_x_def__output_container_size}" inherit
+vregopt vsysgen_distro \
+    string "${v_x_def__distro}" inherit
+vregopt vsysgen_arch \
+    string "${v_x_def__arch}" inherit
+vregopt vsysgen_install_boot_iso \
+    string "${v_x_def__install_boot_iso}" inherit
+vregopt vsysgen_install_boot_iso_sha256sum \
+    string "${v_x_def__install_boot_iso_sha256sum}" inherit
+vregopt vsysgen_distro_config \
+    string "${v_x_def__distro_config}" inherit
+vregopt vsysgen_boot_cmdline \
+    string "${v_x_def__boot_cmdline}" inherit
+
 vregopt vsysgen_screencast_output string "" inherit
 
 #

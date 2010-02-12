@@ -79,7 +79,15 @@ for instpkg in $instpkgs; do
 	echo -en " is NOT removable\n"
 	rm -f tttmp.deppkgsizes.unsorted
 	rm -f tttmp.deppkgsizes.sorted
-	cat tttmp.rpmetestout | grep "is needed by (installed)" | sed -e 's/.*\(installed\)..//' | sed -e 's/\(.*\)\..*$/\1/' | sort | uniq  > tttmp.dependencies
+	# note the : sed is to strip out the stupid epoch
+	cat tttmp.rpmetestout | \
+	    grep "is needed by (installed)" | \
+	    sed -e 's/.*\(installed\)..//' | \
+	    sed -e 's/\(.*\)\..*$/\1/' | \
+	    sed -e 's/-[0-9]\+:/-/' | \
+	    sort | \
+	    uniq \
+	    > tttmp.dependencies
 	deps=$( cat tttmp.dependencies )
 	for dep in $deps; do
 #	    echo "debug: checking dependency $dep"

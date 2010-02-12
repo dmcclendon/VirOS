@@ -276,6 +276,13 @@ ${gct} --set /apps/panel/general/applet_id_list --type list --list-type string "
 ${gct} --set /apps/gnome-packagekit/frequency_get_upgrades --type string "never"
 ${gct} --set /apps/gnome-packagekit/frequency_get_updates --type string "never"
 
+# lyrics are nice to have easily accessible
+${gct} --set /apps/rhythmbox/plugins/lyrics/active --type bool true
+# notifications annoy me in general
+${gct} --set /apps/rhythmbox/plugins/status-icon/notification-mode --type int 0
+# error code 313... er... this makes closing rb close it, instead of minimize to status-icon
+${gct} --set /apps/rhythmbox/plugins/status-icon/status-icon-mode --type int 2
+
 #############################################################################
 ##
 ## install swifttabs firefox extension

@@ -7,7 +7,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -203,7 +203,7 @@ function usage {
 ## use TMPDIR environment if set
 ##
 
-if [ "x${TMPDIR}" == "x1" ]; then
+if [ "x${TMPDIR}" == "x" ]; then
     default_vopt_tmpdir="/tmp"
 else
     default_vopt_tmpdir="${TMPDIR}"
@@ -268,6 +268,7 @@ export vopt_quiet
 ##
 
 # get distro and arch
+verbose "getting distro and architecture of target host image..."
 get_dna_of_vsi ${input} ${tmpdir}/vsidna
 . ${tmpdir}/vsidna
 
@@ -279,7 +280,12 @@ else
     xmogdir="/usr/lib/viros/ancestors/${distro}/${arch}/vxmogs/${transmogrifier}"
 fi
 
-verbose "xmogdir is ${xmogdir}"
+# sanity check results of get_dna_of_vsi
+if [ ! -d "${xmogdir}" ]; then
+    die "xmogdir __ ${xmogdir} __ is not a directory"
+else
+    verbose "xmogdir is ${xmogdir}"
+fi
 
 pushd ${xmogdir} > /dev/null 2>&1
 tar cf ${tmpdir}/vxmog.tar .
@@ -294,8 +300,10 @@ echo -en "${vopt_vxmogopts}" > ${tmpdir}/vxmogopts
 
 touch ${tmpdir}/qfr.log
 
+verbose "transmogrifying..."
+
 qfakeroot \
-    --quiet \
+    --verbose \
     --guest_smirf \
     --command="${progdir}/${progname}" \
     --qflags="-m ${viros_transmogrify_qmem}" \
@@ -334,7 +342,6 @@ qfakeroot \
     --add_nonvsi_files="${tmpdir}/vxmogopts:/input/vxmogopts" \
     --disk_image="ro:${input}" \
     --outputdir=${tmpdir}/qfakeroot.outputdir \
-    --debug --verbose \
     >> ${tmpdir}/qfr.log 2>&1 &
 qfrpid=$!
 echo "$qfrpid" > ${tmpdir}/qfr.pid
@@ -360,13 +367,10 @@ fi
 ## final output formatting
 ##
 
-# temporary development
-# final version should check if single file...
 numoutputfiles=$( ls -1A ${tmpdir}/qfakeroot.outputdir | wc -l )
 if [ $numoutputfiles -eq 1 ]; then
     mv ${tmpdir}/qfakeroot.outputdir/* ${output}
 else
-    mkdir -p ${output}
     mv ${tmpdir}/qfakeroot.outputdir ${output}
 fi
 

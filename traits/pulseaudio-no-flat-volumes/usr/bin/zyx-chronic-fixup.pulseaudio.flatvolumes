@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+#
+#############################################################################
+#
+# zyx-chronic-fixup.pulseaudio: the cess pool of inelegant workarounds (pafv)
+# 
+#############################################################################
+#
+# Copyright 2009-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+# This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, version 3 of the License.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+
+#############################################################################
+#
+# zyx-chronic-fixup: the cess pool of inelegant workarounds
+#
+# This script gets run nightly, to fix up things. 
+#
+#############################################################################
+
+
+
+#############################################################################
+##
+## constants
+##
+
+
+
+#############################################################################
+#############################################################################
+##
+## functions
+##
+#############################################################################
+
+
+#############################################################################
+#############################################################################
+##
+## main
+##
+#############################################################################
+
+
+if $( ! grep -q '^flat-volumes = no' /etc/pulse/daemon.conf ); then
+
+    cat <<EOF >> /etc/pulse/daemon.conf 
+
+; HEALTH HAZARD (eardrum blowout occured without this, well documented on net)
+flat-volumes = no
+
+EOF
+
+fi
+

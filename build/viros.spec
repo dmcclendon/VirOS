@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.6.2009_12_21
+Version:	0.6.2010_02_12
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -48,6 +48,25 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Feb 12 2010 Douglas McClendon <dmc@viros.org> - 0.6.2010_02_12
+- misc cleanups
+- initrd to initramfs
+- vxmog: correctly clean up other kernels
+- f-zyx: selinux initialization as per contemporary mkinitrd
+- synthesize: removed some acpi= workarounds, added qreaper workaround
+- style: decided x$ is needless (until I see proof otherwise)
+- bugs: TMPDIR environment checking corrected
+- smirfgen/xmog: ancestor bootsplash integration
+- smirfgen: put kmods in natural subdirs
+- smirfgen: parse ldd output a bit better
+- zbuild: new smirfgen only xmog mode (zyx-smirfgen xmog)
+
+* Wed Jan 18 2010 Douglas McClendon <dmc@viros.org> - 0.6.2010_01_20
+- for the actual build of Guitar-ZyX-0.4.1
+
+* Mon Jan 18 2010 Douglas McClendon <dmc@viros.org> - 0.6.2010_01_18
+- for Guitar-ZyX-0.4.1
+
 * Mon Dec 21 2009 Douglas McClendon <dmc@viros.org> - 0.6.2009_12_21
 - new mutateopt of save_traits to put trait source in output
 - new trait:/trait-install/config.vml for trait dependencies

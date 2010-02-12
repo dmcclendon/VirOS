@@ -30,10 +30,9 @@ services  --disabled=network,sshd,nfs,nfslock --enabled=NetworkManager
 ###timezone  US/Eastern
 timezone  America/Denver
 # Disk partitioning information
-### todo: can this be set in .vml as an synthopt?
-###part /  --fstype="ext4" --size=3072 --bytes-per-inode=4096
-### note: bytes-per-inode is a depricated option
-part /  --fstype="ext3" --size=4096
+### todo: make this settable in .vml as a synthopt
+# note: unsure if --grow --asprimary --ondisk=sda are really needed
+part /  --fstype=ext3 --size=4096 --grow --asprimary --ondisk=sda
 
 %post
 # FIXME: it'd be better to get this installed from a package

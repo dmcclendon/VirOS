@@ -114,7 +114,9 @@ if [ -L ${targetroot}/boot/kernel-liveos-default ]; then
 	sed -e 's/.*vmlinuz-//' )
 else
     # this gets the latest kernel version
-    use_kernel_version="$( chroot ${targetroot} rpm -q $( chroot ${targetroot} rpm -qa --last | grep kernel-2.6 | head -1 | awk '{print $1}' ) | sed -e 's/^kernel-//' )"
+#    use_kernel_version="$( chroot ${targetroot} rpm -q $( chroot ${targetroot} rpm -qa --last | grep kernel-2.6 | head -1 | awk '{print $1}' ) | sed -e 's/^kernel-//' )"
+    # TOFIX: this method is needed as somehow some trait is pulling back in an original kernel
+    use_kernel_version="$( ls -1A --sort=version ${targetroot}/boot/vmlinuz-* | tail -1 | sed -e 's/.*vmlinuz-//' )"
 fi
 echo "ukv $use_kernel_version"
 
@@ -239,6 +241,11 @@ rm -vf ${targetroot}/var/log/*vsys*
 verbose "cleaninug up /tmp..."
 rm -rvf ${targetroot}/tmp/*
 
+# hopefully I fixed the problem that was causing this elsewhere
+verbose "ensuring /tmp perms..."
+chmod 777 ${targetroot}/tmp
+chmod +t ${targetroot}/tmp
+
 verbose "configuring target bootloader"
 
 
@@ -344,7 +351,7 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 
     if (( $bootloader_autojam_mode )); then
 	isolinux_autojam_entry="label autojam
-  menu label AutoJam Mode 
+  menu label AutoJam
   kernel /boot/vmlinuz.1
   append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg autojam "
     else
@@ -389,7 +396,7 @@ menu color hotkey 7 #ffffffff #ff000000
 label linux
   menu label ${boot_label}
   kernel /boot/vmlinuz.1
-  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append}
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append} 
 ${isolinux_autojam_entry}
 ${isolinux_ajro_entry}
 ${isolinux_hhuey_entry}

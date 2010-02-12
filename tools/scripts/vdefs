@@ -3,13 +3,9 @@
 # common viros system constant definitions
 #
 
-#viros_synthesize_qmem=320
-# f10: 512 worked, 320 did not, 384 did
-#viros_synthesize_qmem=512
-# 384 seemed to work for non-updates case
-#viros_synthesize_qmem=384
-# sigh, 512 wasn't enough for f10+updates, but 768 worked
-viros_synthesize_qmem=768
+
+# testing
+viros_synthesize_qmem=512
 # f10: 256 seems to be OOMkilled???
 #viros_mutate_qmem=256
 viros_mutate_qmem=512
@@ -27,3 +23,32 @@ qrap_host_ip=10.0.2.2
 
 vsys_vnc_portmin=5901
 vsys_vnc_portmax=5909
+
+# none/writeback/writethrough/dynamic
+#
+#viros_qemu_cache_type="none"
+#viros_qemu_cache_type="writeback"
+#viros_qemu_cache_type="writethrough"
+#viros_qemu_cache_type="dynamic"
+#
+# dynamic means that if qemu version is >= 0.11.1, writethrough will
+# be used, else writeback.  This is due to the impression I get from
+# various net/fedora-bugzilla comments that the f11 stock version of
+# qemu somehow butchered qcow2 performance to the point where this
+# makes sense, and qcow2 performance even became an official feature
+# of f12.  Wow, serious performance regression fixes as 'features'...
+#
+viros_qemu_cache_type="dynamic"
+
+# here, x implies valid for synth/mutate/xmog
+v_x_def__output_container_size="7G"
+v_x_def__distro="zyx-0.5"
+v_x_def__arch="x86"
+v_x_def__install_boot_iso="http://mirrors.kernel.org/pub/fedora/releases/12/Fedora/i386/iso/Fedora-12-i386-netinst.iso"
+v_x_def__install_boot_iso_sha256sum="128112527bdd4036ec82d678b5d5362aa7a11ac15a73647afd743d7a325f7df9"
+#v_x_def__distro_config="f12.live-x86.fedora.ks"
+v_x_def__distro_config="F-ZyX-0.5.ks"
+# experiment
+#v_x_def__boot_cmdline="initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg acpi=force"
+v_x_def__boot_cmdline="initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg"
+

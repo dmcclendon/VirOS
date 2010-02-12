@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+# viros trait pre-install script for trait: compose.repos
+#
+# options:
+# 
+# mode=install|uninstall
+#
+
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+mode=install
+source ${progdir}/trait-options
+
+if [ "x${mode}" == "xinstall" ]; then
+    rm -rf /etc/yum.repos.d.compose.repos
+elif [ "x${mode}" == "xuninstall" ]; then
+    rm -rf /etc/yum.repos.d.compose.repos
+else
+    echo "compose.repos trait-pre: error: fatal: unknown option mode=${mode}"
+    exit 1
+fi
+
+exit 0

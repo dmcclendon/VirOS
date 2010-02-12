@@ -1,0 +1,11 @@
+[X-GNOME-Metatheme]
+Name=ZyX
+Comment=ZyX default theme
+Type=X-GNOME-Metatheme
+Encoding=UTF-8
+GtkTheme=Nodoka
+MetacityTheme=Nodoka
+IconTheme=ZyX
+NotificationTheme=nodoka
+CursorTheme=Bluecurve
+CursorSize=24

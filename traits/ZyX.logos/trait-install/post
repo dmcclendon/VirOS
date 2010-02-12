@@ -42,6 +42,35 @@ gconftool-2 \
     /schemas/desktop/gnome/background/picture_filename \
     '/etc/zyx/kablui-desktop-background.jpg'
 
+cp -av /usr/share/icons/Mist/* /usr/share/icons/ZyX/
+cat /usr/share/icons/Mist/index.theme | \
+    grep -v "Name\[" | \
+    grep -v "Comment\[" \
+    > /usr/share/icons/ZyX/index.theme
+sed -i -e 's/Mist/ZyX/g' \
+     /usr/share/icons/ZyX/index.theme
+sed -i -n -e \
+    '1h;1!H;${;g;s/Context=Places\nType=Scalable\nMinSize=[0-9]*/Context=Places\nType=Scalable\nMinSize=8/g;p;}' \
+     /usr/share/icons/ZyX/index.theme
+
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type string \
+    /desktop/gnome/interface/icon_theme \
+    'ZyX'
+
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type string \
+    /schemas/desktop/gnome/interface/icon_theme \
+    'ZyX'
+
 
 sed -i \
     -e 's/fedora\-logo\-icon/\/etc\/zyx\/kablui-mainmenu-icon\.png/' \

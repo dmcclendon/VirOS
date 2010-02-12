@@ -46,32 +46,15 @@ function wait_for_io {
 # 15 minutes is the timeout
 wait_for_io 10 11 900
 
-sleep 42
-
-# qemu + f10 + qemu == sucks sucks sucks sucks
-wait_for_io 10 11 900
-
-sleep 42
-
-wait_for_io 10 11 900
-
-sleep 42
-
-wait_for_io 10 11 900
-
-sleep 42
-
-wait_for_io 10 11 900
-
-sleep 42
-
-wait_for_io 10 11 900
-
-sleep 42
-
-wait_for_io 10 11 900
-
-sleep 42
+xdone=0
+while ((!${xdone})); do
+    sleep 60
+    if ( ps auwwx | grep firefox | awk '{print $11}' | grep -q '/usr/lib/firefox' ); then 
+	# this is ridiculous, but so is f11 qemu perf regression
+	sleep 300
+	xdone=1
+    fi
+done
 
 # nice idea, but new save and quit dialog thwarted me
 #ff_win_id=$( runuser - guest -c "env DISPLAY=:0.0 wmctrl -l" | grep "Mozilla Firefox" | awk '{print $1}' )
@@ -80,7 +63,8 @@ sleep 42
 killall firefox
 
 #sleep 7
-sleep 42
+#sleep 42
+sleep 99
 
 # sigh, really horrible place for this, but its just yet another thing to be cleaned up later...
 mkdir /home/guest/.tuxguitar-1.1
@@ -109,12 +93,12 @@ sleep 7
 # needs to have imagemagick installed
 #runuser - guest -c "env DISPLAY=:0.0 import -window root /tmp/output/screenshot.jpg"
 
-rm -rf /home/kablui
-cp -av /tmp/output/guest.cooked /home/kablui
+rm -rf /home/zyxuser
+cp -av /tmp/output/guest.cooked /home/zyxuser
 # probably /usr/bin/kablui should do this
-rm -f /home/kablui/.config/autostart/bakefox.desktop
-chown -R kablui:kablui /home/kablui
-runuser - kablui -c "/usr/bin/kablui"
+rm -f /home/zyxuser/.config/autostart/bakefox.desktop
+chown -R zyxuser:zyxuser /home/zyxuser
+runuser - zyxuser -c "/usr/bin/kablui"
 
 
 pushd /tmp/output
@@ -205,7 +189,7 @@ wait_for_io 10 11 900
 ### HHH XXX VERY fork-zyx specfic, need to copy for g-zyx (or not)
 
 #rm -f /home/guest/.mozilla/firefox/*.default/sessionstore.*
-rm -f /home/kablui/.mozilla/firefox/*.default/sessionstore.*
+rm -f /home/zyxuser/.mozilla/firefox/*.default/sessionstore.*
 
 # ~/.gvfs is 'mounted'
 # shouldn't be though, as above gnome-session-save should log user out
@@ -214,6 +198,14 @@ umount /home/guest/.gvfs
 mv /home/guest /tmp/trash.guest
 rm -rf /tmp/trash.guest
 cp -av /etc/skel /home/guest
+mkdir -p /home/guest/.config/autostart
+cp -av \
+    /usr/share/applications/mozilla-firefox.desktop \
+     /home/guest/.config/autostart/
+mkdir -p /home/guest/zyx.desktop
+cp -av \
+    /usr/share/applications/zyx-liveinstaller.desktop \
+    /home/guest/zyx.desktop/
 chown -R guest:guest /home/guest
 
 /etc/rc.d/init.d/zyx-live unwind
@@ -223,11 +215,13 @@ chown -R guest:guest /home/guest
 #
 # The basic issue here is that ZyX.marinade assumes an adduser guest and
 # gdm autologin user=guest scenario, *AND* that it's output should have
-# kablui as the default user.  Fine for Fork-ZyX and G-ZyX at the moment,
+# zyxuser as the default user.  Fine for Fork-ZyX and G-ZyX at the moment,
 # but really ZyX.marinade should create its own baking user, and restore
 # state completely when done
 if [ -f /etc/gdm/custom.conf ]; then
-    sed -i -e 's/guest/kablui/g' /etc/gdm/custom.conf
+    if ( grep -q -i guitar /etc/system-release ); then
+	sed -i -e 's/guest/zyxuser/g' /etc/gdm/custom.conf
+    fi
 fi
 
 echo -en "\n\nQEMU_DONE_IN_NEED_OF_SHUTDOWN\n\n" > /dev/ttyS0

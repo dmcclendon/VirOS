@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -48,8 +48,8 @@ fodebug "starting..."
 
 # get the (safe)label and uuid of the live media
 # /dev/root is still the cdrom/usb at this point in time
-#LIVEOS_SAFELABEL=$( vol_id -l /dev/root )
-#LIVEOS_UUID=$( vol_id -u /dev/root )
+#LIVEOS_SAFELABEL=$( blkid -s LABEL -o value /dev/root )
+#LIVEOS_UUID=$( blkid -s UUID -o value /dev/root )
 # 
 # new way is via zyx= cmdline arg
 LIVEOS_SAFELABEL="$zyx"
@@ -66,7 +66,7 @@ else
 fi
 
 # handle special formats of pathspec
-if [ "x${pathspec}" == "x" -o "${pathspec}" == "auto" ]; then
+if [ "${pathspec}" == "" -o "${pathspec}" == "auto" ]; then
     # empty or auto pathspec specified, set to default
     pathspec="/boot/LiveOS/zyx/overlay-${LIVEOS_SAFELABEL}"
 elif ( echo $pathspec | grep -v -q "/" ); then
@@ -86,7 +86,7 @@ fi
 fodebug "calculated devspec is ${devspec}"
 
 # load filesystem modules that may be required for overlay
-# TODO: only load these conditionally if vol_id detects a fs that needs them
+# TODO: only load these conditionally if blkid detects a fs that needs them
 #       or find out if they are autoloaded autmatically 
 
 # for typical vfat on usbstick
@@ -121,7 +121,7 @@ if [ "$devspec" == "auto" ]; then
 	if (( $devusable )); then 
 	    blockdev --setro $device
 	    fodebug "about to test mount device $device"
-	    fstype=$( vol_id -t $device )
+	    fstype=$( blkid -s TYPE -o value $device )
 	    if  [ "$fstype" == "vfat" ]; then
 		mountcom="mount -n -t vfat -o ro"
 # ntfs currently unsupported
@@ -161,9 +161,9 @@ if [ "$devspec" == "auto" ]; then
 	    echo -en "0: ignore overlay images, create fresh overlay in ram\n"
 	    candidatenum=1
 	    for candidate in $candidates; do
-		cfslabel="$( /sbin/vol_id -L $candidate )"
-		cuuid="$( /sbin/vol_id -u $candidate )"
-		cfstype="$( /sbin/vol_id -t $candidate )"
+		cfslabel="$( blkid -s LABEL -o value $candidate )"
+		cuuid="$( blkid -s UUID -o value  $candidate )"
+		cfstype="$( blkid -s TYPE -o value $candidate )"
 		echo -en "${candidatenum}: ${candidate} LABEL=${cfslabel} FSTYPE=${cfstype} UUID=${cuuid}\n"
 		candidatenum=$(( $candidatenum + 1 ))
 	    done
@@ -225,13 +225,13 @@ pmounted=0
 if ( blockdev $pdev > /dev/null 2>&1 ); then
     fodebug "about to mount persistence device $pdev"
     mount -n -t auto $pdev /mnt/.LiveOS/overlayfs
-    ofstype="$( /sbin/vol_id -t $pdev )"
+    ofstype="$( /sbin/blkid -s TYPE -o value $pdev )"
     pmounted=1
 fi
 
-if [ "x${reset_overlay}" == "xon" ]; then
+if [ "${reset_overlay}" == "on" ]; then
     if [ -f "/mnt/.LiveOS/overlayfs${pathspec}" ]; then
-	if [ "x${reset_overlay_sizemb}" == "x0" ]; then
+	if [ "${reset_overlay_sizemb}" == "0" ]; then
 	    echo -en "\n\n\nZyX: reinitializing overlay...\n\n\n"
 	    dd if=/dev/zero of="/mnt/.LiveOS/overlayfs${pathspec}" bs=1k count=42 conv=notrunc > /dev/null 2>&1
 	else
@@ -239,11 +239,11 @@ if [ "x${reset_overlay}" == "xon" ]; then
 	    dd if=/dev/zero of="/mnt/.LiveOS/overlayfs${pathspec}" bs=1M count=${reset_overlay_sizemb} > /dev/null 2>&1
 	fi
     else 
-	if [ "x${reset_overlay_sizemb}" == "x0" ]; then
+	if [ "${reset_overlay_sizemb}" == "0" ]; then
 	    echo -en "\n\n\nZyX: could not find overlay, please enter size in MB of desired initial\n"
 	    echo -en "   : overlay, or enter to continue with a temporary RAM overlay.\n"
 	    read reset_overlay_sizemb
-	    if [ "x${reset_overlay_sizemb}x" != "xx" ]; then
+	    if [ "${reset_overlay_sizemb}" != "" ]; then
 		#TODO: error check input
 		echo -en "\n\n\nZyX: initializing overlay to ${reset_overlay_sizemb}MB, this may take a little while...\n\n\n"
 		dd if=/dev/zero of="/mnt/.LiveOS/overlayfs${pathspec}" bs=1M count=${reset_overlay_sizemb} > /dev/null 2>&1

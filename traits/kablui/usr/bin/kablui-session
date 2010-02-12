@@ -280,6 +280,8 @@ function kablui_launch_wait_n_move {
 # remove remembered session (PERHAPS NOT A GREAT IDEA)
 #rm -f .mozilla/firefox/*.default/sessionstore.js 
 
+touch /var/tmp/kablui-session.${USER}.running
+
 # launch window manager
 metacity --sm-client-id default2 &
 # old f9 style
@@ -298,23 +300,42 @@ while (( ! $xdone )); do
     fi
 done
 
+# launch gnome-screensaver (shouldn't this be an xdg autostart?)
+# note: the 422 is to try and avoid a race condition exposed by slow qemu
+# todo: only do 422 if detected qemu environment
+( sleep 422 ; gnome-screensaver < /dev/null > /dev/null 2>&1 ) &
+
+# epic flail (pulse volume default 100% workaorund)
+if [ -f "${HOME}/.pulse/needinit.stock" ]; then
+    if strstr "`cat /proc/cmdline`" autojam ; then
+	if [ -f "${HOME}/.pulse/needinit.jack" ]; then
+	    touch "${HOME}/.pulse/needinit.stock"
+	fi
+    else
+	rm -f "${HOME}/.pulse/needinit.stock" 
+    fi
+    pacmd set-sink-volume $( pacmd stat 2> /dev/null | grep "^Default sink name" | sed -e 's/^Default sink name: //' ) 0x0C000 2>&1 > /dev/null
+fi
+
+
 progress_pipe="/tmp/kasplash.${USER}.$$.pipe"
 /etc/zyx/kasplash \
     --pipe="${progress_pipe}" \
     --image=/etc/zyx/kablui-splash-login.img \
-    --text="$( echo -en '       K.A.B.L.U.I. - Initializing...\n\nKick Ass Best LiveOS User Interface' )" \
+    --text="$( echo -en 'Kick Ass Best LiveOS User Interface\n\n                   Initializing ...' )" \
     &
 
 # wait for kabluisplash to be ready enough
 xdone=0
 while (( ! $xdone )); do
     if [ -p "${progress_pipe}" ]; then
-	echo "0.01" > "${progress_pipe}"
 	xdone=1
     else
 	sleep 1
     fi
 done
+
+echo "0.01" > "${progress_pipe}"
 
 # experiment, maybe avoid thrashing
 wait_for_io 10 2 60
@@ -429,6 +450,7 @@ fi
 sleep 2
 
 echo "1.0" > "${progress_pipe}"
+rm -f /var/tmp/kablui-session.${USER}.running
 
 exit 0
 

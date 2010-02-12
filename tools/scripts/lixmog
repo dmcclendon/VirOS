@@ -561,7 +561,7 @@ fi
 ## use TMPDIR environment if set
 ##
 
-if [ "x${TMPDIR}" == "x1" ]; then
+if [ "x${TMPDIR}" == "x" ]; then
     default_vopt_tmpdir="/tmp"
 else
     default_vopt_tmpdir="${TMPDIR}"

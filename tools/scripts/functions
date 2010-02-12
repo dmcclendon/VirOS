@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -36,7 +36,9 @@
 ## set default values for undefined globals that are used
 ##
 if [ "x${viros_comtrace}" == "x" ]; then
-    viros_comtrace="VirOS-${progname}"
+    # this seems to always be reduntant (but doublecheck before removing comment
+#    viros_comtrace="VirOS-${progname}"
+    viros_comtrace="VirOS"
 fi
 
 if [ "x${vopt_debug}" == "x" ]; then
@@ -101,7 +103,7 @@ function veva {
 
     for logfile in $vlogfiles; do
 	echo "========================================================================" >> $logfile
-	echo "${progname}: BEGIN $( date +%Y-%m-%d:%H:%M:%S ) veva: $@" >> $logfile
+	echo "${progname}: BEGIN $( date +%Y-%m-%d.%H:%M:%S ) veva: $@" >> $logfile
 	echo "------------------------------------------------------------------------" >> $logfile
 	echo "${progname}: status: $@" >> $logfile
     done
@@ -120,7 +122,7 @@ function veva {
 
     for logfile in $vlogfiles; do
 	echo "------------------------------------------------------------------------" >> $logfile
-	echo "${progname}: RV $retval END $( date +%Y-%m-%d:%H:%M:%S ) veva: $@" >> $logfile
+	echo "${progname}: RV $retval END $( date +%Y-%m-%d.%H:%M:%S ) veva: $@" >> $logfile
 	echo "========================================================================" >> $logfile
     done
 
@@ -141,7 +143,7 @@ function vevastupid {
 
     for logfile in $vlogfiles; do
 	echo "========================================================================" >> $logfile
-	echo "${progname}: BEGIN $( date +%Y-%m-%d:%H:%M:%S ) veva: $@" >> $logfile
+	echo "${progname}: BEGIN $( date +%Y-%m-%d.%H:%M:%S ) veva: $@" >> $logfile
 	echo "------------------------------------------------------------------------" >> $logfile
 	echo "${progname}: status: $@" >> $logfile
     done
@@ -168,7 +170,7 @@ function vevastupid {
 
     for logfile in $vlogfiles; do
 	echo "------------------------------------------------------------------------" >> $logfile
-	echo "${progname}: RV $retval END $( date +%Y-%m-%d:%H:%M:%S ) veva: $@" >> $logfile
+	echo "${progname}: RV $retval END $( date +%Y-%m-%d.%H:%M:%S ) veva: $@" >> $logfile
 	echo "========================================================================" >> $logfile
     done
 
@@ -244,7 +246,7 @@ function die_bug {
 # globals used: progname, logfiles(not required)
 #
 function debug {
-    time="$( date +%Y-%m-%d:%H:%M:%S )"
+    time="$( date +%Y-%m-%d.%H:%M:%S )"
     if (($vopt_debug)); then
 	echo "${viros_comtrace}: ${time}: debug: $@"
     fi
@@ -265,7 +267,7 @@ function debugcat {
 	die "file $1 can not be debugcat-ed"
     fi
 
-    time="$( date +%Y-%m-%d:%H:%M:%S )"
+    time="$( date +%Y-%m-%d.%H:%M:%S )"
     if (($vopt_debug)); then
 	echo "${viros_comtrace}: ${time}: debug: catting file $1"
 	cat $1
@@ -284,7 +286,7 @@ function debugcat {
 # globals used: progname, logfiles(not required)
 #
 function verbose {
-    time="$( date +%Y-%m-%d:%H:%M:%S )"
+    time="$( date +%Y-%m-%d.%H:%M:%S )"
     if (($vopt_verbose)); then
 	echo "${viros_comtrace}: ${time}: verbose: $@"
     elif (($vopt_debug)); then
@@ -314,7 +316,7 @@ function status {
 	bequiet=1
     fi
 
-    time="$( date +%Y-%m-%d:%H:%M:%S )"
+    time="$( date +%Y-%m-%d.%H:%M:%S )"
     if ((! $bequiet)); then
 	echo "${progname}: ${time}: status: $@"
     fi
@@ -480,10 +482,12 @@ function install_smirfgen {
 	die "no splitter available"
     fi
     
-    cp -av ${src_dir}/lib/viros/scripts/* \
+    cp -a ${src_dir}/lib/viros/scripts/* \
 	${dest_dir}/lib/viros/scripts/
-    cp -av ${src_dir}/lib/viros/ZyX-Live-OS/* \
+    cp -a ${src_dir}/lib/viros/ZyX-Live-OS/* \
 	${dest_dir}/lib/viros/ZyX-Live-OS/
+
+    verbose "... done"
 }
 
 

@@ -27,7 +27,7 @@
     <entry>
       <key>/apps/panel/objects/zyx_office/launcher_location</key>
       <value>
-        <string>/usr/share/applications/openoffice.org-1.9-writer.desktop</string>
+        <string>/usr/share/applications/openoffice.org-writer.desktop</string>
       </value>
     </entry>
     <entry>

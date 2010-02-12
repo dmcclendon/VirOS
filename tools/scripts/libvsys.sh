@@ -88,3 +88,15 @@ else
     exit 1
 fi
 
+
+# ugh (obviously unroll/remove as time rolls on)
+if $( which qemu > /dev/null 2>&1 ); then
+    if [ "${viros_qemu_cache_type}" == "dynamic" ]; then
+	qemu_version=$( qemu --help 2>&1 | head -1 )
+	if $( echo "${qemu_version}" | grep -q "verson 0\.10" ); then
+	    viros_qemu_cache_type="writeback"
+	else
+	    viros_qemu_cache_type="writethrough"
+	fi
+    fi
+fi

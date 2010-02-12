@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 # Inspired by similar programs from a bunch of other distributions.
 #
@@ -538,7 +538,7 @@ if [ "$vopt_host_vsi" != "none" ]; then
     #
     # run qfakeroot with arg of ro:.vsi
     #
-#	--quiet \
+
     date > ${tmpdir}/qfr.log 
     qfakeroot \
 	--command="${progdir}/${progname}" \
@@ -580,7 +580,6 @@ if [ "$vopt_host_vsi" != "none" ]; then
 	--add_files="${tmpdir}/tng_add_search_paths:/input/tng_add_search_paths" \
 	--disk_image="ro:${vopt_host_vsi}" \
 	--outputdir=${tmpdir}/tng_output \
-	--debug --verbose \
 	>> ${tmpdir}/qfr.log 2>&1 &
     qfrpid=$!
     echo "$qfrpid" > ${tmpdir}/qfr.pid
@@ -635,7 +634,9 @@ fi
 ##
 if [ "${vopt_kversion}" == "__latest" ]; then
     # interpret latest as last installaed
-    vopt_kversion=$( rpm -q $( rpm -qa --last | awk '{print $1}' | grep "^kernel-2.6" | head -1 ) | sed -e 's/^kernel-//' )
+#    vopt_kversion=$( rpm -q $( rpm -qa --last | awk '{print $1}' | grep "^kernel-2.6" | head -1 ) | sed -e 's/^kernel-//' )
+    # TOFIX: this method is needed as somehow some trait is pulling back in an original kernel
+    vopt_kversion="$( ls -1A --sort=version /boot/vmlinuz-* | tail -1 | sed -e 's/.*vmlinuz-//' )"
 fi
 
 
@@ -689,7 +690,10 @@ for ir_bindir in $ir_bindirs; do
     for xfile in $( find ${tmpdir}/initramfs/${ir_bindir} -type f -print ); do
 	debug "checking so deps for file $xfile"
 	if ( ldd $xfile > /dev/null 2>&1 ); then
-	    xlibs=$( ldd $xfile | sed -e 's/.*=>//' | sed -e 's/\s*(0x[0-9a-f]*)//' )
+	    xlibs=$( ldd $xfile | \
+		grep -v "statically linked" | \
+		sed -e 's/.*=>//' | \
+		sed -e 's/\s*(0x[0-9a-f]*)//' )
 	    for xlib in $xlibs; do
 		debug "copying library dependency $xlib"
 		cp --parents $xlib ${tmpdir}/initramfs/
@@ -736,7 +740,10 @@ mkdir -p ${tmpdir}/initramfs/lib/modules/${vopt_kversion}
 status "copying kernel modules to initramfs"
 for mfile in ${modfiles}; do
     debug "copying kernel module $mfile to initramfs ..."
-    cp $mfile ${tmpdir}/initramfs/lib/modules/${vopt_kversion}/
+    mdir=$( dirname "${mfile}" )
+    mdir=$( echo "${mdir}" | sed -e 's/^\/lib\/modules\/[^\/]*//' )
+    mkdir -p ${tmpdir}/initramfs/lib/modules/${vopt_kversion}/${mdir}
+    cp $mfile ${tmpdir}/initramfs/lib/modules/${vopt_kversion}/${mdir}
 done
 
 status "running depmod for initramfs"

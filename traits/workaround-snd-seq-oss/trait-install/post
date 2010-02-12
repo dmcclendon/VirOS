@@ -1,8 +1,18 @@
 #!/bin/bash
 
+# BUG: unknown why this seems to not be showing up
+
+echo "DMCDEBUG: about to append wsso to rc.local, dumping rc.local first"
+cat /etc/rc.d/rc.local
+
 cat <<EOF >> /etc/rc.d/rc.local
 
 ### awaiting module-init-tools-3.x.10 (currently in updates-testing)
 modprobe snd-seq-oss
 
 EOF
+
+echo "DMCDEBUG: done appending wsso to rc.local, dumping rc.local"
+cat /etc/rc.d/rc.local
+echo "DMCDEBUG: done..."
+

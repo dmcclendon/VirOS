@@ -1,0 +1,15 @@
+#!/bin/bash
+
+cat <<EOF >> /etc/rc.d/rc.local
+
+
+#############################################################################
+#
+# This worksaround the pulseaudio HEALTH HAZARD bug
+# 
+zyx-chronic-fixup.pulseaudio.flatvolumes
+#
+#############################################################################
+
+
+EOF

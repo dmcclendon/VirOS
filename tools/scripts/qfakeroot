@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -90,7 +90,7 @@ fi
 ## use TMPDIR environment if set
 ##
 
-if [ "x${TMPDIR}" == "x1" ]; then
+if [ "x${TMPDIR}" == "x" ]; then
     default_vopt_tmpdir="/tmp"
 else
     default_vopt_tmpdir="${TMPDIR}"
@@ -150,7 +150,7 @@ verbose "temporary directory is ${tmpdir}"
 if [ "x${vopt_disk_image}" == "x" ]; then
     use_disk_image=0
     qemu-img create ${tmpdir}/fqdi.img 1G
-    qdiflag="-hda ${tmpdir}/fqdi.img"
+    qdiflag="-drive file=${tmpdir}/fqdi.img,index=0,media=disk,cache=${experiment_cache_mode}"
     disk_image_readonly=1
 else
     use_disk_image=1
@@ -161,11 +161,11 @@ else
 	veva qemu-img create \
 	    -b $( readlink -e ${tmpdir}/disk_image ) \
 	    -f qcow2 ${tmpdir}/qrodi.img
-	qdiflag="-hda ${tmpdir}/qrodi.img"
+	qdiflag="-drive file=${tmpdir}/qrodi.img,index=0,media=disk,cache=${experiment_cache_mode}"
     else
 	disk_image=$vopt_disk_image
 	disk_image_readonly=0
-	qdiflag="-hda ${disk_image}"
+	qdiflag="-drive file=${disk_image},index=0,media=disk,cache=${experiment_cache_mode}"
     fi
 fi
 
@@ -186,8 +186,6 @@ ln -s /proc/mounts /etc/mtab
 mknod /dev/initctl p
 modprobe ata_piix
 modprobe sd_mod
-
-mknod /dev/urandom c 1 9
 
 udevadm settle --timeout=30 || :
 
@@ -300,8 +298,8 @@ if (($vopt_guest_smirf)); then
     host_vsi=$( echo "${vopt_disk_image}" | sed -e 's/^ro://' )
     cat<<EOF >> ${tmpdir}/qfakeroot.smirfgen.cfg
 quiet 0
-debug 1
-verbose 1
+debug 0
+verbose 0
 
 kversion __latest
 host_vsi $host_vsi
@@ -324,11 +322,13 @@ export vopt_debug
 export vopt_verbose
 export vopt_quiet
 
+verbose "running smirfgen for qfr..."
 smirfgen \
     --config=${tmpdir}/qfakeroot.smirfgen.cfg \
     --output=${tmpdir}/qfakeroot.initramfs 
 
 
+verbose "processing..."
 if (($vopt_native)); then
     
     ##
@@ -417,16 +417,32 @@ else
     # certainly since I'm using the qreaper hack, acpi is meaningless.  Though
     # hopefully one day I'll solve both the qreaper necessity, and qemu will
     # provide a working acpi environment.
+
+    # as of qemu 0.11.1 (not sure exactly which release) kqemu must be explicitly enabled,
+    # and one cannot assume that support was enabled during compilation.  Idiots commenting
+    # in redhat bugzilla claim for 2.6 there is no speedup.  I beg to differ by a speedup
+    # factor of at least 100%.  Hardware snobs.  (said knowing that if the VirOS author owned
+    # kvm supported hardware, he probably wouldn't care that much)
+    if $( strings $( which qemu ) | grep -q "-enable-kqemu" ); then
+        if [ -w /dev/kqemu ]; then
+	    vopt_qflags="${vopt_qflags} -enable-kqemu"
+        fi
+    fi
+
+
+# 2nd experiment 2k100202
+#	-append "debug verbose nobootsplash console=ttyS0 acpi=off drop=early:/qfakeroot.init" \
+#
     qemu \
 	${vopt_qflags} \
 	-boot c \
 	-nographic \
 	-kernel ${tmpdir}/qfakeroot.initramfs.kernel \
 	-initrd ${tmpdir}/qfakeroot.initramfs \
-	-append "debug verbose console=ttyS0 acpi=off drop=early:/qfakeroot.init" \
-	-hdd ${tmpdir}/qscratch \
-	-hdb ${tmpdir}/qfakeroot.initramfs.input.tar \
-	-hdc ${tmpdir}/qoutput \
+	-append "debug verbose nobootsplash console=ttyS0 drop=early:/qfakeroot.init" \
+	-drive file=${tmpdir}/qscratch,index=3,media=disk,cache=${viros_qemu_cache_type} \
+	-drive file=${tmpdir}/qfakeroot.initramfs.input.tar,index=1,media=disk,cache=${viros_qemu_cache_type} \
+	-drive file=${tmpdir}/qoutput,index=2,media=disk,cache=${viros_qemu_cache_type} \
 	${qdiflag} \
 	> ${tmpdir}/q.log 2>&1 &
 

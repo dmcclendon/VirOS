@@ -1,0 +1,15 @@
+#!/bin/bash
+
+cat <<EOF >> /etc/rc.d/rc.local
+
+
+#############################################################################
+#
+# This worksaround the IMO bad default of 100% volume for pulseaudio
+# 
+zyx-chronic-fixup.pulseaudio
+#
+#############################################################################
+
+
+EOF
