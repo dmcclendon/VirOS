@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+# only a few (4&5) vts are needed
+rm -f /etc/event.d/tty[1236]

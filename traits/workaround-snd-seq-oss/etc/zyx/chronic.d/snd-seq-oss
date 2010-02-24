@@ -1,0 +1,5 @@
+#!/bin/bash
+
+### awaiting module-init-tools-3.x.10 (currently in updates-testing)
+### (but problem still seems to exist in f12+updates)
+modprobe snd-seq-oss

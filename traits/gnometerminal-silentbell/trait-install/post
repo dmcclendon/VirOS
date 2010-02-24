@@ -1,0 +1,27 @@
+#!/bin/bash
+
+##
+## get runtime environment
+##
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+# silent bell for gnome-terminal
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type bool \
+    /apps/gnome-terminal/profiles/Default/silent_bell \
+    true
+
+gconftool-2 \
+    --direct \
+    --config-source \
+    xml:readwrite:/etc/gconf/gconf.xml.defaults \
+    --set \
+    --type bool \
+    /schemas/apps/gnome-terminal/profiles/Default/silent_bell \
+    true

@@ -442,8 +442,8 @@ function configure_udev {
 
     # todo: better verbose output
     case $rootfs_device in
-	ISOLABEL=*)
-            isolabel=${rootfs_device#ISOLABEL=}
+	CDLABEL=*)
+            isolabel=${rootfs_device#CDLABEL=}
 	    # TODO: research ATTRS{media} possibilities
 	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
 KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"

@@ -46,6 +46,7 @@ traits splice-service::enable=NetworkManager
 traits splice-workaround-gsd-kb
 traits splice-workaround-gsd-ss
 traits splice-workaround-consoleperms
+traits splice-workaround-loadcyclewear
 
 # needed by xmog, perhaps could be temp installed by xmog into throwaway rootfs
 traits splice-software::install=squashfs-tools
@@ -65,6 +66,8 @@ traits splice-xdg-autostart-lite
 traits splice-genericize-gdm
 traits splice-ZyX.brand::distroname="F-ZyX":distroversion="0.5"
 traits splice-ZyX.live
+traits splice-lockdown-firewall
+traits splice-untether-packagekit
 traits splice-zyx-live-iso-to-disk
 traits splice-workaround-gconf-sanity
 # default of 100% volume is not ideal
@@ -72,20 +75,22 @@ traits splice-pulseaudio-default-quarter-volume
 # bootsplash de-theming
 traits splice-die-hotdog
 traits splice-turn-off-nfs
-traits splice-software::install=liveusb-creator
-traits splice-software::install=gparted
+# not zyx compatable yet
+#traits splice-software::install=liveusb-creator
+# theoretically obsoleted by palimpsest
+#traits splice-software::install=gparted
 traits splice-zyx-liveinstaller
 traits splice-ZyX.adduser::username="guest":usercomment="Guest User"
 traits splice-ZyX.gdm::autologin=true:user=guest
 traits splice-ZyX.autostartff::user=guest
 traits splice-F-ZyX.release
-traits splice-zyx-cleanup
+# use this to generate an interesting log of installed packages
+#traits splice-sysinfo
+traits splice-zyx-finalize
 
 # use this if you care about booting the mutated vsi with selinux enabled
 #traits splice-restorecon
 
-# use this to generate an interesting log of installed packages
-#traits splice-sysinfo
 
 traits splice-compose.repos.f12::no_mutate_prepost=1:mode=uninstall 
 
@@ -96,7 +101,8 @@ traits splice-compose.repos.f12::no_mutate_prepost=1:mode=uninstall
 
 vxmogopts bootloader=isolinux
 vxmogopts bootloader_append="splash"
-
+vxmogopts bootloader_splash=/etc/zyx/bootsplash.isolinux.jpg
+vxmogopts bootloader_append="rd_NO_MD rd_NO_LVM rd_NO_LUKS noiswmd splash"
 
 # experiment to get autoticker up 2 rows
 vxmogopts bootloader_isolinux_menu_margin=20
@@ -110,6 +116,9 @@ vxmogopts bootloader_isolinux_menu_timeoutrow=14
 vxmogopts bootloader_isolinux_menu_vshift=3
 
 
+vxmogopts uncompressed_size_mb=3584
+
+#vxmogopts fs_label=__random
 vxmogopts fs_label=F-ZyX
 vxmogopts selinux=1
 vxmogopts prelink=1

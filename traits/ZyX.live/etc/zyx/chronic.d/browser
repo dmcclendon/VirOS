@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+firefox_dir=$( ls -d /usr/lib/firefox-* | tail -1 ) 
+if [ ! -d "${firefox_dir}" ]; then
+    echo "fatal: firefox directory does not seem to exist - ${firefox_dir}"
+fi
+
+if ( grep -q fedoraproject ${firefox_dir}/defaults/preferences/all-redhat.js ); then
+    # no longer needed?
+    sed -i \
+	-e 's/\"http.*fedoraproject.*\"/file\:\/\/\//' \
+	${firefox_dir}/defaults/preferences/all-redhat.js 
+fi
+
+if ( grep -q Fedora ${firefox_dir}/defaults/preferences/all-redhat.js ); then
+    # useragent
+    sed -i \
+	-e 's/Fedora/Generic/' \
+	${firefox_dir}/defaults/preferences/all-redhat.js 
+fi
+
+if ( ! diff -q /etc/zyx/browser/firefox-branding.js ${firefox_dir}/defaults/preferences/firefox-branding.js ); then
+    cp -av /etc/zyx/browser/firefox-branding.js \
+	${firefox_dir}/defaults/preferences/firefox-branding.js
+fi
+
+if ( ! diff -q /etc/zyx/browser/bookmarks.html /usr/share/bookmarks/default-bookmarks.html ); then
+    mv /usr/share/bookmarks/default-bookmarks.html \
+	/usr/share/bookmarks/pre-zyx-default-bookmarks.html 
+    cp -av /etc/zyx/browser/bookmarks.html \
+	/usr/share/bookmarks/default-bookmarks.html
+fi
+
+
+if ( ! diff -q /etc/zyx/browser/browserconfig.properties ${firefox_dir}/browserconfig.properties ); then
+    cp -av /etc/zyx/browser/browserconfig.properties \
+	${firefox_dir}/browserconfig.properties
+fi
+
+if ( ! diff -q /etc/zyx/browser/old-homepage-default.properties ${firefox_dir}/old-homepage-default.properties ); then
+    cp -av /etc/zyx/browser/old-homepage-default.properties \
+	${firefox_dir}/old-homepage-default.properties
+fi
+
+if ( ! diff -q /etc/zyx/browser/prefs.js ${firefox_dir}/defaults/profile/prefs.js ); then
+    cp -av /etc/zyx/browser/prefs.js \
+	${firefox_dir}/defaults/profile/prefs.js
+fi
+
+# temporary workaround for the seemingly uncustomizable default search engine
+rm -f ${firefox_dir}/searchplugins/yahoo.xml
+rm -f ${firefox_dir}/searchplugins/answers.xml
+rm -f ${firefox_dir}/searchplugins/amazondotcom.xml
+rm -f ${firefox_dir}/searchplugins/eBay.xml
+rm -f ${firefox_dir}/searchplugins/google.xml
+rm -f ${firefox_dir}/searchplugins/yahoo.xml
+
+

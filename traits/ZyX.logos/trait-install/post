@@ -52,6 +52,7 @@ sed -i -e 's/Mist/ZyX/g' \
 sed -i -n -e \
     '1h;1!H;${;g;s/Context=Places\nType=Scalable\nMinSize=[0-9]*/Context=Places\nType=Scalable\nMinSize=8/g;p;}' \
      /usr/share/icons/ZyX/index.theme
+gtk-update-icon-cache --force /usr/share/icons/ZyX
 
 gconftool-2 \
     --direct \

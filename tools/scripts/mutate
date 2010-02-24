@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -339,6 +339,7 @@ vregopt quiet boolean 0 inherit
 vregopt mirrorlist string "" inherit
 vregopt mutateopts cumulative "" inherit
 vregopt traits cumulative "" inherit
+vregopt add_trait_dir cumulative "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 vparseopt "$@"
 

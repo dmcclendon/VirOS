@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+step_inc=100
+step_min=100
+step_max=999
+step_us=100
+
+if [ "${1}" == "in" ]; then
+    mode=in
+elif [ "${1}" == "out" ]; then
+    mode=out
+else
+    echo "usage: zyx-fade <in|out>"
+    exit 1
+fi
+
+connected_outputs=$( xrandr | grep "^.* connected" | awk '{print $1}' )
+
+step=${step_min}
+while (( ${step} <= ${step_max} )); do 
+    if [ "${mode}" == "out" ]; then
+	gamma="0.$(( 1000 - ${step} ))"
+    else
+	gamma="0.${step}"
+    fi
+
+    for output in ${connected_outputs}; do
+	xrandr --output "${output}" --brightness "${gamma}"
+    done
+
+    step=$(( ${step} + ${step_inc} ))
+    usleep ${step_us}
+done
+
+if [ "${mode}" == "out" ]; then
+    for output in ${connected_outputs}; do
+	xrandr --output "${output}" --brightness 0.0
+    done
+else
+    for output in ${connected_outputs}; do
+	xrandr --output "${output}" --brightness 1.0
+    done
+fi

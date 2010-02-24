@@ -286,7 +286,7 @@ sed -i -e  's/Decompressing\ Linux\.\.\./\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \
     ${targetisodir}/boot/vmlinuz.1
 
 
-if [ "x${bootloader}" = "xgrub" ]; then
+if [ "${bootloader}" = "grub" ]; then
     bootloader_mkisofs_opts="-b boot/grub/stage2_eltorito -c boot/grub/boot.catalog"
 
     mkdir ${targetisodir}/boot/grub
@@ -308,11 +308,11 @@ splashimage=(cd)/boot/grub/splash.xpm.gz
 hiddenmenu
 title ${boot_label}
         root (cd)
-        kernel /boot/vmlinuz.1 ro quiet root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append}
+        kernel /boot/vmlinuz.1 ro quiet root=CDLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append}
         initrd /boot/initrd.1
 EOF
 
-elif [ "x${bootloader}" = "xisolinux" ]; then
+elif [ "${bootloader}" == "isolinux" ]; then
     bootloader_mkisofs_opts="-b boot/isolinux/isolinux.bin -c boot/isolinux/boot.cat"
 
     mkdir ${targetisodir}/boot/isolinux
@@ -332,9 +332,9 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 
     if (( $md5verify )); then
 	isolinux_verify_entry="label check
-  menu label media check
+  menu label Media Check
   kernel /boot/vmlinuz.1
-  append initrd=/boot/initrd.1  ro quiet root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg check "
+  append initrd=/boot/initrd.1  ro quiet root=CDLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg check "
     else
 	isolinux_verify_entry=""
     fi
@@ -343,7 +343,7 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 	isolinux_sdmc_entry="label sdmc
   menu label Try SuperDeviceMapperCaching
   kernel /boot/vmlinuz.1
-  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg sdmc_megs=16 "
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=CDLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg sdmc_megs=16 "
     else
 	isolinux_sdmc_entry=""
     fi
@@ -352,7 +352,7 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 	isolinux_hhuey_entry="label hhuey
   menu label Try K.A.B.L.U.I.
   kernel /boot/vmlinuz.1
-  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg hhuey "
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=CDLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg hhuey "
     else
 	isolinux_hhuey_entry=""
     fi
@@ -361,7 +361,7 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 	isolinux_autojam_entry="label autojam
   menu label AutoJam
   kernel /boot/vmlinuz.1
-  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg autojam "
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=CDLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg autojam "
     else
 	isolinux_autojam_entry=""
     fi
@@ -370,7 +370,7 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 	isolinux_ajro_entry="label ajro
   menu label Autojam ResetOverlay
   kernel /boot/vmlinuz.1
-  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg autojam reset_overlay "
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=CDLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label}  ${bootloader_append} liveimg autojam reset_overlay "
 	# disable for now
 	isolinux_ajro_entry=""
     else
@@ -379,7 +379,7 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 
     if (( $bootloader_memtest_mode )); then
 	isolinux_memtest_entry="label memtest
-  menu label infinite memory test
+  menu label Infinite Memory Test
   kernel /boot/memtest.86
 "
     else
@@ -388,7 +388,7 @@ elif [ "x${bootloader}" = "xisolinux" ]; then
 
     if (( $bootloader_localboot_mode )); then
 	isolinux_localboot_entry="label normal
-  menu label boot system disk
+  menu label Boot Native System
   localboot 0xffff
 "
     else
@@ -423,7 +423,7 @@ menu color hotkey 7 #ffffffff #ff000000
 label linux
   menu label ${boot_label}
   kernel /boot/vmlinuz.1
-  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append} 
+  append initrd=/boot/initrd.1  ro quiet loglevel=0 root=CDLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append} 
 ${isolinux_autojam_entry}
 ${isolinux_ajro_entry}
 ${isolinux_hhuey_entry}
@@ -432,7 +432,7 @@ ${isolinux_verify_entry}
 label safe
   menu label Safe/Text/Rescue Mode
   kernel /boot/vmlinuz.1
-  append initrd=/boot/initrd.1  ro verbose root=ISOLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append} 1 
+  append initrd=/boot/initrd.1  ro verbose root=CDLABEL=${fs_label} rootfstype=iso9660 zyx=${fs_label} liveimg ${bootloader_append} 1 
 ${isolinux_memtest_entry}
 ${isolinux_localboot_entry}
 EOF
@@ -561,13 +561,19 @@ if (( $selinux )); then
     verbose "done running restorecon again" 
 fi
 
-if [ "x${timestamps}" != "x" ]; then
-    verbose "changing timestamps to $timestamps"
-    # devnull is because I'm too lazy to write an inline generated script
-    # which checks for the type to be f, or adding -f here, as I really
-    # want it to try on everything.
-    /usr/sbin/chroot /scratch/target find / -xdev \
-	-exec touch -t $timestamps '{}' ';' > /dev/null 2>&1
+if [ "${timestamps}" != "" ]; then
+    if [ "${timestamps}" != "none" ]; then
+	verbose "changing timestamps to $timestamps"
+        # devnull is because I'm too lazy to write an inline generated script
+        # which checks for the type to be f, or adding -f here, as I really
+        # want it to try on everything.
+	/usr/sbin/chroot /scratch/target \
+	    find \
+	    / \
+	    -xdev \
+	    -exec touch -t $timestamps '{}' ';' \
+	    > /dev/null 2>&1
+    fi
 fi
 
 sync ; sleep 1 ; sync

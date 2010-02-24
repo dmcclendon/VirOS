@@ -9,49 +9,41 @@ progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
 
 /sbin/chkconfig --add zyx-live
 
-# perhaps should be split out
-xdg-desktop-menu install \
-    --mode system \
-    /usr/share/desktop-directories/zyx-main.directory \
-    /usr/share/applications/generic-zyx-docs.desktop \
-    /usr/share/applications/generic-zyx-relnotes.desktop \
-    /usr/share/applications/generic-zyx-web.desktop
-
-# workaround, maybe fixed upstream in f12
-chmod +x /usr/share/applications/liveinst.desktop
-
-# lock it down I say
-lokkit -f --quiet --nostart --enabled
-
-cp /boot/grub/grub.conf  /boot/grub/grub.conf.stock
-cat /boot/grub/grub.conf.stock | \
-    sed -e 's/^\(\s*kernel.*\)$/\1 acpi=force/' \
-    > /boot/grub/grub.conf
+# testing no acpi=force
+#cp /boot/grub/grub.conf  /boot/grub/grub.conf.stock
+#cat /boot/grub/grub.conf.stock | \
+#    sed -e 's/^\(\s*kernel.*\)$/\1 acpi=force/' \
+#    > /boot/grub/grub.conf
 
 mkdir -p /var/trash/etc/event.d
 cp -a /etc/event.d/rcS /var/trash/etc/event.d/
+# the meat of this is currently just aesthetic, and lvm (and md if cfg)
 sed -i \
     -e 's/rc\.sysinit/init\.d\/rc\.sysinit\.zyx/' \
     /etc/event.d/rcS
-
-rm -f /etc/event.d/tty[1236]
 
 cat <<EOF >> /etc/rc.d/rc.local
 #
 # zyx misc
 #
 
-# stupid Load_Cycle_Count issue (smartctl -i -a /dev/sda)
-if [ -b /dev/sda ]; then
-    hdparm -B 254 /dev/sda >> /var/log/zyx-live.log 2>&1
-fi
-
-modprobe kqemu > /dev/null 2>&1
-chmod 666 /dev/kqemu > /dev/null 2>&1
-
-rm -f /etc/event.d/tty[1236]
+#####################################################################
+#
+# Run ZyX rc.local scriptlets
+#
+# E.g. customizations that may get overwritten on package update
+# 
+#
+for script in \$( ls -1A /etc/zyx/chronic.d ); do
+    if [ -x "/etc/zyx/chronic.d/\${script}" ]; then
+        echo "ZyX: running cronic fixup bootscripts at \$(date)" >> /var/log/zyx-chronic 2>&1
+        "/etc/zyx/chronic.d/\${script}" >> /var/log/zyx-chronic 2>&1
+    fi
+done
+#####################################################################
 
 EOF
+
 
 cat <<EOF >> /etc/sudoers
 ALL guitar-zyx= NOPASSWD: /usr/sbin/pm-hibernate
@@ -63,34 +55,4 @@ for user in $( ls -1A /home ); do
     cp -av /etc/skel/* /home/${user}/
     chown -R ${user}:${user} /home/${user}
 done
-
-# untether packagekit (probably should be its own trait)
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t string /apps/gnome-packagekit/frequency_get_updates never >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t string /apps/gnome-packagekit/frequency_get_upgrades never >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t string /apps/gnome-packagekit/frequency_refresh_cache never >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t bool /apps/gnome-packagekit/notify_available false >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t bool /apps/gnome-packagekit/notify_distro_upgrades false >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t bool /apps/gnome-packagekit/enable_check_firmware false >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t bool /apps/gnome-packagekit/enable_check_hardware false >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t bool /apps/gnome-packagekit/enable_codec_helper false >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t bool /apps/gnome-packagekit/enable_font_helper false >/dev/null
-gconftool-2 --direct --config-source=xml:readwrite:/etc/gconf/gconf.xml.defaults -s -t bool /apps/gnome-packagekit/enable_mime_type_helper false >/dev/null
-
-# silent bell for gnome-terminal (should be own trait)
-gconftool-2 \
-    --direct \
-    --config-source \
-    xml:readwrite:/etc/gconf/gconf.xml.defaults \
-    --set \
-    --type bool \
-    /apps/gnome-terminal/profiles/Default/silent_bell \
-    true
-gconftool-2 \
-    --direct \
-    --config-source \
-    xml:readwrite:/etc/gconf/gconf.xml.defaults \
-    --set \
-    --type bool \
-    /schemas/apps/gnome-terminal/profiles/Default/silent_bell \
-    true
 

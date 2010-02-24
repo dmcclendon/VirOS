@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# stupid Load_Cycle_Count issue (smartctl -i -a /dev/sda)
+# this defaults to not spinning down the main system disk often
+# todo: check /dev/root or derived device instead
+# todo: wait for issue to be completely resolved (seems possibly unlikely)
+if [ -b /dev/sda ]; then
+    hdparm -B 254 /dev/sda
+fi
+

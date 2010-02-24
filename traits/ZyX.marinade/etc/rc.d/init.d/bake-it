@@ -62,26 +62,7 @@ done
 
 killall firefox
 
-#sleep 7
-#sleep 42
 sleep 99
-
-# sigh, really horrible place for this, but its just yet another thing to be cleaned up later...
-mkdir /home/guest/.tuxguitar-1.1
-cat <<EOF > /home/guest/.tuxguitar-1.1/plugin.properties
-#TuxGuitar Plugin Properties
-#Thu Feb 19 07:47:42 GMT-06:00 2009
-org.herac.tuxguitar.player.impl.jsa.MidiPluginList.enabled=false
-# useless (or not sigh... tradeoff, not enough panel space)
-org.herac.tuxguitar.tray.TGTrayPlugin.enabled=false
-# causes error
-org.herac.tuxguitar.io.gervill.MidiToAudioPlugin.enabled=false
-
-EOF
-
-cat <<EOF > /home/guest/.tuxguitar-1.1/config.properties
-midi.port=tuxguitar-oss_1
-EOF
 
 mkdir /tmp/output
 cp -av /var/lib/gdm /tmp/output/varlibgdm.cooked
@@ -90,8 +71,11 @@ cp -av /home/guest /tmp/output/guest.cooked
 rm -f /tmp/output/guest.cooked/.mozilla/firefox/*.default/secmod.db
 runuser - guest -c "env DISPLAY=:0.0 gnome-screensaver-command --deactivate"
 sleep 7
-# needs to have imagemagick installed
-#runuser - guest -c "env DISPLAY=:0.0 import -window root /tmp/output/screenshot.jpg"
+
+# get a screenshot if its easy
+if [ -x /usr/bin/import ]; then
+    runuser - guest -c "env DISPLAY=:0.0 import -window root /tmp/output/screenshot.jpg"
+fi
 
 rm -rf /home/zyxuser
 cp -av /tmp/output/guest.cooked /home/zyxuser

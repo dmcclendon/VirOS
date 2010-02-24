@@ -1,0 +1,5 @@
+#!/bin/bash
+
+sed -i -e \
+    's/^SELINUX=.*/SELINUX=disabled/' \
+    /etc/selinux/config

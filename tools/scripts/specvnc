@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -64,7 +64,7 @@ function usage {
     echo "    [[<viros-command-options>]] "
     echo ""
 
-    if [ "x${1}" == "xclean" ]; then
+    if [ "${1}" == "clean" ]; then
 	exit 0
     else 
 	exit 1
@@ -163,12 +163,11 @@ function launch_specvnc {
 # which did succeed in getting this particular problem solved,
 # but there were other issues and the problem deprioritized for now.
 
-    if [ "x${viros_stupid_vncname}" == "x" ]; then
+    if [ "${viros_stupid_vncname}" == "" ]; then
 	vncname="VirOS___Synthesis___Monitor    "
     else
-	vncname="${viros_stupid_vncname}"
+	vncname="${viros_stupid_vncname}    "
     fi
-#    vncname="VirOS Synthesis Monitor    "
     vevastupid env HOME=${specvnc_confdir} vncserver :${specvnc_display} \
 	-name "${vncname}" \
 	-depth 16 \

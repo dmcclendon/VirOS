@@ -1,0 +1,28 @@
+#!/bin/bash
+
+##
+## get runtime environment
+##
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+hostname=localhost.localdomain
+source ${progdir}/trait-options
+
+shorthostname=$( echo "${hostname}" | sed -e 's/\([^\.]*\)\.\(.*\)/\1/' )
+domain=$( echo "${hostname}" | sed -e 's/\([^\.]*\)\.\(.*\)/\2/' )
+
+cat <<EOF > /etc/hosts
+
+# Do not remove the following line, or various programs
+# that require network functionality will fail.
+127.0.0.1 localhost.localdomain localhost localhost ${shorthostname}.${domain} ${shorthostname}
+::1 localhost6.localdomain6 localhost6 ${shorthostname}.${domain}6 ${shorthostname}6
+EOF
+
+
+cat <<EOF > /etc/sysconfig/network
+NETWORKING=yes
+HOSTNAME=${shorthostname}.${domain}
+EOF

@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -96,7 +96,7 @@ function vfindfile {
 		else
 		    for suffix in $suffixes; do
 			# this used to be "x...", I have no idea why I put this here
-			if [ "x${suffix}" != "x" ]; then
+			if [ "${suffix}" != "" ]; then
 			    if [ -f "${searchpath}/${targetfile}.${suffix}" ]; then
 				targetfile="${searchpath}/${targetfile}.${suffix}"
 				searchdone=1
@@ -137,9 +137,9 @@ function vregopt {
     #
     # possibly inherit the default/initial value from the environment
     #
-    if [ "x${opt_inherit}" == "xinherit" ]; then
+    if [ "${opt_inherit}" == "inherit" ]; then
 	eval "inherited_value=\"\$vopt_${opt_name}\""
-	if [ "x${inherited_value}" == "x" ]; then
+	if [ "${inherited_value}" == "" ]; then
 	    opt_init=$3
 	else
 	    opt_init=${inherited_value}
@@ -240,13 +240,13 @@ function vparseopt {
     local i
     defconfig=""
     for (( i=1 ; $i <= ${vopts_numopts} ; i=$(( $i + 1 )) )); do
-	if [ "x${vopts_name[$i]}" == "xconfig" ]; then
+	if [ "${vopts_name[$i]}" == "config" ]; then
 	    defconfig=${vopts_value[$i]}
 	fi
     done
     if ( echo "$@" | grep -vq "\-\-config=" ); then
 	if ( echo "$@" | grep -vq "\-\-strain=" ); then
-	    if [ "x${defconfig}" != "x" ]; then
+	    if [ "${defconfig}" != "" ]; then
 		vopt_read_config ${defconfig}
 	    fi
 	fi
@@ -395,7 +395,7 @@ function vopt_read_config {
 	done
 
 	if (( ! ${found} )); then
-	    if [ "x${LIBVOPT_IGNORE_UNKNOWN_OPTIONS}" != "x" ]; then
+	    if [ "${LIBVOPT_IGNORE_UNKNOWN_OPTIONS}" != "" ]; then
 		true
 		#echo "libvopt.sh: config parser: warning: unknown option $optname"
 	    else
@@ -445,7 +445,7 @@ function vopt_read_config {
     # end function parseline
 
     # handle null config option silently
-    if [ "x${1}" == "x" ]; then return; fi
+    if [ "${1}" == "" ]; then return; fi
 
     configfile_path_to_parse=$( vfindfile "${1}" "vml cfg" ". ${LIBVOPT_CONFIGS_PATHS} ${vopt_add_search_paths}" )
 

@@ -273,9 +273,6 @@ ${gct} --load=${gconf_prefs_xml}/kablui.gnome.object.zyx_search.xml
 ${gct} --set /apps/panel/general/object_id_list --type list --list-type string "[kablui_menu,kablui_term,kablui_drawer,zyx_gterm,zyx_web,zyx_mail,zyx_music,zyx_office,zyx_suspend,zyx_lockscreen,zyx_search]"
 ${gct} --set /apps/panel/general/applet_id_list --type list --list-type string "[kablui_switcher,kablui_windowlist,kablui_monitor,kablui_notification,kablui_clock,kablui_mixer,kablui_cmdline,kablui_brightness,zyx_fus,zyx_show_desktop,zyx_trash]"
 
-${gct} --set /apps/gnome-packagekit/frequency_get_upgrades --type string "never"
-${gct} --set /apps/gnome-packagekit/frequency_get_updates --type string "never"
-
 # lyrics are nice to have easily accessible
 ${gct} --set /apps/rhythmbox/plugins/lyrics/active --type bool true
 # notifications annoy me in general
@@ -366,16 +363,7 @@ fi
 #############################################################################
 ##
 ## install kablui-session
-##
-# old <f10 way
-#if [ -f ${HOME}/.gnome2/session ]; then
-#    mv ${HOME}/.gnome2/session ${HOME}/.gnome2/session.prekablui-session
-#fi
-#cat /usr/lib/kablui/gnome2.session.ks | sed -e "s|___HOME___|${HOME}|" > ${HOME}/.gnome2/session
-#rm -f ${HOME}/.gconf/kablui/kablui-session
-#cp -a /usr/lib/kablui/kablui-session ${HOME}/.gconf/kablui/
 
-# new f10+ way
 ${gct} \
     --set \
     --type list \

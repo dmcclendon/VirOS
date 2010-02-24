@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+sed -n \
+    -i \
+    -e '1h;1!H;${;g;s/\(CTL{name}="Front Playback Switch",.*\\\n\s*CTL{values}=\)"[^"]*"/\1"off"/g;p;}' \
+    /lib/alsa/init/default

@@ -36,26 +36,27 @@ dopackage=0
 # current overrides (need to be script args)
 #
 
-#quickbuild=1
+quickbuild=1
 #domirrorcheck=1
-dosynthesis=1
-doupdate=1
+#dosynthesis=1
+#doupdate=1
 domutate=1
 dobake=1
-dosmirf=1
+#dosmirf=1
 doxmog=1
-dopackage=1
+#dopackage=1
 
 #strain_name=F-ZyX
-strain_name=Fork-ZyX
+#strain_name=Fork-ZyX
 #strain_name=G-ZyX
-#strain_name=Guitar-ZyX
+strain_name=Guitar-ZyX
 #strain_name=D-ZyX
 #strain_name=min
-strain_version="0.9.3"
-#strain_version="0.5.0"
-mirrorlist=/var/mirrors/f12/viros.mirrors.cfg
+#strain_version="0.9.3"
+strain_version="0.5.0"
+#mirrorlist=/var/mirrors/f12/viros.mirrors.cfg
 #mirrorlist=/mnt/big/pub/org/info/mirrors/f12/viros.mirrors.cfg
+mirrorlist=/mnt/zbuild/mirrors/f12/viros.mirrors.cfg
 
 
 workarea=$( pwd )
@@ -141,12 +142,19 @@ if (($domutate)); then
     fi
 
 
+    if (($quickbuild)); then
+	xvmutopts="--traits=unsplice-restorecon"
+    else
+	xvmutopts="--traits=splice-noop"
+    fi
+
     time \
 	${virosdir}/viros mutate \
 	--verbose --debug \
 	--mirrorlist=${mirrorlist} \
 	--tmpdir=${builddir} \
 	--config=${strain} \
+	"${xvmutopts}" \
 	${builddir}/${strain}-mutated.vsi \
 	2>&1 | tee -a ${builddir}/zmakeit.phased.log
     rm -f ${rundir}/${strain}-mutated.vsi
@@ -190,6 +198,7 @@ if (($dobake)); then
 	# retry scenario, i.e. it kills the new one as well
 	eval "( sleep 3600 ; kill -KILL \$( < ${builddir}/vtmp.iter.${iter_datestamp}/vtmp.qrap*/qpid.txt ) ) &"
 
+	
 	time \
 	    env \
 	    vopt_debug=1 \
@@ -242,8 +251,9 @@ if (($doxmog)); then
     # things to override config values with
     xvxmogopts='--vxmogopts=bogus=0'
     if (($quickbuild)); then
-	xvxmogopts="${xvxmogopts} --vxmogopts=md5verify=0"
-	xvxmogopts="${xvxmogopts} --vxmogopts=prelink=0"
+	xvxmogopts+=" --vxmogopts=md5verify=0"
+	xvxmogopts+=" --vxmogopts=prelink=0"
+	xvxmogopts+=" --vxmogopts=timestamps=none"
     fi
 
     time \

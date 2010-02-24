@@ -4,7 +4,7 @@
 ##
 ## kasplash : display a fullscreen splashscreen, with progress meter
 ##
-## Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+## Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 ##
 #############################################################################
 #############################################################################
@@ -67,7 +67,8 @@ DONE_WAIT = 29
 TEST_POLL_INTERVAL = 500
 # amount to add to progress fraction every TEST_POLL_INTERVAL ms
 #TEST_INCREMENT = 0.02
-TEST_INCREMENT = 0.2
+TEST_INCREMENT = 0.1
+#TEST_INCREMENT = 0.2
 
 # window minimum width and height
 KSWIN_MIN_WIDTH = 400
@@ -160,6 +161,8 @@ class kasplashGTK(object):
             sys.exit(1)
             
 
+        os.system("zyx-fade out < /dev/null > /dev/null 2>&1")
+
         #
         # get the global widget handles we will use
         #
@@ -219,6 +222,8 @@ class kasplashGTK(object):
             self.timeout_handler_id_test = \
                 gobject.timeout_add(TEST_POLL_INTERVAL, self.do_periodic_test)
             self.test_progress = 0.0
+
+        os.system("( sleep 2 ; zyx-fade in ) < /dev/null > /dev/null 2>&1 &")
 
     ##
     ## signal handlers
@@ -357,6 +362,7 @@ class kasplashGTK(object):
             self.donewait = self.donewait - 1
             if self.donewait < 0:
                 os.unlink(self.pipe_path)
+                os.system("( sleep 1 ; zyx-fade in ) < /dev/null > /dev/null 2>&1 &")
                 exit(0)
         else:
             # progress has not completed
@@ -387,6 +393,8 @@ class kasplashGTK(object):
                             self.progress = 1.0
                             self.displayed_progress = 1.0
                             self.donewait = DONE_WAIT
+                            os.system("( sleep 1 ; zyx-fade out ) < /dev/null > /dev/null 2>&1 &")
+
                 
             # implement slushy progress metering
             self.displayed_progress = \

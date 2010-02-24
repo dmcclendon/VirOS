@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -312,11 +312,19 @@ if (($vsys_qrap_spawnvnc)); then
 	else
 	    status "starting screencast recording..."
 
-	    vnc2swf -shared -viewonly \
-		-passwd ${vnchome}/.vnc/passwd \
-		-nowindow -startrecording \
-		${vsys_qrap_recvideo}.swf :${vsys_qrap_vdisplay} \
-		> ${vsys_qrap_recvideo}.html &
+# C version of vnc2swf differs from the python version a bit
+#	    vnc2swf -shared -viewonly \
+#		-passwd ${vnchome}/.vnc/passwd \
+#		-nowindow -startrecording \
+#		${vsys_qrap_recvideo}.swf :${vsys_qrap_vdisplay} \
+#		> ${vsys_qrap_recvideo}.html &
+
+	    vnc2swf \
+		-n \
+		-r 4 \
+		-P ${vnchome}/.vnc/passwd \
+		-o ${vsys_qrap_recvideo}.swf \
+		:${vsys_qrap_vdisplay} &
 	fi
     fi
 	
@@ -441,12 +449,14 @@ vopt_qopts="${vopt_qopts} -cpu qemu32,-nx,-pae"
 #vopt_qopts="${vopts_qopts} -net nic,model=i82557b"
 vopt_qopts="${vopt_qopts} -net nic -net user,hostname=zyxhost"
 
-# as of qemu 0.11.1 (not sure exactly which release) kqemu must be explicitly enabled,
-# and one cannot assume that support was enabled during compilation.  Idiots commenting
-# in redhat bugzilla claim for 2.6 there is no speedup.  I beg to differ by a speedup
-# factor of at least 100%.  Hardware snobs.  (said knowing that if the VirOS author owned
-# kvm supported hardware, he probably wouldn't care that much)
-if $( strings $( which qemu ) | grep -q "-enable-kqemu" ); then
+# as of qemu 0.11.1 (not sure exactly which release) kqemu must be 
+# explicitly enabled, and one cannot assume that support was
+# enabled during compilation.  Idiots commenting in redhat
+# bugzilla claim for 2.6 there is no speedup.  I beg to differ by
+# a speedup factor of at least 100%.  Hardware snobs.  (said
+# knowing that if the VirOS author owned kvm supported hardware,
+# he probably wouldn't care that much)
+if $( strings $( which qemu ) | grep -q "\-enable\-kqemu" ); then
     if [ -w /dev/kqemu ]; then
 	vopt_qopts="${vopt_qopts} -enable-kqemu"
     fi
@@ -456,9 +466,14 @@ fi
 numqargs=0
 while (($#)); do
     numqargs=$(($numqargs + 1))
-    qargs[$numqargs]=$( echo $1 | \
-	sed -e "s/QRAP_HOST_IP/${qrap_host_ip}/g" | \
-	sed -e "s/QRAP_HTTPD_PORT/${vsys_qrap_vhttpdport}/g" )
+    # note, this is where the legacy -no-kqemu argument is reimplemented
+    if ( echo "${1}" | grep -q "\-no\-kqemu" ); then
+	vopt_qopts=$( echo "${vopt_qopts}" | sed -e 's/\-enable\-kqemu//g' )
+    else
+	qargs[$numqargs]=$( echo "${1}" | \
+	    sed -e "s/QRAP_HOST_IP/${qrap_host_ip}/g" | \
+	    sed -e "s/QRAP_HTTPD_PORT/${vsys_qrap_vhttpdport}/g" )
+    fi
     shift
 done
 
@@ -481,7 +496,7 @@ if [ "${vsys_qrap_reaper}" != "" ]; then
     qdone=0
     while ((!$qdone)); do
 	if ( grep -q QEMU_DONE_IN_NEED_OF_SHUTDOWN ${qoutputfile} ); then
-	    # HACKHACKHACK: bake-it is currently issuing this just before it
+	    # bake-it is currently issuing this just before it
 	    # does an init 0, so give it time to actually shut down.
 	    sleep 77
 	    debug "killing qemu subprocess once"
