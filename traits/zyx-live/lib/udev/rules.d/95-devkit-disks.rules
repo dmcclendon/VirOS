@@ -1,0 +1,91 @@
+
+# we only care about block devices
+ACTION!="add|change", GOTO="devkit_disks_end"
+SUBSYSTEM!="block", GOTO="devkit_disks_end"
+
+##############################################################################################################
+
+# Probe for partition tables; this really should be part of udev
+#
+
+# ignore non-cdrom ide drivers; these causes loops
+KERNEL=="hd*[!0-9]", ATTR{removable}=="1", DRIVERS=="ide-cs|ide-floppy", GOTO="probe_parttable_end"
+KERNEL=="hd*[0-9]", ATTR{removable}=="1", GOTO="probe_parttable_end"
+
+# don't scan for partition tables on empty discs
+KERNEL=="sr*", ENV{ID_CDROM_MEDIA_TRACK_COUNT}!="?*", GOTO="probe_parttable_end"
+
+# scan for partition table only if we're not a partition
+#
+IMPORT{program}="devkit-disks-part-id $tempnode"
+
+LABEL="probe_parttable_end"
+
+##############################################################################################################
+
+# pick up device-mapper data; this really should be done by rules installed
+# by the device-mapper package
+#
+
+KERNEL!="dm-*", GOTO="device_mapper_end"
+ACTION!="add|change", GOTO="device_mapper_end"
+
+IMPORT{program}="devkit-disks-dm-export %M %m"
+ENV{DKD_DM_NAME}!="?*", GOTO="device_mapper_end"
+
+SYMLINK+="disk/by-id/dm-name-$env{DKD_DM_NAME}"
+ENV{DKD_DM_UUID}=="?*", SYMLINK+="disk/by-id/dm-uuid-$env{DKD_DM_UUID}"
+
+ENV{DKD_DM_STATE}=="SUSPENDED", GOTO="device_mapper_end"
+ENV{DKD_DM_TARGET_TYPES}=="|*error*", GOTO="device_mapper_end"
+
+IMPORT{program}="vol_id --export $tempnode"
+OPTIONS="link_priority=-100"
+ENV{DKD_DM_TARGET_TYPES}=="*snapshot-origin*", OPTIONS="link_priority=-90"
+ENV{ID_FS_USAGE}=="filesystem|other|crypto", ENV{ID_FS_UUID_ENC}=="?*", SYMLINK+="disk/by-uuid/$env{ID_FS_UUID_ENC}"
+ENV{ID_FS_USAGE}=="filesystem|other", ENV{ID_FS_LABEL_ENC}=="?*", SYMLINK+="disk/by-label/$env{ID_FS_LABEL_ENC}"
+
+LABEL="device_mapper_end"
+
+##############################################################################################################
+
+# pick up data from MD components; this really should be done by rules
+# installed by mdadm or the kernel package
+#
+ENV{ID_FS_TYPE}=="linux_raid_member", IMPORT{program}="/sbin/mdadm --examine --export $tempnode"
+
+##############################################################################################################
+
+# Check if disk is capable of ATA smart; this should probably be done by
+# ata_id and usb_id
+#
+
+KERNEL=="sd*[!0-9]", ATTR{removable}=="0", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="disk", IMPORT{program}="devkit-disks-probe-ata-smart $tempnode"
+KERNEL=="sd*[!0-9]", ATTR{removable}=="0", ENV{ID_BUS}=="scsi", ENV{DEVTYPE}=="disk", ENV{ID_VENDOR}=="ATA", IMPORT{program}="devkit-disks-probe-ata-smart $tempnode"
+
+##############################################################################################################
+
+# Example rule for tagging a device with a specific media type. Where and
+# how to store this database needs some thought.
+#
+ATTRS{idVendor}=="050d", ATTRS{idProduct}=="0248", ENV{ID_INSTANCE}=="0:0", ENV{ID_DRIVE_FLASH_CF}="1"
+ATTRS{idVendor}=="050d", ATTRS{idProduct}=="0248", ENV{ID_INSTANCE}=="0:1", ENV{ID_DRIVE_FLASH_MS}="1"
+ATTRS{idVendor}=="050d", ATTRS{idProduct}=="0248", ENV{ID_INSTANCE}=="0:2", ENV{ID_DRIVE_FLASH_SM}="1"
+ATTRS{idVendor}=="050d", ATTRS{idProduct}=="0248", ENV{ID_INSTANCE}=="0:3", ENV{ID_DRIVE_FLASH_SD}="1"
+
+ATTRS{idVendor}=="05e3", ATTRS{idProduct}=="070e", ENV{ID_INSTANCE}=="0:0", ENV{ID_DRIVE_FLASH_CF}="1"
+ATTRS{idVendor}=="05e3", ATTRS{idProduct}=="070e", ENV{ID_INSTANCE}=="0:1", ENV{ID_DRIVE_FLASH_SM}="1"
+ATTRS{idVendor}=="05e3", ATTRS{idProduct}=="070e", ENV{ID_INSTANCE}=="0:2", ENV{ID_DRIVE_FLASH_SD}="1"
+ATTRS{idVendor}=="05e3", ATTRS{idProduct}=="070e", ENV{ID_INSTANCE}=="0:3", ENV{ID_DRIVE_FLASH_MS}="1"
+
+# Apple iPod Video
+#
+ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="1209", ENV{ID_DRIVE_REQUIRES_EJECT}="1", ENV{DKD_PRESENTATION_ICON_NAME}="multimedia-player-ipod-white"
+
+# USB floppy drives
+#
+ATTRS{bInterfaceClass}=="08", ATTRS{bInterfaceSubClass}=="04", ENV{ID_DRIVE_FLOPPY}="1"
+
+##############################################################################################################
+
+LABEL="devkit_disks_end"

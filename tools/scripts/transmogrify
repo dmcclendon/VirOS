@@ -272,6 +272,7 @@ verbose "getting distro and architecture of target host image..."
 get_dna_of_vsi ${input} ${tmpdir}/vsidna
 . ${tmpdir}/vsidna
 
+
 verbose "vsi distro appears to be ${distro}, vsi arch appears to be ${arch}"
 
 if (($viros_devenv)); then

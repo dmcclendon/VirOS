@@ -1,0 +1,235 @@
+#!/bin/bash
+#
+#############################################################################
+#
+# xmog::zyx-smirf: copy of normal zyx-live transmogrify, but output smirf
+#
+#############################################################################
+#
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+# This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, version 3 of the License.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+# note: this file is particularly messy and in need of cleanup
+
+#############################################################################
+##
+## constant definitions
+##
+#viros_prefix=/usr
+viros_prefix=/input/smirfgen/usr
+
+#############################################################################
+##
+## load viros system library
+##
+if [ -f "$( dirname $0 )/libvsys.sh" ]; then
+    source "$( dirname $0 )/libvsys.sh"
+elif [ -f "${viros_prefix}/lib/viros/scripts/libvsys.sh" ]; then 
+    source "${viros_prefix}/lib/viros/scripts/libvsys.sh" 
+else
+    echo "$0: error: fatal: could not load viros system library libvsys.sh"
+    exit 1
+fi
+
+extraroot=/vxmog.input.copy
+targetroot=/vxmog.input.copy/vxmog.input
+targetisodir=/scratch/iso
+
+boot_label="Boot *ZyX LiveOS"
+
+fs_label="zyx-live-$( date +%Y%m%d-%H%M )"
+
+# this default is in line with livecd size
+uncompressed_size_mb=4096
+
+# TODO: this may be removable with ext4
+ext3_blocksize=4096
+
+selinux=0
+
+# serious debugging shortcuts
+# example: debugging why mksquashfs is segfaulting
+debug_skip_tar=0
+debug_skip_smirfgen=0
+
+md5verify=0
+
+bootloader_sdmc_mode=0
+
+bootloader_hhuey_mode=0
+
+bootloader_autojam_mode=0
+
+bootloader_ajro_mode=0
+
+prelink=0
+
+timestamps="199912211221.42"
+
+compression=squashfs
+compression_squashfs_options="-read-queue 64 -write-queue 512"
+
+bootloader=isolinux
+bootloader_splash=none
+bootloader_timeout=42
+bootloader_append=""
+bootloader_welcome="ZyX LiveOS Boot Menu"
+
+bootloader_isolinux_menu_margin="23"
+bootloader_isolinux_menu_width="80"
+bootloader_isolinux_menu_rows="5"
+bootloader_isolinux_menu_tabmsgrow="11"
+bootloader_isolinux_menu_cmdlinerow="11"
+#bootloader_isolinux_menu_startrow="1"
+bootloader_isolinux_menu_vshift="20"
+bootloader_isolinux_menu_endrow="17"
+bootloader_isolinux_menu_timeoutrow="13"
+
+# TODO: (optional via vml) genisoimage_options, -dvd-video, -udf, needs AUDIO_TS and VIDEO_TS
+mkisofs_options="-no-emul-boot -boot-load-size 4 -boot-info-table -J -r -hide-rr-moved"
+
+### TODO: really grub.conf should be respected, and each kernel version along with the
+###       default choice should be reflected in the livecd bootloader config
+
+echo "calculating user_kernel_version"
+if [ -L ${targetroot}/boot/kernel-liveos-default ]; then
+    use_kernel_version=$( readlink -f ${targetroot}/boot/kernel-liveos-default | \
+	sed -e 's/.*vmlinuz-//' )
+else
+    # this gets the latest kernel version
+#    use_kernel_version="$( chroot ${targetroot} rpm -q $( chroot ${targetroot} rpm -qa --last | grep kernel-2.6 | head -1 | awk '{print $1}' ) | sed -e 's/^kernel-//' )"
+    # TOFIX: this method is needed as somehow some trait is pulling back in an original kernel
+    use_kernel_version="$( ls -1A --sort=version ${targetroot}/boot/vmlinuz-* | tail -1 | sed -e 's/.*vmlinuz-//' )"
+fi
+echo "ukv $use_kernel_version"
+
+
+function die {
+    echo "${progname}: FATAL ERROR: $@"
+    exit 1
+}
+
+function verbose {
+    echo "${progname}: verbose: $@"
+}
+
+function status {
+    echo "${progname}: status: $@"
+}
+
+
+verbose "starting"
+
+verbose "reading vxmogopts"
+source /input/vxmogopts
+verbose "printing transmogrifier config"
+cat /input/vxmogopts
+verbose "done printing transmogrifier config"
+
+# generate random fslabel if needed
+if [ "${fs_label}" == "__random" ]; then
+    fs_label="ZyX-$( cat /dev/urandom | tr -dc a-z0-9 | head -c8 )"
+fi
+
+if (( $selinux )); then
+    verbose "initializing selinux"
+    mkdir -p /etc/selinux/targeted
+    cp -av ${targetroot}/etc/selinux/targeted/policy \
+	/etc/selinux/targeted/policy
+    mkdir /selinux
+    mount -t selinuxfs selinuxfs /selinux
+    ${targetroot}/sbin/load_policy
+    ${targetroot}/usr/sbin/setenforce Permissive
+fi
+
+mkdir -p ${targetisodir}/boot/LiveOS/zyx
+
+verbose "creating zyx-live-os fstab"
+cat <<EOF> ${targetroot}/etc/fstab
+/dev/mapper/zyx-liveos-rw  /            ext3    defaults,noatime     0 0
+devpts                     /dev/pts     devpts  gid=5,mode=620       0 0
+tmpfs                      /dev/shm     tmpfs   defaults             0 0
+proc                       /proc        proc    defaults             0 0
+sysfs                      /sys         sysfs   defaults             0 0
+EOF
+
+if (( $selinux )); then
+    tarsel="--selinux"
+    bootappendsel=""
+
+else
+    verbose "disabling selinux on target"
+    tarsel="--no-selinux"
+    bootappendsel="selinux=0"
+    mv ${targetroot}/etc/selinux/config \
+	${targetroot}/etc/selinux.config.disabled
+    echo "SELINUX=disabled" \
+	> ${targetroot}/etc/selinux/config
+fi
+
+##
+## BEGIN de-qemu-ification
+##
+
+# obsolete?
+if [ -f ${targetroot}/etc/modprobe.conf ]; then
+    cp ${targetroot}/etc/modprobe.conf ${targetroot}/etc/modprobe.conf.qemu
+    echo -en "\n" > ${targetroot}/etc/modprobe.conf
+fi
+
+rm -f ${targetroot}/etc/sysconfig/network-scripts/ifcfg-eth0
+rm -f ${targetroot}/boot/initrd*
+rm -f ${targetroot}/etc/X11/xorg.conf
+rm -f ${targetroot}/etc/sysconfig/hwconf
+# stupid lvm and blockid caches
+rm -f ${targetroot}/etc/lvm/cache/.cache
+rm -f ${targetroot}/etc/blkid/blkid.tab
+rm -f ${targetroot}/etc/blkid/blkid.tab.old
+
+##
+## END de-qemu-ification
+##
+
+if (( ! $debug_skip_smirfgen )); then
+
+    verbose "installing smirfgen..."
+    install_smirfgen \
+	"${viros_prefix}" \
+	"${targetroot}/usr"
+
+    verbose "running smirfgen..."
+    chroot ${targetroot} \
+	/usr/bin/smirfgen \
+	--config=ZyX-Live-OS/smirfgen.cfg \
+	--output="/boot/initrd-${use_kernel_version}.zyx.img" \
+	--kversion="${use_kernel_version}"
+
+fi
+
+cp -av \
+    ${targetroot}/boot/initrd-${use_kernel_version}.zyx.img \
+    /output/
+
+cp -av \
+    ${targetroot}/boot/vmlinuz-${use_kernel_version} \
+    /output/
+
+verbose "zyx-smirf transmogrify done"
+exit 0

@@ -190,8 +190,10 @@ function handle_subtrait_vml {
     local trait
     local trait_base
     local trait_opts
+    # XXX cough, die, cough (screams bad code)
     local traits_dir
     local trait_dir
+    local trait_dirs
 
     # arguably this code could be replicated in the two current 
     # callers of handle_subtrait_vml, instead of being here.
@@ -206,20 +208,41 @@ function handle_subtrait_vml {
     # this is a disconcerting use of a global, that is presumed 
     # to be defined, due to the fact that thus function will only
     # ever be called, if libvopt.sh was sourced by libvsys.sh which
-    # defines viros_devenv
+# now
     if (($viros_devenv)); then
-	traits_dir=${viros_devdir}/traits
+	vopt_trait_dirs=". ${vopt_trait_dirs} ${viros_devdir}/traits"
     else
-        traits_dir=${viros_prefix}/lib/viros/traits
+	vopt_trait_dirs=". ${vopt_trait_dirs} ${viros_prefix}/lib/viros/traits"
     fi
 
-    if [ -d "${trait_base}" ]; then
-        trait_dir=$( normalize_path "${trait_base}" )
-    elif [ -d "${traits_dir}/${trait_base}" ]; then
-        trait_dir=$( normalize_path "${traits_dir}/${trait_base}" )
-    else
-	return
+# was
+    # defines viros_devenv
+#    if (($viros_devenv)); then
+#	traits_dir=${viros_devdir}/traits
+#    else
+#        traits_dir=${viros_prefix}/lib/viros/traits
+#    fi
+
+#    if [ -d "${trait_base}" ]; then
+#        trait_dir=$( normalize_path "${trait_base}" )
+#    elif [ -d "${traits_dir}/${trait_base}" ]; then
+#        trait_dir=$( normalize_path "${traits_dir}/${trait_base}" )
+#    else
+#	return
+#    fi
+
+    # iterate over trait directories to find the first that has the target trait
+    trait_dir=""
+    for test_trait_dir in $vopt_trait_dirs; do
+	if [ -d "${test_trait_dir}/${trait_base}" ]; then
+	    trait_dir=$( normalize_path "${test_trait_dir}/${trait_base}" )
+	    break
+	fi
+    done
+    if [ "${trait_dir}" == "" ]; then
+	die "could not find trait ${trait_base}"
     fi
+
 
     if [ -f "${trait_dir}/trait-install/config.vml" ]; then
 	vopt_read_config "${trait_dir}/trait-install/config.vml"
@@ -242,6 +265,12 @@ function vparseopt {
     for (( i=1 ; $i <= ${vopts_numopts} ; i=$(( $i + 1 )) )); do
 	if [ "${vopts_name[$i]}" == "config" ]; then
 	    defconfig=${vopts_value[$i]}
+	    # and even more gross, add the dirname of a config arg to the
+	    # search path for other configs, i.e. so that your main config/strain
+	    # definition can live in one dir, including without full path other
+	    # configs that also live in that dir.
+	    new_config_dir=$( dirname "${defconfig}" )
+	    LIBVOPT_CONFIGS_PATHS="${new_config_dir} ${LIBVOPT_CONFIGS_PATHS}"
 	fi
     done
     if ( echo "$@" | grep -vq "\-\-config=" ); then

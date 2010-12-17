@@ -1,0 +1,3 @@
+#!/bin/bash
+rpm -Uvh /trait-expanded/trait-install/zyx-liveinstaller*.noarch.rpm
+

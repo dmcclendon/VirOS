@@ -1,0 +1,12 @@
+[Icon Theme]
+Name=ZyX
+Comment=ZyX
+Inherits=gnome
+Directories=scalable/places
+
+[scalable/places]
+Context=Places
+MinSize=8
+Size=48
+MaxSize=512
+Type=Scalable

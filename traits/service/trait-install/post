@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# viros trait post-install script for trait: service
+#
+# options/usage
+#
+# enable=<service/list>
+# disable=<service/list>
+#
+# e.g. 
+# --traits=service::enable=sshd
+
+##
+## get runtime environment
+##
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+echo "${progname}: BEGIN XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+echo "${progname}: service managment trait options:"
+cat ${progdir}/trait-options
+
+source ${progdir}/trait-options
+
+if [ "x${enable}" != "x" ]; then
+    echo "${progname}: enabling service: $enable"
+    chkconfig $enable on
+    echo "${progname}: done enabling service: $enable"
+fi
+
+if [ "x${disable}" != "x" ]; then
+    echo "${progname}: disabling service: $disable"
+    chkconfig $disable off
+    echo "${progname}: done disabling service: $disable"
+fi
+
+echo "${progname}: END XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+exit 0
+

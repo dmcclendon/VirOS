@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 
+# if line continuation (f12)
 sed -n \
     -i \
-    -e '1h;1!H;${;g;s/\(CTL{name}="Front Playback Switch",.*\\\n\s*CTL{values}=\)"[^"]*"/\1"off"/g;p;}' \
+    -e '1h;1!H;${;g;s/\(CTL{name}="Front Playback Switch",[^\n]*\n\s*CTL{values}=\)"[^"]*"/\1"off"/g;p;}' \
+    /lib/alsa/init/default
+
+# if no line continuation (f11)
+sed -n \
+    -i \
+    -e '1h;1!H;${;g;s/\(CTL{name}="Front Playback Switch",.*CTL{values}=\)"[^"]*"/\1"off"/g;p;}' \
     /lib/alsa/init/default

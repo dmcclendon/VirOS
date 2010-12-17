@@ -218,6 +218,7 @@ if [ -b /dev/sda ]; then
     dm-parts setup /dev/sda /space/tmp/dm-parts $disk_image_readonly /dev/qfrdi
 fi
 
+ls -l /sbin/qfakeroot.command
 /sbin/qfakeroot.command
 
 if [ -b /dev/sda ]; then

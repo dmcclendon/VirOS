@@ -1,0 +1,160 @@
+####
+####
+#### VirOS System Image Generation Configuration
+####
+####
+
+##
+## global configuration
+##
+
+cachedir ~/.viros/cachedir
+
+##
+## phase 1 configuration - synthesis
+##
+
+vsysgen_output_container_size 7G
+vsysgen_distro "zyx-0.6"
+vsysgen_arch "x86"
+vsysgen_install_boot_iso "http://mirrors.kernel.org/pub/fedora/releases/13/Fedora/i386/iso/Fedora-13-i386-netinst.iso"
+vsysgen_install_boot_iso_sha256sum "1a683965fb21fd7342127eb4b5cc0ef007e45fabf6c90d0fd6facfc7d1bdaf89"
+vsysgen_distro_config "f-zyx-0.6.ks" 
+vsysgen_boot_cmdline "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg" 
+
+vsysgen_distro_config f-zyx-0.6.ks
+
+##
+## phase 2 configuration - mutation
+##
+
+traits splice-compose.repos::no_mutate_prepost=1:mode=install 
+
+# this belongs here, but for now is done in zyx-cleanup
+# todo: make a cleaner way to have that done here, probably just
+#       making it a standalone trait
+#traits splice-software::install=generic-release
+
+traits splice-service::disable=network
+traits splice-service::disable=sshd
+traits splice-service::disable=nfs
+traits splice-service::disable=nfslock
+traits splice-service::disable=firstboot
+traits splice-service::disable=setroubleshoot
+traits splice-service::enable=NetworkManager
+
+traits splice-workaround-gsd-kb
+traits splice-workaround-gsd-ss
+traits splice-workaround-consoleperms
+traits splice-workaround-loadcyclewear
+
+# needed by xmog, perhaps could be temp installed by xmog into throwaway rootfs
+
+traits splice-software::install=squashfs-tools
+
+# for space
+traits splice-software::erase=isdn4k-utils
+
+# space, unclear what is pulling it in (@ mandatory only?)
+traits splice-software::erase=ibus-pinyin-db-open-phrase
+traits splice-software::erase=java-1.6.0-openjdk
+traits splice-software::erase=java-1.6.0-openjdk-plugin
+traits splice-software::erase=tzdata-java
+traits splice-software::erase=jline
+traits splice-software::erase=jpackage-utils
+traits splice-software::erase=tcl
+# probably part of the java set
+traits splice-software::erase=rhino
+
+# mystery of spin-kickstarts f13 ks versus what was on the f13 livecd
+traits splice-software::install=acpid
+traits splice-software::install=seahorse
+traits splice-software::install=planner
+traits splice-software::install=usb_modeswitch
+
+# fedora packaging bugs prevent this from working
+#traits splice-software::erase=fedora-icon-theme
+#traits splice-software::erase=fedora-gnome-theme
+#traits splice-software::erase=fedora-screensaver-theme
+
+# abrt goes off on some non fatal gvfs volume thing
+traits splice-software::erase=abrt
+
+# phone home features are lame
+traits splice-software::erase=smolt
+
+# who can live without patch
+traits splice-software::install=patch
+
+# disable some unneeded xdg autostart entries
+# (i.e. kerneloops, gnome-user-share, etc...)
+traits splice-xdg-autostart-lite
+
+traits splice-genericize-gdm
+traits splice-zyx-brand::distroname="F-ZyX":distroversion="0.6"
+traits splice-zyx-live
+traits splice-lockdown-firewall
+traits splice-untether-packagekit
+traits splice-zyx-live-iso-to-disk
+traits splice-workaround-gconf-sanity
+# default of 100% volume is not ideal
+traits splice-pulseaudio-default-quarter-volume
+# bootsplash de-theming
+traits splice-die-hotdog
+traits splice-turn-off-nfs
+# not zyx compatable yet
+#traits splice-software::install=liveusb-creator
+# theoretically obsoleted by palimpsest
+#traits splice-software::install=gparted
+# upstream even
+#traits splice-zyx-liveinstaller
+traits splice-software::install=zyx-liveinstaller
+traits splice-zyx-adduser::username="guest":usercomment="Guest User"
+traits splice-zyx-gdm::autologin=true:user=guest
+traits splice-zyx-autostartff::user=guest
+
+# pull in the smileyshades main menu
+traits splice-zyx-logos
+
+# distro (un)branding
+traits splice-f-zyx.release
+
+# use this to generate an interesting log of installed packages
+#traits splice-sysinfo
+
+traits splice-zyx-finalize
+
+# use this if you care about booting the mutated vsi with selinux enabled
+#traits splice-restorecon
+
+
+traits splice-compose.repos::no_mutate_prepost=1:mode=uninstall 
+
+
+##
+## phase 3 configuration - transmogrification
+##
+
+vxmogopts bootloader=isolinux
+vxmogopts bootloader_append="splash"
+vxmogopts bootloader_splash=/etc/zyx/bootsplash.isolinux.jpg
+vxmogopts bootloader_append="rd_NO_MD rd_NO_LVM rd_NO_LUKS noiswmd splash"
+
+# experiment to get autoticker up 2 rows
+vxmogopts bootloader_isolinux_menu_margin=20
+vxmogopts bootloader_isolinux_menu_width=78
+vxmogopts bootloader_isolinux_menu_rows=6
+vxmogopts bootloader_isolinux_menu_tabmsgrow=12
+vxmogopts bootloader_isolinux_menu_cmdlinerow=12
+vxmogopts bootloader_isolinux_menu_endrow=18
+vxmogopts bootloader_isolinux_menu_timeoutrow=14
+vxmogopts bootloader_isolinux_menu_vshift=3
+
+
+vxmogopts uncompressed_size_mb=3584
+
+#vxmogopts fs_label=__random
+vxmogopts fs_label=F-ZyX
+vxmogopts selinux=1
+vxmogopts prelink=1
+vxmogopts md5verify=1

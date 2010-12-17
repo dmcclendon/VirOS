@@ -27,7 +27,7 @@ cat ${progdir}/trait-options
 
 source ${progdir}/trait-options
 
-if [ "x${update}" == "xyes" ]; then
+if [ "${update}" == "yes" ]; then
     echo "${progname}: updating system software ..."
     yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update glibc
     yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update yum
@@ -36,13 +36,24 @@ if [ "x${update}" == "xyes" ]; then
     echo "${progname}: done updating system software."
 fi
 
-if [ "x${install}" != "x" ]; then
+if [ "${install}" != "" ]; then
     echo "${progname}: installing software: $install"
     yum -y --disableplugin=refresh-packagekit,presto install $install
     echo "${progname}: done installing software: $install"
 fi
 
-if [ "x${erase}" != "x" ]; then
+if [ "${groupinstall}" != "" ]; then
+    echo "${progname}: installing software group: $groupinstall"
+#    yum -y --disableplugin=refresh-packagekit,presto groupinstall $groupinstall
+    yum \
+	-y \
+	--disableplugin=refresh-packagekit,presto \
+	install \
+	$( repoquery -g -l --grouppkgs=all "${groupinstall}" )
+    echo "${progname}: done installing software group: $groupinstall"
+fi
+
+if [ "${erase}" != "" ]; then
     echo "${progname}: uninstalling software: $erase"
     yum -y --disableplugin=refresh-packagekit,presto erase $erase
     echo "${progname}: done uninstalling software: $erase"

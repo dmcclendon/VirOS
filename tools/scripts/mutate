@@ -99,18 +99,25 @@ function target_script_to_run_as_root {
 
     export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/input/bin:/input/sbin"
 
-    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    echo "STATUS: viros mutate - STARTING"
-    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo -en "\n"
+    echo -en "########################################################################\n"
+    echo -en "########################################################################\n"
+    echo -en "##                                                                    ##\n"
+    echo -en "## status: mutate - fedora/x86 - starting                             ##\n"
+    echo -en "##                                                                    ##\n"
+    echo -en "\n"
+
 
     save_traits=0
     if [ -f /input/mutateopts ]; then
 	source /input/mutateopts
     fi
 
-    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    echo "STATUS: viros mutate - creating swap"
-    echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo -en "\n"
+    echo -en "##\n"
+    echo -en "## status: mutate - creating swap\n"
+    echo -en "##\n"
+    echo -en "\n"
 
     swapk=$(( $( cat /proc/meminfo  | grep MemTotal | awk '{print $2}' ) * 1 ))
     dd if=/dev/zero of=/scratch/qswap \
@@ -119,22 +126,34 @@ function target_script_to_run_as_root {
     mkswap /scratch/qswap
     swapon /scratch/qswap
 
-    cat /proc/meminfo
-
-    cat /proc/swaps
+    # debugging
+    #cat /proc/meminfo
+    #cat /proc/swaps
     
-    echo "STATUS: viros mutate - done creating swap - XXXXXXXXXXXXXXXXXXXXXXXXXXX"
-
-    echo "STATUS: viros mutate - initializing selinux XXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo -en "\n"
+    echo -en "##\n"
+    echo -en "## status: mutate - initializing selinux\n"
+    echo -en "##\n"
+    echo -en "\n"
 
     mkdir /selinux
     mount -t selinuxfs selinuxfs /selinux
     
-    echo "STATUS: viros mutate - initializing networking XXXXXXXXXXXXXXXXXXXXXXXX"
+    echo -en "\n"
+    echo -en "##\n"
+    echo -en "## status: mutate - initializing networking\n"
+    echo -en "##\n"
+    echo -en "\n"
+
     ifconfig eth0 10.0.2.42 broadcast 10.0.2.255 netmask 255.255.255.0
     route add default gw 10.0.2.2
 
-    echo "STATUS: viros mutate - initializing target disk mountpoints XXXXXXXXXXX"
+    echo -en "\n"
+    echo -en "##\n"
+    echo -en "## status: mutate - initializing target disk mountpoints\n"
+    echo -en "##\n"
+    echo -en "\n"
+
     mkdir /target
     mount /dev/qfrdi-base-p1 /target
 
@@ -154,12 +173,22 @@ function target_script_to_run_as_root {
 	chroot /target /usr/sbin/setenforce permissive
     fi
     
-    echo "STATUS: viros mutate - applying traits XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo -en "\n"
+    echo -en "##\n"
+    echo -en "## status: mutate - applying traits\n"
+    echo -en "##\n"
+    echo -en "\n"
+
     trait_num=0
     for trait in $( < /input/traitlist ); do
 	trait_num=$(( $trait_num + 1 ))
 
-	echo "STATUS: viros mutate - applying trait number $trait_num : $trait XXXXXX"
+	echo -en "\n"
+	echo -en "##\n"
+	echo -en "## status: mutate - applying trait number $trait_num : $trait\n"
+	echo -en "##\n"
+	echo -en "\n"
+
 	if ( grep -q "no_mutate_prepost=1" \
 	    /input/options.${trait}.${trait_num} ); then
 	    runprepost=0
@@ -184,8 +213,11 @@ function target_script_to_run_as_root {
 	if [ -x /input/base-trait-pre ]; then
 	    if (( $runprepost )); then
 		if [ "x${mutate_webserver_ip}" != "x" ]; then
-		    wget -O /target/tmp/mutate.vsys.mirrorlist.cfg \
+		    wget --quiet -O /target/tmp/mutate.vsys.mirrorlist.cfg \
 			http://${mutate_webserver_ip}:${mutate_webserver_port}/mirrors/${mirror_listconfig}
+		    if (($?)); then
+			echo "ERROR: wget of mirror configuration failed"
+		    fi
 		fi
 		cp /input/base-trait-pre \
 		    /target/trait-expanded/trait-install/base-trait-pre
@@ -210,7 +242,13 @@ function target_script_to_run_as_root {
 	fi
 
 	if [ -x /target/trait-expanded/trait-install/pre ]; then
-	    echo "STATUS: viros mutate - running trait pre script for $trait_num : $trait"
+
+	    echo -en "\n"
+	    echo -en "##\n"
+	    echo -en "## status: mutate - running trait pre script for $trait_num : $trait\n" 
+	    echo -en "##\n"
+	    echo -en "\n"
+
 	    chroot /target /trait-expanded/trait-install/pre
 	fi
 
@@ -223,7 +261,12 @@ function target_script_to_run_as_root {
 	popd
 
 	if [ -x /target/trait-expanded/trait-install/post ]; then
-	    echo "STATUS: viros mutate - running trait post script for $trait_num : $trait"
+	    echo -en "\n"
+	    echo -en "##\n"
+	    echo -en "## status: mutate - running trait post script for $trait_num : $trait\n" 
+	    echo -en "##\n"
+	    echo -en "\n"
+
 	    chroot /target /trait-expanded/trait-install/post
 	fi
 
@@ -249,7 +292,12 @@ function target_script_to_run_as_root {
     umount /target/dev/pts
     umount /target/dev
 
-    echo "STATUS: viros mutate - disabling swap - XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    echo -en "\n"
+    echo -en "##\n"
+    echo -en "## status: mutate - disabling swap\n" 
+    echo -en "##\n"
+    echo -en "\n"
+
     swapoff /scratch/qswap
     rm -f /scratch/qswap
 
@@ -259,7 +307,14 @@ function target_script_to_run_as_root {
     umount /target
     rmdir /target
 
-    echo "qfakeroot: ${progname}: done"
+    echo -en "\n"
+    echo -en "##                                                                    ##\n"
+    echo -en "## status: mutate - fedora/x86 - complete                             ##\n"
+    echo -en "##                                                                    ##\n"
+    echo -en "########################################################################\n"
+    echo -en "########################################################################\n"
+    echo -en "\n"
+
 }
 # run the qfakeroot special function and exit, if being called as such
 if [ "$progname" == "qfakeroot.command" ]; then
@@ -339,7 +394,7 @@ vregopt quiet boolean 0 inherit
 vregopt mirrorlist string "" inherit
 vregopt mutateopts cumulative "" inherit
 vregopt traits cumulative "" inherit
-vregopt add_trait_dir cumulative "" inherit
+vregopt trait_dirs cumulative "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 vparseopt "$@"
 
@@ -423,6 +478,12 @@ while read line; do
     fi
 done < $tmpdir/traitlistnopts
 
+if (($viros_devenv)); then
+    vopt_trait_dirs=". ${vopt_trait_dirs} ${viros_devdir}/traits"
+else
+    vopt_trait_dirs=". ${vopt_trait_dirs} ${viros_prefix}/lib/viros/traits"
+fi
+
 for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
     trait=${traits[$i]}
 
@@ -435,17 +496,15 @@ for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
 
     echo ${trait_base} >> ${tmpdir}/traitlist
 
-    if (($viros_devenv)); then
-	traits_dir=${viros_devdir}/traits
-    else
-	traits_dir=${viros_prefix}/lib/viros/traits
-    fi
-
-    if [ -d "${trait_base}" ]; then
-	trait_dir=$( normalize_path "${trait_base}" )
-    elif [ -d "${traits_dir}/${trait_base}" ]; then
-	trait_dir=$( normalize_path "${traits_dir}/${trait_base}" )
-    else
+    # iterate over trait directories to find the first that has the target trait
+    trait_dir=""
+    for test_trait_dir in $vopt_trait_dirs; do
+	if [ -d "${test_trait_dir}/${trait_base}" ]; then
+	    trait_dir=$( normalize_path "${test_trait_dir}/${trait_base}" )
+	    break
+	fi
+    done
+    if [ "${trait_dir}" == "" ]; then
 	die "could not find trait ${trait_base}"
     fi
 

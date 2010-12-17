@@ -3,8 +3,7 @@ name=Fedora $releasever - $basearch
 failovermethod=priority
 #baseurl=http://download.fedora.redhat.com/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/
 #mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch
-#baseurl=http://mirrors1.kernel.org/fedora/releases/$releasever/Everything/$basearch/os/
-baseurl=http://mirrors1.kernel.org/fedora/releases/11/Everything/i386/os/
+baseurl=http://mirrors1.kernel.org/fedora/releases/$releasever/Everything/$basearch/os/
 enabled=1
 gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora file:///etc/pki/rpm-gpg/RPM-GPG-KEY
@@ -23,7 +22,7 @@ name=Fedora $releasever - Source
 failovermethod=priority
 #baseurl=http://download.fedora.redhat.com/pub/fedora/linux/releases/$releasever/Everything/source/SRPMS/
 #mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=fedora-source-$releasever&arch=$basearch
-baseurl=http://mirrors1.kernel.org/fedora/releases/11/Everything/source/SRPMS/
+baseurl=http://mirrors1.kernel.org/fedora/releases/$releasever/Everything/source/SRPMS/
 enabled=0
 gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora file:///etc/pki/rpm-gpg/RPM-GPG-KEY

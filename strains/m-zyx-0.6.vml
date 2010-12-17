@@ -1,0 +1,62 @@
+####
+####
+#### VirOS System Image Generation Configuration
+####
+####
+
+##
+## global configuration
+##
+
+cachedir ~/.viros/cachedir
+
+##
+## phase 1 configuration - synthesis
+##
+
+vsysgen_output_container_size 7G
+vsysgen_distro fedora-13
+vsysgen_arch x86
+vsysgen_install_boot_iso "http://download.fedoraproject.org/pub/fedora/linux/releases/13/Fedora/i386/iso/Fedora-13-i386-netinst.iso" 
+vsysgen_install_boot_iso_sha256sum "1a683965fb21fd7342127eb4b5cc0ef007e45fabf6c90d0fd6facfc7d1bdaf89"
+vsysgen_distro_config "m-zyx-0.6.ks"
+vsysgen_boot_cmdline "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg" 
+
+vsysgen_distro_config m-zyx-0.6.ks
+
+##
+## phase 2 configuration - mutation
+##
+
+traits splice-compose.repos::no_mutate_prepost=1:mode=install 
+
+traits splice-zyx-brand::distroname="M-ZyX":distroversion="0.1"
+traits splice-zyx-live
+traits splice-zyx-adduser::username="guest":usercomment="Guest User"
+traits splice-zyx-live-iso-to-disk
+traits splice-m-zyx.release
+traits splice-restorecon
+
+traits splice-compose.repos::no_mutate_prepost=1:mode=uninstall 
+
+##
+## phase 3 configuration - transmogrification
+##
+
+vxmogopts bootloader=isolinux
+vxmogopts bootloader_append=""
+vxmogopts bootloader_splash=/usr/share/ZyX/splash/isolinux.jpg
+
+vxmogopts bootloader_isolinux_menu_margin=15
+vxmogopts bootloader_isolinux_menu_width=60
+vxmogopts bootloader_isolinux_menu_rows=4
+vxmogopts bootloader_isolinux_menu_tabmsgrow=11
+vxmogopts bootloader_isolinux_menu_cmdlinerow=11
+vxmogopts bootloader_isolinux_menu_startrow=2
+vxmogopts bootloader_isolinux_menu_endrow=17
+vxmogopts bootloader_isolinux_menu_timeoutrow=13
+
+vxmogopts fs_label=M-ZyX
+vxmogopts selinux=0
+vxmogopts prelink=0
+vxmogopts md5verify=0

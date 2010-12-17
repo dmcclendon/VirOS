@@ -225,7 +225,7 @@ boot_iso_basename=$( basename ${vopt_vsysgen_install_boot_iso} )
 if [ ! -f "${vopt_cachedir}/${boot_iso_basename}" ]; then
 #    pushd "${vopt_cachedir}" > /dev/null 2>&1
     pushd "${vopt_cachedir}" 
-    veva urlgrabber --copy-local "${vopt_vsysgen_install_boot_iso}"
+    veva urlgrabber "${vopt_vsysgen_install_boot_iso}"
     popd > /dev/null 2>&1
 fi
 

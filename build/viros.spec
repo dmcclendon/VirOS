@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.6.2010_02_24
+Version:	0.6.2010_12_17
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -14,6 +14,8 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 #BuildArch:      noarch
 BuildRequires:	bash
 BuildRequires:	gcc
+# for splitter (little whitespace standalone tool)
+BuildRequires:	glibc-static
 BuildRequires:	make
 Requires:	bash
 Requires:	perl 
@@ -51,7 +53,8 @@ rm -rf $RPM_BUILD_ROOT
 # todo: make consistent with zli
 #make install DESTDIR=$RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT PREFIX=${RPM_BUILD_ROOT}/usr
-desktop-file-validate $RPM_BUILD_ROOT/%{_datadir}/applications/viros.desktop
+mkdir -p $RPM_BUILD_ROOT/usr/share/viros
+#desktop-file-validate $RPM_BUILD_ROOT/%{_datadir}/applications/viros.desktop
 
 
 %clean
@@ -60,14 +63,21 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
-%doc AUTHORS COPYING README
+#%doc AUTHORS COPYING README
+%doc README
 %{_bindir}/%{name}
+%{_libdir}/%{name}/
 %{_datadir}/%{name}/
-%{_sbindir}/*
-%attr(0644,root,root) %{_datadir}/applications/%{name}.desktop
+#%{_sbindir}/*
+#%attr(0644,root,root) %{_datadir}/applications/%{name}.desktop
 
 
 %changelog
+
+* Fri Dec 17 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2010_12_17
+- support el6
+- get_dna_of_vsi... hardcoded for el6 temporarily
+- add glibc-static to BuildRequires
 
 * Wed Feb 24 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2010_02_24
 - misc cleanups for Guitar-ZyX-0.5.0

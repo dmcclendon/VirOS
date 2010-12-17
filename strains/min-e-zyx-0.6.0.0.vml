@@ -1,0 +1,61 @@
+####
+####
+#### VirOS System Image Generation Configuration
+####
+####
+
+##
+## global configuration
+##
+
+cachedir ~/.viros/cachedir
+
+##
+## phase 1 configuration - synthesis
+##
+
+vsysgen_output_container_size 7G
+vsysgen_distro el-6
+vsysgen_arch x86
+vsysgen_install_boot_iso "http://ftp.scientificlinux.org/linux/scientific/6rolling/i386/os/images/boot.iso" 
+vsysgen_install_boot_iso_sha256sum "dc376a96ac416de57e2ce69d9d4194c020f8006b529718c2cece92879ff0ca53"
+vsysgen_boot_cmdline "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg" 
+vsysgen_distro_config min-e-zyx-0.6.0.0.ks
+
+##
+## phase 2 configuration - mutation
+##
+
+traits splice-compose.repos.el6::no_mutate_prepost=1:mode=install 
+
+traits splice-zyx-brand::distroname="min-E-ZyX":distroversion="0.1"
+traits splice-zyx-live
+traits splice-software::install=nano
+traits splice-zyx-adduser::username="guest":usercomment="Guest User"
+traits splice-zyx-live-iso-to-disk
+traits splice-min-e-zyx.release
+traits splice-restorecon
+
+traits splice-compose.repos.el6::no_mutate_prepost=1:mode=uninstall 
+
+##
+## phase 3 configuration - transmogrification
+##
+
+vxmogopts bootloader=isolinux
+vxmogopts bootloader_append=""
+vxmogopts bootloader_splash=/usr/share/ZyX/splash/isolinux.jpg
+
+vxmogopts bootloader_isolinux_menu_margin=15
+vxmogopts bootloader_isolinux_menu_width=60
+vxmogopts bootloader_isolinux_menu_rows=4
+vxmogopts bootloader_isolinux_menu_tabmsgrow=11
+vxmogopts bootloader_isolinux_menu_cmdlinerow=11
+vxmogopts bootloader_isolinux_menu_endrow=17
+vxmogopts bootloader_isolinux_menu_timeoutrow=13
+vxmogopts bootloader_isolinux_menu_vshift=3
+
+vxmogopts fs_label=min-E-ZyX
+vxmogopts selinux=0
+vxmogopts prelink=0
+vxmogopts md5verify=0

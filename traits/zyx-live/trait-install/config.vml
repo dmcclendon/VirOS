@@ -1,0 +1,6 @@
+# no gnome-only desktop credits
+traits splice-mainmenu-egostrip
+
+# kablui dep: splashscreen facility
+traits splice-kasplash
+

@@ -1,0 +1,308 @@
+#####################################################################
+#####################################################################
+####
+#### VirOS System Image Generation Configuration
+####
+#####################################################################
+#####################################################################
+
+
+#####################################################################
+##
+## global configuration
+##
+#####################################################################
+
+config min-e-zyx-0.6.0.0.vml
+
+
+#####################################################################
+##
+## phase 1 configuration - synthesis
+##
+#####################################################################
+
+
+#####################################################################
+##
+## phase 2 configuration - mutation
+##
+#####################################################################
+
+# saving trait sources in iso:/source/viros-traits
+# note: Guitar-ZyX will be used as a superset w/source iso
+#mutateopts save_traits=1
+
+# use specific offline-mirrored repos for building (begin wrap)
+traits splice-compose.repos.el6::no_mutate_prepost=1:mode=install 
+
+# this could be used if perhaps you wanted your cached vsi
+# to be based on no updates, and then update via mutate.
+#traits splice-software::update=yes
+
+#####################################################################
+##
+## nuke unwanted ancestor stuff
+##
+
+# "life is too short for selinux" -ted tso
+traits splice-selinux-permissive
+
+
+#####################################################################
+##
+## basic desktop stuffs
+##
+
+traits splice-software::groupinstall="Emacs"
+
+traits splice-software::groupinstall="General Purpose Desktop"
+traits splice-software::groupinstall="X Window System"
+traits splice-software::groupinstall="Fonts"
+traits splice-software::groupinstall="GNOME Desktop Environment"
+traits splice-software::groupinstall="Internet Browser"
+
+traits splice-software::groupinstall="Web Server"
+traits splice-software::groupinstall="PHP Support"
+traits splice-software::groupinstall="MySQL Database client"
+traits splice-software::groupinstall="MySQL Database server"
+
+traits splice-software::groupinstall="Desktop"
+traits splice-software::groupinstall="Desktop Platform"
+traits splice-software::groupinstall="Debugging Tools"
+traits splice-software::groupinstall="Development Tools"
+traits splice-software::groupinstall="Virtualization"
+traits splice-software::groupinstall="Virtualization Client"
+traits splice-software::groupinstall="Virtualization Platform"
+traits splice-software::groupinstall="Virtualization Tools"
+# todo, all others... virt* bla bla
+
+
+
+#####################################################################
+##
+## ancestor workarounds
+##
+
+# HEALTH HAZARD (eardrum blowout) workaround
+traits splice-pulseaudio-no-flat-volumes
+
+# realtime seems to break acer aspire one in f12
+traits splice-pulseaudio-no-realtime
+
+# high-priority seems to (perhaps) cause horrible desktop ui latency
+traits splice-pulseaudio-no-hipri
+
+# my vaio
+traits splice-workaround-vgnn250-speakers-mute-by-default
+
+#####################################################################
+##
+## disable some undesired services
+##
+
+traits splice-service::disable=sshd
+traits splice-service::disable=firstboot
+# todo: why does it fail to start
+traits splice-service::disable=kdump
+# may need to be configured extensively for the ancestor's infra
+traits splice-service::disable=abrtd
+# red hat network
+traits splice-service::disable=rhnsd
+# system statistics
+traits splice-service::disable=sysstat
+# CIM server, whatever that is
+traits splice-service::disable=tog-pegasus
+# NFS stuffs
+traits splice-service::disable=nfslock
+traits splice-service::disable=rpcbind
+traits splice-service::disable=rpcsvcgssd
+traits splice-service::disable=rpcgssd
+traits splice-service::disable=rpcidmapd
+# no ftrace needed by default
+traits splice-service::disable=trace-cmd
+## nothing I use (yet...)
+# ... zeroconf automagic network resource sharing
+traits splice-service::disable=avahi-daemon
+# ... fiberchannel
+traits splice-service::disable=fcoe
+# ... meta virt tools
+traits splice-service::disable=libvirt-guests
+traits splice-service::disable=libvirtd
+# ... ('intel data center bridging software')
+traits splice-service::disable=lldpad
+# ... scsi over IP
+traits splice-service::disable=iscsi
+traits splice-service::disable=iscsid
+# ... bluetooth
+traits splice-service::disable=bluetooth
+
+
+#####################################################################
+##
+## basic ZyX-LiveOS stuff
+##
+
+traits splice-genericize-gdm
+traits splice-zyx-brand::distroname="X-ZyX":distroversion="0.6.0.0"
+# note: see HHH comments in ZyX.marinade bake-it script for current
+# hardcoded assumptions
+traits splice-zyx-adduser::username="zyxuser":usercomment="ZyX System User"
+traits splice-set-hostname::hostname="x-zyx.example.org"
+
+traits splice-zyx-gdm::autologin=true:user=guest
+traits splice-zyx-autostartff::user=guest
+
+# mtools is needed by syslinux below
+traits splice-software::install=mtools
+# for more quiet
+#traits splice-ZyX.syslinux
+traits splice-software::install=syslinux
+
+traits splice-zyx-liveinstaller
+
+traits splice-zyx-gdm::autologin=true:user=guest
+
+traits splice-lockdown-firewall
+
+
+#####################################################################
+##
+## dmc prefs
+##
+
+# kablui desktop prefs
+traits splice-kablui
+
+# email
+traits splice-software::install=thunderbird
+
+# command line
+traits splice-gnometerminal-silentbell
+
+# image processing
+traits splice-software::install=gimp
+traits splice-software::install=inkscape
+
+# good stuff
+traits splice-software::install=lftp
+
+# development
+traits splice-software::install=rpm-build
+
+
+#####################################################################
+##
+## self replication/regeneration (eventually)
+##
+
+#traits splice-viros
+
+
+#####################################################################
+##
+## space saving
+##
+
+# never found myself using this, though it looks interesting
+traits splice-software::erase=sos
+
+
+#####################################################################
+##
+## hardware support
+##
+
+traits splice-hw.acer_aspire_one.fan
+
+
+#####################################################################
+##
+## strain branding
+##
+
+# pull in the smileyshades main menu
+traits splice-zyx-logos
+
+traits unsplice-min-e-zyx.release
+traits splice-x-zyx.release
+
+o
+#####################################################################
+##
+## sysinfo
+##
+
+# use this to generate an interesting log of installed packages
+# this ensures that the trait will not be duplicated from inherited config
+traits unsplice-sysinfo
+# devspeed
+#traits splice-sysinfo
+
+# this ensures that the trait will not be duplicated from inherited config
+traits unsplice-sysinfo.srpms
+##traits splice-sysinfo.srpms
+
+
+#####################################################################
+##
+## cleanup
+##
+
+# this really needs to get run at the end, so resplice
+# note: if this works as desired, motivates a resplice abbreviation
+traits unsplice-zyx-finalize
+traits splice-zyx-finalize
+
+# use specific offline-mirrored repos for building (end wrap)
+traits splice-compose.repos.el6::no_mutate_prepost=1:mode=uninstall 
+
+# use this if you care about booting the mutated vsi with selinux enabled
+traits unsplice-restorecon
+traits splice-restorecon
+
+
+#####################################################################
+##
+## phase 3 configuration - transmogrification
+##
+#####################################################################
+
+vxmogopts uncompressed_size_mb=7711
+vxmogopts fs_label="zyxx0600"
+vxmogopts boot_label="Boot X-ZyX LiveOS"
+vxmogopts bootloader_welcome="X-ZyX Boot Menu"
+
+vxmogopts bootloader_splash=/etc/zyx/bootsplash.isolinux.jpg
+
+# note these settings are the max (row-wise) 
+# given the current splash image fadebox
+vxmogopts bootloader_isolinux_menu_margin=20
+vxmogopts bootloader_isolinux_menu_width=78
+vxmogopts bootloader_isolinux_menu_rows=6
+vxmogopts bootloader_isolinux_menu_tabmsgrow=12
+vxmogopts bootloader_isolinux_menu_cmdlinerow=12
+vxmogopts bootloader_isolinux_menu_endrow=18
+vxmogopts bootloader_isolinux_menu_timeoutrow=14
+vxmogopts bootloader_isolinux_menu_vshift=8
+
+# reshuffles locations of files in the fs for better performance/size
+#vxmogopts bootloader_sdmc_mode=1
+vxmogopts bootloader_sdmc_mode=0
+# adds a Try KABLUI boot option
+vxmogopts bootloader_hhuey_mode=0
+#vxmogopts bootloader_hhuey_mode=1
+
+## devspeed
+# early developement
+#vxmogopts selinux=0
+vxmogopts prelink=1
+vxmogopts md5verify=1
+
+#####################################################################
+#####################################################################
+####
+#### End Strain Configuration
+####
+#####################################################################
+#####################################################################

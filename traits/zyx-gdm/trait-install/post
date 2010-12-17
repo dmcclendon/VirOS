@@ -1,0 +1,53 @@
+#!/bin/bash
+
+##
+## get runtime environment
+##
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+
+autologin=false
+user=none
+source ${progdir}/trait-options
+
+# AutomaticLogin sucks as of about f9 (repeats autologin after logout)
+#autologin_type="Automatic"
+autologin_type="Timed"
+
+if [ "${autologin}" == "true" ]; then
+    cp /etc/gdm/custom.conf /tmp/zyx-live.custom.conf.$$
+    cat /tmp/zyx-live.custom.conf.$$ | \
+	grep -v "AutomaticLoginEnable=" | \
+	grep -v "AutomaticLogin=" | \
+	sed -e "s/^\[daemon\]/\[daemon\]\n${autologin_type}LoginEnable=true\n${autologin_type}Login=${user}/" | \
+	sed -e "s/^\[debug\]/\[debug\]\nEnabled=false/" \
+	> /etc/gdm/custom.conf
+
+    if (! grep -q "\[daemon\]" /etc/gdm/custom.conf); then
+	cp /tmp/zyx-live.custom.conf.$$ /etc/gdm/custom.conf
+	cat << EOF >> /etc/gdm/custom.conf
+
+[daemon]
+${autologin_type}LoginEnable=true
+${autologin_type}Login=${user}
+TimedLoginDelay=11
+EOF
+    fi
+
+    # this is convenient should the need to debug gdm arise
+    if (! grep -q "\[debug\]" /etc/gdm/custom.conf); then
+	cp /tmp/zyx-live.custom.conf.$$ /etc/gdm/custom.conf
+	cat << EOF >> /etc/gdm/custom.conf
+
+[debug]
+#Enabled=true
+Enabled=false
+EOF
+    fi
+
+
+
+    rm -f /tmp/zyx-live.custom.conf.$$ 
+fi
+

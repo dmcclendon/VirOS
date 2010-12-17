@@ -1,0 +1,86 @@
+#!/bin/bash
+#
+# VirOS trait: zyx-finalize
+#
+
+# the dump of things that should be run 'last'
+
+# run rc.local, which will invoke /etc/zyx/chronic.d, such that modifications
+# are visible to the process of prebaking the default users homedirs
+/etc/rc.d/rc.local
+
+cd /root
+#rpm -e --nodeps fedora-bookmarks
+#rpm -e --nodeps fedora-release-notes
+#rpm -e --nodeps fedora-logos
+#yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates install generic-release-notes
+#yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates install generic-logos
+#yumdownloader --disableplugin=refresh-packagekit,presto --enablerepo=updates generic-release
+#yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates install astronomy-bookmarks
+
+# this has to be handled special, due to the fact
+# that the previous command blew away yum configuration
+
+# but this is still really ugly and should be handled better another day
+############# EL6 experiment, here to empty line, theoretically all this handled elsewhere (x-zyx.release)
+#mv /etc/yum.repos.d  /etc/yum.reposdir.mutation
+#mv /etc/yum.reposdir.unmutated /etc/yum.repos.d
+#mv /etc/fedora-release /etc/fedora-release.save
+#mv /etc/issue /etc/issue.save
+#mv /etc/issue.net /etc/issue.net.save
+#rpm -e --nodeps fedora-release
+#rpm -Uvh generic-release-*.noarch.rpm
+#mv /etc/fedora-release.save /etc/fedora-release
+#mv /etc/issue.save /etc/issue
+#mv /etc/issue.net.save /etc/issue.net
+#rm -f generic-release-*.noarch.rpm
+#mv /etc/yum.repos.d  /etc/yum.reposdir.unmutated
+#mv /etc/yum.reposdir.mutation /etc/yum.repos.d
+
+rm -rf /var/cache/yum.vsys
+# note: this seems why this should always be respliced to force
+#       it to happen at the end
+rm -rf /etc/skel.kablui
+
+
+echo "STATUS: cleaning yum cache"
+rm -rvf /var/cache/yum/*
+
+# note: this is in vxmog
+echo "STATUS: cleaning /tmp"
+rm -rvf /tmp/*
+
+rm -rf /etc/yum.repos.d.vsys
+echo "STATUS: cleaning misc"
+rm -f /root/vsys.runpost.log
+
+
+# note: just put logic in vxmog to do this, make more decisions and clean up someday
+# experimental workaround: grubby seems broken under qfakeroot/chroot
+# todo: this should be its own trait
+#echo "STATUS: removing old kernel"
+#numkernels=$( rpm -qa --last | grep "^kernel-2.6" | wc -l )
+#removekernels=$(( $numkernels - 1 ))
+#while (( $removekernels )); do
+#    removekernel=$( rpm -qa --last | grep "^kernel-2.6" | tail -1 | awk '{print $1}' )
+#    rpm -e "${removekernel}"
+#    removekernels=$(( ${removekernels} - 1 ))
+#done
+echo "cleaning up non default kernels"
+for kernel in $( ls -1A /boot/vmlinuz-* ); do
+    if [ "${kernel}" != "/boot/vmlinuz-$( uname -r )" ]; then
+	echo "removing kernel ${kernel}"
+	kpackage=$( rpm -qf "${kernel}" )
+	echo "removing ${kpackage}"
+	rpm -ev "${kpackage}"
+    fi
+done
+
+
+# experimental fix for occasional wierd icon cache problems (blank icons for about half of stuff)
+find /usr/share/icons -mindepth 1 -maxdepth 1 -type d | while read -r THEME; do
+  if [ -f "$THEME/index.theme" ]; then
+    gtk-update-icon-cache -f -q "$THEME"
+  fi
+done
+

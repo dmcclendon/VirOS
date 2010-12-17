@@ -36,32 +36,23 @@ dopackage=0
 # current overrides (need to be script args)
 #
 
-quickbuild=1
-#domirrorcheck=1
-#dosynthesis=1
-#doupdate=1
+#quickbuild=1
+domirrorcheck=1
+dosynthesis=1
+doupdate=1
 domutate=1
-dobake=1
-#dosmirf=1
+#dobake=1
+dosmirf=1
 doxmog=1
-#dopackage=1
+dopackage=1
 
-#strain_name=F-ZyX
-#strain_name=Fork-ZyX
-#strain_name=G-ZyX
-strain_name=Guitar-ZyX
-#strain_name=D-ZyX
-#strain_name=min
-#strain_version="0.9.3"
-strain_version="0.5.0"
-#mirrorlist=/var/mirrors/f12/viros.mirrors.cfg
-#mirrorlist=/mnt/big/pub/org/info/mirrors/f12/viros.mirrors.cfg
-mirrorlist=/mnt/zbuild/mirrors/f12/viros.mirrors.cfg
+#strain="f-zyx-0.6"
+#strain="min-e-zyx-0.6.0"
+strain="x-zyx-0.6.0.0"
+mirrorlist=/var/mirrors/el6/viros.mirrors.cfg
 
 
 workarea=$( pwd )
-
-strain="${strain_name}-${strain_version}"
 
 datestamp=$( date +%Y-%m-%d--%H-%M-%S )
 
@@ -100,7 +91,7 @@ fi
 
 if (($doupdate)); then
 
-    qemu-img create -b ${strain}.vsi \
+    qemu-img create -b $( readlink -f ${strain}.vsi ) \
 	-f qcow2 ${strain}-updated.vsi 
 
     if (($qcow_too_slow)); then
@@ -115,10 +106,10 @@ if (($doupdate)); then
 	--verbose --debug \
 	--mirrorlist=${mirrorlist} \
 	--tmpdir=${builddir} \
-	--traits=splice-compose.repos.f12::no_mutate_prepost=1:mode=install \
+	--traits=splice-compose.repos.el6::no_mutate_prepost=1:mode=install \
 	--traits=splice-kupdate \
 	--traits=splice-software::update=yes \
-	--traits=splice-compose.repos.f12::no_mutate_prepost=1:mode=uninstall \
+	--traits=splice-compose.repos.el6::no_mutate_prepost=1:mode=uninstall \
 	${builddir}/${strain}-updated.vsi \
 	2>&1 | tee -a ${builddir}/zmakeit.phased.log
     rm -f ${rundir}/${strain}-updated.vsi
@@ -129,9 +120,10 @@ else
 	${builddir}/${strain}-updated.vsi
 fi
 
+
 if (($domutate)); then
 
-    qemu-img create -b ${strain}-updated.vsi \
+    qemu-img create -b $( readlink -f ${strain}-updated.vsi ) \
 	-f qcow2 ${strain}-mutated.vsi 
 
     if (($qcow_too_slow)); then
@@ -182,7 +174,7 @@ if (($dobake)); then
 
 	qemu-img create ${strain}-bake.img 1234M
 	qemu-img create \
-	    -b ${strain}-mutated.vsi \
+	    -b $( readlink -f ${strain}-mutated.vsi ) \
 	    -f qcow2 \
 	    ${strain}-mutated-cooked.vsi
 
@@ -220,6 +212,7 @@ if (($dobake)); then
 	if ( tar tvf ./${strain}-bake.img | grep -q "output/guest.cooked/.mozilla/firefox/.*\.default/prefs.js" ); then
 	    if ( tar tvf ./${strain}-bake.img | grep -q "output/guest.cooked/.mozilla/firefox/.*\.default/extensions.ini" ); then
 		xdone=1
+
 	    fi
 	fi
     done

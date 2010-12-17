@@ -1,0 +1,7 @@
+#!/bin/bash
+
+rpm -e --nodeps fedora-logos
+yum -y install generic-logos
+
+cp /boot/grub/emzyx-splash.xpm.gz \
+    /boot/grub/splash.xpm.gz

@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -93,6 +93,9 @@ cowsizemegs=$(( 42 * 1024 ))
 ##
 #############################################################################
 
+###XXX
+echo "we are here in dmparts"
+
 starttime="$( date +%Y%m%d%H%M%S )"
 rundir="$( pwd )"
 progname="$( basename $0 )"
@@ -115,7 +118,8 @@ function die {
 function verbose {
     echo "" > /dev/null
     # currently I trust dm-parts to work
-#    echo "${progname}: verbose: $@"
+###XXX
+    echo "${progname}: verbose: $@"
 }
 
 #############################################################################
@@ -208,7 +212,14 @@ if [ "x${mode}" == "xsetup" ]; then
     disk_copy_cowdev=$( losetup -f )
     losetup $disk_copy_cowdev ${cowdir}/dm-parts.copycow
     ln -s $disk_copy_cowdev "${devprefix}-copy-cowdev"
-    dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-copy-cowdev p 8" "dm-parts-${devname}-copy"
+    # this worked for f11
+#    dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-copy-cowdev p 8" "dm-parts-${devname}-copy"
+    # now this works for f13, methinks due to new bugs (the echo part, the noudevsync is
+    # related to - https://bugzilla.redhat.com/show_bug.cgi?id=525319 )
+    # TODO: try adding that rule to 50-udev in ZyX-LiveOS/live.init
+    echo "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-copy-cowdev p 8" | dmsetup create "dm-parts-${devname}-copy" --noudevsync
+# XXXTESTING
+#    echo "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-copy-cowdev p 8" | dmsetup create "dm-parts-${devname}-copy"
     ln -s /dev/mapper/"dm-parts-${devname}-copy" "${devprefix}-copy"
 
     #
@@ -221,10 +232,16 @@ if [ "x${mode}" == "xsetup" ]; then
 	disk_cowdev=$( losetup -f )
 	losetup $disk_cowdev ${cowdir}/dm-parts.cow
 	ln -s $disk_cowdev "${devprefix}-cowdev"
-	dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-cowdev p 8" "dm-parts-${devname}-base"
+#	dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-cowdev p 8" "dm-parts-${devname}-base"
+	echo "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-cowdev p 8" | dmsetup create "dm-parts-${devname}-base" --noudevsync
+###XXXTESTING
+#	echo "0 $( blockdev --getsize ${devprefix}-real ) snapshot ${devprefix}-real ${devprefix}-cowdev p 8" | dmsetup create "dm-parts-${devname}-base"
     else
 	### for readwrite case, create a snapshot-origin
-	dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot-origin ${devprefix}-real" "dm-parts-${devname}-base"
+#	dmsetup create --table "0 $( blockdev --getsize ${devprefix}-real ) snapshot-origin ${devprefix}-real" "dm-parts-${devname}-base"
+	echo "0 $( blockdev --getsize ${devprefix}-real ) snapshot-origin ${devprefix}-real" | dmsetup create "dm-parts-${devname}-base" --noudevsync
+###XXXTESTING
+#	echo "0 $( blockdev --getsize ${devprefix}-real ) snapshot-origin ${devprefix}-real" | dmsetup create "dm-parts-${devname}-base"
     fi
     ln -s "/dev/mapper/dm-parts-${devname}-base" "${devprefix}-base"
 
@@ -267,11 +284,15 @@ if [ "x${mode}" == "xsetup" ]; then
 
 	if (($size)); then
 	    verbose "setting up devicemapper table 0 $size linear ${devprefix}-base $startsec" "${devname}-base-p${partnum}"
-	    dmsetup create --table "0 $size linear ${devprefix}-base $startsec" "${devname}-base-p${partnum}"
+#	    dmsetup create --table "0 $size linear ${devprefix}-base $startsec" "${devname}-base-p${partnum}"
+#	    echo "0 $size linear ${devprefix}-base $startsec" | dmsetup create "${devname}-base-p${partnum}" --noudevsync
+	    echo "0 $size linear ${devprefix}-base $startsec" | dmsetup create "${devname}-base-p${partnum}" --noudevsync
 	    ln -s "/dev/mapper/${devname}-base-p${partnum}" "${devprefix}-base-p${partnum}"
 
 	    verbose "setting up devicemapper table 0 $size linear ${devprefix}-copy $startsec" "${devname}-copy-p${partnum}"
-	    dmsetup create --table "0 $size linear ${devprefix}-copy $startsec" "${devname}-copy-p${partnum}"
+#	    dmsetup create --table "0 $size linear ${devprefix}-copy $startsec" "${devname}-copy-p${partnum}"
+#	    echo "0 $size linear ${devprefix}-copy $startsec" | dmsetup create "${devname}-copy-p${partnum}" --noudevsync
+	    echo "0 $size linear ${devprefix}-copy $startsec" | dmsetup create "${devname}-copy-p${partnum}" --noudevsync
 	    ln -s "/dev/mapper/${devname}-copy-p${partnum}" "${devprefix}-copy-p${partnum}"
 	fi
     
@@ -290,14 +311,16 @@ elif [ "x${mode}" == "xteardown" ]; then
     parts="$( find ${devprefixdir} -mindepth 1 -maxdepth 1 -name "${devname}-base-p*" -print ) $( find ${devprefixdir} -mindepth 1 -maxdepth 1 -name "${devname}-copy-p*" -print )"
     for dev in $parts; do
 	dmname=$( basename $( readlink $dev ) )
-	dmsetup remove $dmname
+#	dmsetup remove $dmname --noudevsync
+	dmsetup remove $dmname --noudevsync
 	rm -f ${devprefixdir}/${devname}
     done
 
     #
     # remove disk_base device
     #
-    dmsetup remove dm-parts-${devname}-base
+#    dmsetup remove dm-parts-${devname}-base --noudevsync
+    dmsetup remove dm-parts-${devname}-base --noudevsync
     rm -f ${devprefix}-base
     if [ -L ${devprefix}-cowdev ]; then
 	disk_cowdev=$( readlink ${devprefix}-cowdev )
@@ -309,7 +332,8 @@ elif [ "x${mode}" == "xteardown" ]; then
     #
     # remove disk-copy device
     #
-    dmsetup remove dm-parts-${devname}-copy
+#    dmsetup remove dm-parts-${devname}-copy --noudevsync
+    dmsetup remove dm-parts-${devname}-copy --noudevsync
     rm -f ${devprefix}-copy
     disk_copy_cowdev=$( readlink ${devprefix}-copy-cowdev )
     losetup -d $disk_copy_cowdev

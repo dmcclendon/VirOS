@@ -445,7 +445,9 @@ fi
 # rtl8139 and pcnet seem to have issues with f10qemu (Bad SWSTYLE=0x04, NetworkManager timeouts)
 vopt_qopts=""
 # this recovers pref11 behavior of not using kernel-PAE by default
-vopt_qopts="${vopt_qopts} -cpu qemu32,-nx,-pae"
+#vopt_qopts="${vopt_qopts} -cpu qemu32,-nx,-pae"
+# TODO: experiment for el6, this works, but try without -cpu at all, try f13 min as well
+#vopt_qopts="${vopt_qopts} -cpu qemu32,-nx"
 #vopt_qopts="${vopts_qopts} -net nic,model=i82557b"
 vopt_qopts="${vopt_qopts} -net nic -net user,hostname=zyxhost"
 

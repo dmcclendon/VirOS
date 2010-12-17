@@ -440,13 +440,21 @@ function configure_udev {
     wait_for_udev_root=1
     rootfs_mount_device="/dev/root"
 
+    # provide for dmsetup cookie appetite
+    # https://bugzilla.redhat.com/show_bug.cgi?id=525319
+#    cat <<EOF >> /etc/udev/rules.d/95-devkit-disks.rules
+#ENV{DM_COOKIE}=="?*", RUN+="/sbin/dmsetup udevcomplete \$env{DM_COOKIE}"
+#EOF
+
     # todo: better verbose output
     case $rootfs_device in
 	CDLABEL=*)
             isolabel=${rootfs_device#CDLABEL=}
 	    # TODO: research ATTRS{media} possibilities
+#KERNEL=="hd[a-z]", BUS=="ide", ATTRS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
+#KERNEL=="hd[a-z]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
 	    cat <<SLREOF  > /etc/udev/rules.d/00-zyx_liveos.rules
-KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
+KERNEL=="hd[a-z]", SUBSYSTEM=="block", ATTRS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
 KERNEL=="sr[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
 KERNEL=="scd[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
 KERNEL=="pcd[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="root"
@@ -513,8 +521,8 @@ SLREOF
     cat <<MPREOF >> /etc/udev/rules.d/10-modprobe.rules
 ACTION=="add", SUBSYSTEM=="?*", ENV{MODALIAS}=="?*", RUN+="/sbin/modprobe \$env{MODALIAS}"
 ACTION=="add", SUBSYSTEM=="scsi_device" RUN+="/sbin/modprobe -q sg"
-ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="0|7|14", RUN+="/sbin/modprobe -q sd_mod"
-ACTION=="add", SUBSYSTEM=="scsi_device", SYSFS{type}=="[45]", RUN+="/sbin/modprobe -q sr_mod"
+ACTION=="add", SUBSYSTEM=="scsi_device", ATTRS{type}=="0|7|14", RUN+="/sbin/modprobe -q sd_mod"
+ACTION=="add", SUBSYSTEM=="scsi_device", ATTRS{type}=="[45]", RUN+="/sbin/modprobe -q sr_mod"
 
 MPREOF
 
@@ -727,7 +735,8 @@ function prep_cow_rootfs {
 
      fi
 
-    dmsetup create zyx-liveos-rw --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8"
+#    dmsetup create zyx-liveos-rw --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8"
+    echo "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8" |  dmsetup create zyx-liveos-rw
 
     rm -f /dev/root
     ln -s /dev/mapper/zyx-liveos-rw /dev/root
@@ -765,7 +774,8 @@ function mount_final_rootfs {
 
     debug "mounting and movemounting precow_rootfs"
     mkdir -p /sysroot/mnt/.LiveOS/precow_rootfs
-    dmsetup create zyx-liveos-ro --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) linear $zyx_root_base_loopdev 0"
+#    dmsetup create zyx-liveos-ro --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) linear $zyx_root_base_loopdev 0"
+    echo "0 $( blockdev --getsize $zyx_root_base_loopdev ) linear $zyx_root_base_loopdev 0" | dmsetup create zyx-liveos-ro
     mount -n -t ext3 -o ro /dev/mapper/zyx-liveos-ro /precow_rootfs
     mount --move /precow_rootfs /sysroot/mnt/.LiveOS/precow_rootfs
 
@@ -793,26 +803,6 @@ function tweak_rootfs {
 	rm -f /sysroot/.zyxlive-configured 
     fi
 
-    #
-    # functions and halt need to be patched for clean liveos rootfs shutdown
-    #
-
-    if [ ! -f /sysroot/etc/rc.d/init.d/functions.zyx_live_patched ]; then
-	mv /sysroot/etc/rc.d/init.d/functions \
-	    /sysroot/etc/rc.d/init.d/functions.orig
-	mv /etc_rc.d_init.d_functions.zyx_live \
-	    /sysroot/etc/rc.d/init.d/functions 
-	touch /sysroot/etc/rc.d/init.d/functions.zyx_live_patched 
-    fi
-
-    if [ ! -f /sysroot/etc/rc.d/init.d/halt.zyx_live_patched ]; then
-	mv /sysroot/etc/rc.d/init.d/halt \
-	    /sysroot/etc/rc.d/init.d/halt.orig
-	mv /etc_rc.d_init.d_halt.zyx_live \
-	    /sysroot/etc/rc.d/init.d/halt 
-	touch /sysroot/etc/rc.d/init.d/halt.zyx_live_patched 
-    fi
-
     if (($fatime)); then
 	sed -i -e 's/noatime/atime/g' /sysroot/etc/fstab
     fi
@@ -823,7 +813,7 @@ function tweak_rootfs {
 
     if [ "${isolabel}" != "" ]; then
 	cat <<SLUREOF >> /sysroot/etc/udev/rules.d/50-udev.rules
-KERNEL=="hd[a-z]", BUS=="ide", SYSFS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
+KERNEL=="hd[a-z]", SUBSYSTEM=="ide", ATTRS{removable}=="1", ATTRS{media}=="cdrom", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
 KERNEL=="sr[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
 KERNEL=="scd[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
 KERNEL=="pcd[0-9]", PROGRAM="/sbin/blkid -s LABEL -o value %N", RESULT=="${isolabel}", SYMLINK+="zyx_root_prime"
@@ -854,6 +844,10 @@ KERNEL=="${zyx_root_base_loopdev#/dev/}" SYMLINK+="zyx_root_base"
 KERNEL=="${zyx_root_overlay_loopdev#/dev/}" SYMLINK+="zyx_root_overlay"
 KERNEL=="${zyx_root_overlay_rloopdev#/dev/}" SYMLINK+="zyx_root_overlay_readonly"
 SLUREOF
+
+    # don't know why these (may be::verify) are needed for el6, but not f12
+    rm -f /sysroot/dev/root
+    ln -s /dev/mapper/zyx-liveos-rw /sysroot/dev/root
 
     mount -n -t ext3 -o remount,ro /dev/mapper/zyx-liveos-rw /sysroot
 }

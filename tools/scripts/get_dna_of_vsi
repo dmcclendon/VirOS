@@ -72,18 +72,34 @@ function target_script_to_run_as_root {
     
     mkdir -p /mnt/test
     mount -o ro /dev/qfrdi-copy-p1 /mnt/test
-    if ( grep -q 'Guitar-ZyX release 0.4' /mnt/test/etc/system-release ); then
-	echo "zyx-0.4" > /output/distro
-    elif ( grep -q 'Fork-ZyX release 0.9.2' /mnt/test/etc/system-release ); then
-	echo "zyx-0.4" > /output/distro
-    elif ( grep -q 'Guitar-ZyX release 0.5' /mnt/test/etc/system-release ); then
-	echo "zyx-0.5" > /output/distro
-    elif ( grep -q 'Fork-ZyX release 0.9.3' /mnt/test/etc/system-release ); then
-	echo "zyx-0.5" > /output/distro
-    elif ( grep -q 'Fedora release 11' /mnt/test/etc/system-release ); then
-	echo "fedora-11" > /output/distro
-    elif ( grep -q 'Fedora release 12' /mnt/test/etc/system-release ); then
-	echo "fedora-12" > /output/distro
+    # TODO: this is now only about half hard-coded, but should be good for
+    #       a few years
+#    if ( grep -q 'Guitar-ZyX release 0.' /mnt/test/etc/system-release ); then
+#	gz_point_rel=$( cat /mnt/test/etc/system-release | sed -e 's/^.*Guitar\-ZyX\ release\ 0\.\([0-9]*\).*$/\1/' )
+#	echo "zyx-0.${gz_point_rel}" > /output/distro
+#    elif ( grep -q 'Fork-ZyX release 0.9.' /mnt/test/etc/system-release ); then
+#	foz_point_rel=$( cat /mnt/test/etc/system-release | sed -e 's/^.*Fork\-ZyX\ release\ 0\.9\.\([0-9]*\).*$/\1/' )
+#	echo "zyx-0.$(( ${foz_point_rel} + 2 ))" > /output/distro
+
+    # unhardcode as much as possible
+    if ( grep -q 'ZyX release ' /mnt/test/etc/system-release ); then
+	fsrpmname=$( chroot /mnt/test rpm -q filesystem )
+	if ( echo "${fsrpmname}" | grep -q "\.fc" ); then
+	    f_point_rel=$( chroot /mnt/test rpm -q filesystem | sed -e 's/^.*\.fc\([^\.]*\)\.[^\.]*$/\1/' )
+	    echo "fedora-${f_point_rel}" > /output/distro
+	elif ( echo "${fsrpmname}" | grep -q "\.el" ); then
+	    e_point_rel=$( chroot /mnt/test rpm -q filesystem | sed -e 's/^.*\.el\([^\.]*\)\.[^\.]*$/\1/' )
+	    echo "el-${e_point_rel}" > /output/distro
+	else
+	    x_point_rel="unknown__x_point_rel"
+	    echo "xx-${x_point_rel}" > /output/distro
+	fi
+    elif ( grep -q 'Fedora release ' /mnt/test/etc/system-release ); then
+	f_point_rel=$( cat /mnt/test/etc/system-release | sed -e 's/^.*Fedora\ release\ \([0-9]*\).*$/\1/' )
+	echo "fedora-${f_point_rel}" > /output/distro
+    elif ( grep -q 'Scientific Linux release ' /mnt/test/etc/system-release ); then
+	f_point_rel=$( cat /mnt/test/etc/system-release | sed -e 's/^.*Scientific\ Linux\ release\ \([0-9]*\).*$/\1/' )
+	echo "el-${f_point_rel}" > /output/distro
     else
 	echo "unknown" > /output/distro
     fi
@@ -160,9 +176,12 @@ output="${vopts_args[2]}"
 # TODO: error check arguments
 
 # XXX:HACKHACKHACK: development expediency
+# XXX: possible new problem with sl brand stripping order of operations
 #echo -en "distro=default\n" >> ${output}
 #echo -en "arch=default\n" >> ${output}
-#exit 0
+echo -en "distro=el-6\n" >> ${output}
+echo -en "arch=i686\n" >> ${output}
+exit 0
 # end XXX
 
 verbose "initializing..."
