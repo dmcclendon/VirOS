@@ -1,0 +1,9 @@
+#!/bin/bash
+
+echo "STATUS: building wmctrl..."
+rpmbuild --rebuild /trait-expanded/trait-install/wmctrl-*.src.rpm
+# seems to be going here actually
+rpm -Uvh /rpmbuild/RPMS/i386/wmctrl-*.i?86.rpm
+rm -rf /rpmbuild
+rpm -Uvh /root/rpmbuild/RPMS/i386/wmctrl-*.i?86.rpm
+rm -rf /root/rpmbuild

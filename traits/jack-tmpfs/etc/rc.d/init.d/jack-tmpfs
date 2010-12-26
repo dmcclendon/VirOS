@@ -1,0 +1,34 @@
+#!/bin/bash
+#
+# jack-tmpfs: Init script for syswide jack tmpfs
+#
+# reportedly improves jack performance
+#
+# chkconfig: 345 00 99
+# description: Init script for jack tmpfs
+
+. /etc/init.d/functions
+
+
+function unwind {
+}
+
+if [ "$1" == "unwind" ]; then
+    unwind
+    exit 0
+fi
+
+echo
+echo -en $"Initializing: jack tmpfs..."
+
+
+
+# mount a tmpfs for jack
+mkdir -p /tmp/jack
+mount -t tmpfs none /tmp/jack
+
+# show green OK
+success
+echo
+
+exit 0

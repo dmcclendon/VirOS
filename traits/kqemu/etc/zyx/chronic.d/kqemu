@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+modprobe kqemu
+chmod 666 /dev/kqemu

@@ -37,11 +37,11 @@ dopackage=0
 #
 
 #quickbuild=1
-domirrorcheck=1
+#domirrorcheck=1
 dosynthesis=1
 doupdate=1
 domutate=1
-#dobake=1
+dobake=1
 dosmirf=1
 doxmog=1
 dopackage=1

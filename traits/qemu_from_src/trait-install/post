@@ -1,0 +1,44 @@
+#!/bin/bash
+
+install_pkgs="\
+yum-utils
+make
+gcc
+SDL-devel
+libaio-devel
+ncurses-devel
+pciutils-devel
+zlib-devel
+texi2html
+gnutls-devel
+cyrus-sasl-devel
+rsync
+dev86
+iasl
+pulseaudio-libs-devel
+"
+
+for install_pkg in $install_pkgs; do
+    yum \
+	-y \
+	--disableplugin=refresh-packagekit,presto \
+	--enablerepo=updates,sl-updates \
+	install \
+	"${install_pkg}"
+done
+
+
+#yum-builddep \
+#    -y \
+#    --disableplugin=refresh-packagekit,presto \
+#    --enablerepo=updates,sl-updates \
+#    qemu
+
+
+echo "STATUS: building qemu..."
+mkdir -p /usr/src/zyx
+tar -C /usr/src/zyx -xvf /trait-expanded/trait-install/qemu-*.tar.gz
+cd /usr/src/zyx/qemu-*
+./configure --target-list=i386-softmmu
+make
+make install

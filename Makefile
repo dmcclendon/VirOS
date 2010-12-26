@@ -75,7 +75,7 @@ distclean:
 	make tidy
 	make clean
 	rm -f viros-$(VERSION)-$(RELEASE).src.rpm 
-	rm -f viros-$(VERSION)-$(RELEASE).i386.rpm 
+	rm -f viros-$(VERSION)-$(RELEASE).i686.rpm 
 	rm -f viros-$(VERSION).tar.bz2
 	rm -rf viros-$(VERSION)
 
@@ -90,14 +90,14 @@ rpm:
 	make srpm
 	rpm -i viros-$(VERSION)-$(RELEASE).src.rpm 
 	rpmbuild --rebuild viros-$(VERSION)-$(RELEASE).src.rpm 
-	mv ${HOME}/rpmbuild/RPMS/i386/viros-$(VERSION)-$(RELEASE).i386.rpm .
+	mv ${HOME}/rpmbuild/RPMS/i686/viros-$(VERSION)-$(RELEASE).i686.rpm .
 
 # note: archaic, but perhaps to be revived someday 
 #
 #vrepostuff:
 #	make rpm
-#	cp -av viros-$(VERSION)-$(RELEASE).i386.rpm ./vrepo/fedora/9/i386/
+#	cp -av viros-$(VERSION)-$(RELEASE).i686.rpm ./vrepo/fedora/9/i686/
 #	cp -av viros-$(VERSION)-$(RELEASE).src.rpm ./vrepo/fedora/9/SRPMS/
 #	cp -av viros-$(VERSION).tar.bz2 ./vrepo/tarballs/
-#	createrepo ./vrepo/fedora/9/i386
-#	createrepo ./vrepo/fedora/9/SRPMS
+#	createrepo ./vrepo/el/6/i686
+#	createrepo ./vrepo/el/6/SRPMS

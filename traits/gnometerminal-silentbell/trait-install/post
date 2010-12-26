@@ -7,6 +7,9 @@ progname="$( basename $0 )"
 progdir=$( ( pushd $( dirname $0 ) > /dev/null 2>&1 ; \
     pwd ; popd > /dev/null 2>&1 ) )
 
+# debug
+echo "DEBUG: about to try to silence gnometerminal bell"
+
 # silent bell for gnome-terminal
 gconftool-2 \
     --direct \

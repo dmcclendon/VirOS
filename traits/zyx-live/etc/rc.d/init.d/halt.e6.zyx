@@ -106,8 +106,9 @@ touch /var/lib/random-seed
 chmod 600 /var/lib/random-seed
 action $"Saving random seed: " dd if=/dev/urandom of=/var/lib/random-seed count=1 bs=512 2>/dev/null
 
-#:::# zyx: note this will get sed replaced by upstream livesys (verify)
-[ -x /sbin/hwclock ] && action $"Syncing hardware clock to system time" /sbin/hwclock --systohc
+#:::# zyx: don't do this for live shutdowns
+#[ -x /sbin/hwclock ] && action $"Syncing hardware clock to system time" /sbin/hwclock --systohc
+
 
 #:::# zyx
 # Prepare protected filesystems (e.g. device mapper subcomponents of rootfs)
@@ -226,7 +227,7 @@ dmsetup resume zyx-liveos-rw
 # now the read-write overlay device can be torn down
 losetup -d /dev/zyx_root_overlay
 
-overlayfs_fstype="$( /lib/udev/vol_id --type /dev/zyx_root_prime )"
+overlayfs_fstype="$( /sbin/blkid -s TYPE -o value /dev/zyx_root_prime )"
 # todo: fix this ugly liveusb assumptions
 overlayfs_dev=/dev/zyx_root_prime
 

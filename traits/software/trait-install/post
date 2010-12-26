@@ -29,16 +29,16 @@ source ${progdir}/trait-options
 
 if [ "${update}" == "yes" ]; then
     echo "${progname}: updating system software ..."
-    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update glibc
-    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update yum
-    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates update
-    yum -y --disableplugin=refresh-packagekit,presto update
+    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates,sl-updates update glibc
+    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates,sl-updates update yum
+    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates,sl-updates update
+    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates,sl-updates update
     echo "${progname}: done updating system software."
 fi
 
 if [ "${install}" != "" ]; then
     echo "${progname}: installing software: $install"
-    yum -y --disableplugin=refresh-packagekit,presto install $install
+    yum -y --disableplugin=refresh-packagekit,presto --enablerepo=updates,sl-updates install $install
     echo "${progname}: done installing software: $install"
 fi
 
@@ -48,6 +48,7 @@ if [ "${groupinstall}" != "" ]; then
     yum \
 	-y \
 	--disableplugin=refresh-packagekit,presto \
+	--enablerepo=updates,sl-updates \
 	install \
 	$( repoquery -g -l --grouppkgs=all "${groupinstall}" )
     echo "${progname}: done installing software group: $groupinstall"

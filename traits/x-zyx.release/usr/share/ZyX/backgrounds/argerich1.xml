@@ -1,0 +1,18 @@
+<background>
+    <starttime>
+            <year>1991</year>
+            <month>06</month>
+            <day>06</day>
+            <hour>04</hour>
+            <minute>20</minute>
+            <second>24</second>
+    </starttime>
+
+    <static>
+        <duration>60000000.0</duration>
+        <file>
+            <size width="1280" height="1024">/usr/share/ZyX/backgrounds/argerich1_1280x1024.jpg</size>
+            <size width="2048" height="1536">/usr/share/ZyX/backgrounds/argerich1_2048x1536.jpg</size>
+        </file>
+    </static>
+</background>

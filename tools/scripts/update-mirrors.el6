@@ -1,0 +1,176 @@
+#!/bin/bash
+
+##
+## in absence of cmdline args, use these for determining type of update
+##
+
+update_el6_base_32bit=0
+update_el6_base_source=0
+
+update_el6_updates_32bit=0
+update_el6_updates_source=0
+
+update_el6_epel_32bit=0
+update_el6_epel_source=0
+
+update_el6_atrpms_32bit=0
+update_el6_atrpms_source=0
+
+
+update_el6_base_32bit=1
+update_el6_base_source=1
+
+update_el6_updates_32bit=1
+update_el6_updates_source=1
+
+update_el6_epel_32bit=1
+update_el6_epel_source=1
+
+update_el6_atrpms_32bit=1
+update_el6_atrpms_source=1
+
+
+##
+## rsync flags
+##
+
+# standard archival style syncing
+common_rsync_flags="-a"
+# be verbose
+common_rsync_flags="${common_rsync_flags} -v"
+# -P allows partial-file restartable syncs
+common_rsync_flags="${common_rsync_flags} -P"
+# no need for compression (-z)
+#common_rsync_flags="${common_rsync_flags} -z"
+# live dangerously
+common_rsync_flags="${common_rsync_flags} --delete"
+# ignore some packages (deltarpms, PAE kernel, etc)
+common_rsync_flags="${common_rsync_flags} --exclude-from=exclude"
+# use this for bandwidth limiting
+#common_rsync_flags="${common_rsync_flags} --bwlimit=64"
+
+# use this to exclude debug packages
+common_rsync_flags="${common_rsync_flags} --exclude=debug"
+
+
+####
+#### update sections
+####
+
+
+if (($update_el6_base_32bit)); then
+    echo "mirroring el6::base::32bit"
+    # http://ftp.scientificlinux.org/linux/scientific/6rolling/i386/os
+    mkdir -p el6/sl6-ra-os/x86-32
+    rm -f \
+	el6/ftp.scientificlinux.org___linux__scientific__6rolling__i386__os
+    ln -s ./sl6-ra-os/x86-32 \
+	el6/ftp.scientificlinux.org___linux__scientific__6rolling__i386__os
+	
+    rsync ${common_rsync_flags} \
+	rsync://rsync.gtlib.gatech.edu/scientific/6rolling/i386/os/ \
+	el6/sl6-ra-os/x86-32/
+fi
+
+if (($update_el6_base_source)); then
+    echo "mirroring el6::base::source"
+    # http://ftp.scientificlinux.org/linux/scientific/6rolling/source/SRPMS
+    mkdir -p el6/sl6-ra-os/source
+    rm -f \
+	el6/ftp.scientificlinux.org___linux__scientific__6rolling__source__SRPMS
+    ln -s ./sl6-ra-os/source \
+	el6/ftp.scientificlinux.org___linux__scientific__6rolling__source__SRPMS
+	
+    rsync ${common_rsync_flags} \
+	rsync://rsync.gtlib.gatech.edu/scientific/6rolling/source/SRPMS/ \
+	el6/sl6-ra-os/source/
+fi
+
+if (($update_el6_updates_32bit)); then
+    echo "mirroring el6::updates::32bit"
+    # http://ftp.scientificlinux.org/linux/scientific/6rolling/i386/updates
+    mkdir -p el6/sl6-ra-updates/x86-32
+    rm -f \
+	el6/ftp.scientificlinux.org___linux__scientific__6rolling__i386__updates
+    ln -s ./sl6-ra-updates/x86-32 \
+	el6/ftp.scientificlinux.org___linux__scientific__6rolling__i386__updates
+	
+    rsync ${common_rsync_flags} \
+	rsync://rsync.gtlib.gatech.edu/scientific/6rolling/i386/updates/ \
+	el6/sl6-ra-updates/x86-32/
+fi
+
+if (($update_el6_updates_source)); then
+    echo "mirroring el6::updates::source"
+    # http://ftp.scientificlinux.org/linux/scientific/6rolling/source/SRPMS
+    mkdir -p el6/sl6-ra-os/source
+    rm -f \
+	el6/ftp.scientificlinux.org___linux__scientific__6rolling__source__SRPMS
+    ln -s ./sl6-ra-os/source \
+	el6/ftp.scientificlinux.org___linux__scientific__6rolling__source__SRPMS
+	
+    rsync ${common_rsync_flags} \
+	rsync://rsync.gtlib.gatech.edu/scientific/6rolling/source/SRPMS/ \
+	el6/sl6-ra-os/source/
+fi
+
+if (($update_el6_epel_32bit)); then
+    echo "mirroring el6::epel::32bit"
+    # http://download.fedora.redhat.com/pub/epel/beta/6/i386/
+    mkdir -p el6/sl6-ra-epel/x86-32
+    rm -f \
+	el6/download.fedora.redhat.com___pub__epel__beta__6__i386
+    ln -s ./sl6-ra-epel/x86-32 \
+	el6/download.fedora.redhat.com___pub__epel__beta__6__i386
+	
+    rsync ${common_rsync_flags} \
+	rsync://mirrors2.kernel.org/fedora-epel/beta/6/i386/ \
+	el6/sl6-ra-epel/x86-32/
+fi
+
+if (($update_el6_epel_source)); then
+    echo "mirroring el6::epel::source"
+    # http://download.fedora.redhat.com/pub/epel/beta/6/SRPMS/
+    mkdir -p el6/sl6-ra-epel/source
+    rm -f \
+	el6/download.fedora.redhat.com___pub__epel__beta__6__SRPMS
+    ln -s ./sl6-ra-epel/source \
+	el6/download.fedora.redhat.com___pub__epel__beta__6__SRPMS
+	
+    rsync ${common_rsync_flags} \
+	rsync://mirrors2.kernel.org/fedora-epel/beta/6/SRPMS/ \
+	el6/sl6-ra-epel/source/
+fi
+
+if (($update_el6_atrpms_32bit)); then
+    echo "mirroring el6::atrpms-stable::32bit"
+    # http://dl.atrpms.net/sl6-i386/atrpms/stable/
+    mkdir -p el6/atrpms/stable/x86-32
+    rm -f \
+	el6/dl.atrpms.net___sl6-i386__atrpms__stable
+    ln -s ./atrpms/stable/x86-32 \
+	el6/dl.atrpms.net___sl6-i386__atrpms__stable
+	
+    rsync ${common_rsync_flags} \
+	rsync://rsync.mirrorservice.org/download.atrpms.net/sl6-i386/atrpms/stable/ \
+	el6/atrpms/stable/x86-32/
+fi
+
+if (($update_el6_atrpms_source)); then
+    echo "mirroring el6::atrpms-stable::source"
+    # http://dl.atrpms.net/src/sl6-i386/atrpms/stable/
+    mkdir -p el6/atrpms/stable/source
+    rm -f \
+	el6/dl.atrpms.net___src__sl6-i386__atrpms__stable
+    ln -s ./atrpms/stable/source \
+	el6/dl.atrpms.net___src__sl6-i386__atrpms__stable
+	
+    rsync ${common_rsync_flags} \
+	rsync://rsync.mirrorservice.org/download.atrpms.net/src/sl6-i386/atrpms/stable/ \
+	el6/atrpms/stable/source/
+fi
+
+date >> ./last.update.el6
+
+exit 0
+

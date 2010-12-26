@@ -684,7 +684,9 @@ function prep_cow_rootfs {
 	    secsize_sdmc=$( blockdev --getsize ${zyx_root_container_sdmc_loopdev} )
 	    echo "0 ${secsize_sdmc} linear ${zyx_root_container_sdmc_loopdev} 0" > /dev/.sdmc_table
 	    echo "${secsize_sdmc} $(( $( blockdev --getsize ${zyx_root_container_loopdev} ) - ${secsize_sdmc} )) linear ${zyx_root_container_loopdev} ${secsize_sdmc}" >> /dev/.sdmc_table
-	    dmsetup create zyx-container-sdmc /dev/.sdmc_table
+#	    dmsetup create zyx-container-sdmc /dev/.sdmc_table
+	    # this (sdmc) hasn't been tested since noudevsync, or in a rather long while
+	    dmsetup create zyx-container-sdmc /dev/.sdmc_table --noudevsync
 	    rm -f /dev/.sdmc_table
 	fi
     else
@@ -736,7 +738,10 @@ function prep_cow_rootfs {
      fi
 
 #    dmsetup create zyx-liveos-rw --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8"
-    echo "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8" |  dmsetup create zyx-liveos-rw
+#    echo "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8" |  dmsetup create zyx-liveos-rw
+    # with new(f13ish/el6) udev tight integration with devicemapper, we need
+    # to explicitly turn off that integration here before udev is fully up
+    echo "0 $( blockdev --getsize $zyx_root_base_loopdev ) snapshot $zyx_root_base_loopdev $zyx_root_overlay_loopdev p 8" |  dmsetup create zyx-liveos-rw --noudevsync
 
     rm -f /dev/root
     ln -s /dev/mapper/zyx-liveos-rw /dev/root
@@ -775,7 +780,8 @@ function mount_final_rootfs {
     debug "mounting and movemounting precow_rootfs"
     mkdir -p /sysroot/mnt/.LiveOS/precow_rootfs
 #    dmsetup create zyx-liveos-ro --table "0 $( blockdev --getsize $zyx_root_base_loopdev ) linear $zyx_root_base_loopdev 0"
-    echo "0 $( blockdev --getsize $zyx_root_base_loopdev ) linear $zyx_root_base_loopdev 0" | dmsetup create zyx-liveos-ro
+#    echo "0 $( blockdev --getsize $zyx_root_base_loopdev ) linear $zyx_root_base_loopdev 0" | dmsetup create zyx-liveos-ro
+    echo "0 $( blockdev --getsize $zyx_root_base_loopdev ) linear $zyx_root_base_loopdev 0" | dmsetup create zyx-liveos-ro --noudevsync
     mount -n -t ext3 -o ro /dev/mapper/zyx-liveos-ro /precow_rootfs
     mount --move /precow_rootfs /sysroot/mnt/.LiveOS/precow_rootfs
 
@@ -793,7 +799,7 @@ function mount_final_rootfs {
 function tweak_rootfs {
     status "tweaking root filesystem for live session"
 
-    # XXX there might be a better way to do this, which is a workaround
+    # note: there might be a better way to do this, which is a workaround
     #     and/or fix for the fact that /etc/rc.d/init.d/zyx-live needs
     #     to run once on every boot (e.g. in persistence situations)
     #     One thought was to take everyting out of eri/zl that can 
@@ -801,6 +807,33 @@ function tweak_rootfs {
     #     for each thing it does.
     if [ -f /sysroot/.zyxlive-configured ]; then
 	rm -f /sysroot/.zyxlive-configured 
+    fi
+
+    # handle utc issue by trying to detect likely winblowz installation
+    utc_hwclock=1
+    if [ -x /sbin/ntfslabel ]; then
+	if [ -b /dev/sda ]; then
+            for device in $( find /dev -name "sda*" -print ); do
+		if ( /sbin/ntfslabel "${device}" < /dev/null > /dev/null 2>&1 ); then
+		    utc_hwclock=0
+		fi
+            done
+	fi
+    fi
+    if (($utc_hwclock)); then
+	sed -i -e 's/LOCAL/UTC/g' /sysroot/etc/adjtime
+	if ( cat /sysroot/etc/sysconfig/clock | grep -q "^UTC=" ); then
+	    sed -i -e 's/^UTC=.*/UTC=true/g' /sysroot/etc/sysconfig/clock
+	else
+	    echo "UTC=true" >> /sysroot/etc/sysconfig/clock
+	fi
+    else
+	sed -i -e 's/UTC/LOCAL/g' /sysroot/etc/adjtime
+	if ( cat /sysroot/etc/sysconfig/clock | grep -q "^UTC=" ); then
+	    sed -i -e 's/^UTC=.*/UTC=false/g' /sysroot/etc/sysconfig/clock
+	else
+	    echo "UTC=false" >> /sysroot/etc/sysconfig/clock
+	fi
     fi
 
     if (($fatime)); then

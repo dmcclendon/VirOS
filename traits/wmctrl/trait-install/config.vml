@@ -1,0 +1,6 @@
+traits splice-software::install=rpm-build
+traits splice-software::install=rpmdevtools
+traits splice-software::install=gcc-c++
+traits splice-software::install=xorg-x11-proto-devel
+traits splice-software::install=glib2-devel
+traits splice-software::install=libXmu-devel

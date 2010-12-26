@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+yum \
+    -y \
+    --disableplugin=refresh-packagekit,presto \
+    --enablerepo=updates \
+    update \
+    kernel-devel
+
+# copied from transmogrify, potentially refactorable/sharable in the future
+use_kernel_version="$( ls -1A --sort=version ${targetroot}/boot/vmlinuz-* | tail -1 | sed -e 's/.*vmlinuz-//' )"
+
+cd /usr/src
+tar xvf kqemu-1.4.0pre1.tar.gz
+cd kqemu-1.4.0pre1
+./configure --kernel-path=/lib/modules/${use_kernel_version}/build
+make
+#make install
+# kqemu's make install seems pretty stupid, so do it manually
+mkdir -p /lib/modules/${use_kernel_version}/misc
+cp -av kqemu.ko \
+    /lib/modules/${use_kernel_version}/misc/
+depmod ${use_kernel_version}
+

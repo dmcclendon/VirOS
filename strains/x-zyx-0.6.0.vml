@@ -13,7 +13,7 @@
 ##
 #####################################################################
 
-config min-e-zyx-0.6.0.0.vml
+config min-e-zyx-0.6.0.vml
 
 
 #####################################################################
@@ -71,11 +71,35 @@ traits splice-software::groupinstall="Desktop"
 traits splice-software::groupinstall="Desktop Platform"
 traits splice-software::groupinstall="Debugging Tools"
 traits splice-software::groupinstall="Development Tools"
+traits splice-software::groupinstall="Office Suite and Productivity"
 traits splice-software::groupinstall="Virtualization"
 traits splice-software::groupinstall="Virtualization Client"
 traits splice-software::groupinstall="Virtualization Platform"
 traits splice-software::groupinstall="Virtualization Tools"
 # todo, all others... virt* bla bla
+
+# for pokerth building
+traits splice-software::install=svn
+traits splice-software::install=gcc-c++
+traits splice-software::install=qt-devel
+traits splice-software::install=boost-devel
+traits splice-software::install=sqlite-devel
+traits splice-software::install=SDL-devel
+traits splice-software::install=SDL_mixer-devel
+traits splice-software::install=libcurl-devel
+traits splice-software::install=libgsasl-devel
+traits splice-software::install=libgcrypt-devel
+
+
+# for zyx-liveinstaller building
+traits splice-software::install=python-devel
+
+# for some dev something (rebuilding some srpm)
+traits splice-software::install=redhat-rpm-config
+traits splice-software::install=rpmdevtools
+
+# for qemu?
+traits splice-software::install=libmodplug
 
 
 
@@ -113,6 +137,8 @@ traits splice-service::disable=rhnsd
 traits splice-service::disable=sysstat
 # CIM server, whatever that is
 traits splice-service::disable=tog-pegasus
+# netfs, todo: this needs some attention for its use of umount_loop
+traits splice-service::disable=netfs
 # NFS stuffs
 traits splice-service::disable=nfslock
 traits splice-service::disable=rpcbind
@@ -136,7 +162,13 @@ traits splice-service::disable=iscsi
 traits splice-service::disable=iscsid
 # ... bluetooth
 traits splice-service::disable=bluetooth
+# ... wine (not needed for general wine usage)
+traits splice-service::disable=wine
+# dovecot imap server
+traits splice-service::disable=dovecot
 
+# but httpd is cool
+traits splice-service::enable=httpd
 
 #####################################################################
 ##
@@ -144,7 +176,7 @@ traits splice-service::disable=bluetooth
 ##
 
 traits splice-genericize-gdm
-traits splice-zyx-brand::distroname="X-ZyX":distroversion="0.6.0.0"
+traits splice-zyx-brand::distroname="X-ZyX":distroversion="0.6.0.1"
 # note: see HHH comments in ZyX.marinade bake-it script for current
 # hardcoded assumptions
 traits splice-zyx-adduser::username="zyxuser":usercomment="ZyX System User"
@@ -173,9 +205,13 @@ traits splice-lockdown-firewall
 
 # kablui desktop prefs
 traits splice-kablui
+# for now, one off to get this dep
+traits splice-wmctrl
+
 
 # email
 traits splice-software::install=thunderbird
+traits splice-software::install=dovecot
 
 # command line
 traits splice-gnometerminal-silentbell
@@ -189,13 +225,34 @@ traits splice-software::install=lftp
 
 # development
 traits splice-software::install=rpm-build
+traits splice-software::install=gcc-c++
+
+# vidconf
+traits splice-software::install=ekiga
+
+# misc (temp for rakarrack)
+traits splice-software::install=sendmail
+traits splice-software::install=jack-audio-connection-kit-devel
+traits splice-software::install=qjackctl
+traits splice-software::install=libsamplerate-devel
+traits splice-software::install=libsndfile-devel
+traits splice-software::install=libXpm-devel
+traits splice-software::install=fltk
+traits splice-software::install=fltk-devel
+traits splice-software::install=fltk-fluid
+traits splice-software::install=git
 
 
 #####################################################################
 ##
-## self replication/regeneration (eventually)
+## self replication/regeneration
 ##
 
+traits splice-software::install=glibc-static
+traits splice-software::install=unetbootin
+traits splice-software::install=tigervnc
+traits splice-software::install=tigervnc-server
+traits splice-software::install=glibc-static
 #traits splice-viros
 
 
@@ -206,6 +263,13 @@ traits splice-software::install=rpm-build
 
 # never found myself using this, though it looks interesting
 traits splice-software::erase=sos
+
+# I guess this extra webserver is the result of the current 
+# groupinstall attempt to add optional packages as well
+traits splice-software::erase=cherokee
+
+# something to experiment with to see if it is actually useful
+traits splice-software::erase=vym
 
 
 #####################################################################
@@ -225,9 +289,13 @@ traits splice-hw.acer_aspire_one.fan
 traits splice-zyx-logos
 
 traits unsplice-min-e-zyx.release
-traits splice-x-zyx.release
+# no_mutate_prepost=1 is needed if /etc/yum.repos.d is modified
+traits splice-x-zyx.release::no_mutate_prepost=1
 
-o
+# precooking/baking the user homedir contents to try and speed boot
+traits unsplice-zyx-marinade
+traits splice-zyx-marinade
+
 #####################################################################
 ##
 ## sysinfo
@@ -241,7 +309,7 @@ traits unsplice-sysinfo
 
 # this ensures that the trait will not be duplicated from inherited config
 traits unsplice-sysinfo.srpms
-##traits splice-sysinfo.srpms
+traits splice-sysinfo.srpms
 
 
 #####################################################################
@@ -269,8 +337,8 @@ traits splice-restorecon
 #####################################################################
 
 vxmogopts uncompressed_size_mb=7711
-vxmogopts fs_label="zyxx0600"
-vxmogopts boot_label="Boot X-ZyX LiveOS"
+vxmogopts fs_label="zyxx0601"
+vxmogopts boot_label="Boot X-ZyX-0.6.0.1 LiveOS"
 vxmogopts bootloader_welcome="X-ZyX Boot Menu"
 
 vxmogopts bootloader_splash=/etc/zyx/bootsplash.isolinux.jpg
@@ -280,11 +348,19 @@ vxmogopts bootloader_splash=/etc/zyx/bootsplash.isolinux.jpg
 vxmogopts bootloader_isolinux_menu_margin=20
 vxmogopts bootloader_isolinux_menu_width=78
 vxmogopts bootloader_isolinux_menu_rows=6
+#vxmogopts bootloader_isolinux_menu_tabmsgrow=12
+#vxmogopts bootloader_isolinux_menu_cmdlinerow=12
+#vxmogopts bootloader_isolinux_menu_endrow=18
+#vxmogopts bootloader_isolinux_menu_timeoutrow=14
+#vxmogopts bootloader_isolinux_menu_vshift=8
+##vxmogopts bootloader_isolinux_menu_tabmsgrow=6
 vxmogopts bootloader_isolinux_menu_tabmsgrow=12
+##vxmogopts bootloader_isolinux_menu_cmdlinerow=6
 vxmogopts bootloader_isolinux_menu_cmdlinerow=12
-vxmogopts bootloader_isolinux_menu_endrow=18
+vxmogopts bootloader_isolinux_menu_endrow=12
+##vxmogopts bootloader_isolinux_menu_timeoutrow=8
 vxmogopts bootloader_isolinux_menu_timeoutrow=14
-vxmogopts bootloader_isolinux_menu_vshift=8
+vxmogopts bootloader_isolinux_menu_vshift=2
 
 # reshuffles locations of files in the fs for better performance/size
 #vxmogopts bootloader_sdmc_mode=1

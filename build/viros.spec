@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.6.2010_12_17
+Version:	0.7.2010_12_26
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -26,7 +26,8 @@ Requires:	tigervnc
 Requires:	tigervnc-server
 Requires:	qemu
 Requires:	wget
-Requires:	pyvnc2swf
+# optional actually
+#Requires:	pyvnc2swf
 
 
 Buildroot:	 %{_tmppath}/%{name}-%{version}-%{release}-root
@@ -73,6 +74,11 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+
+* Sun Dec 26 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.7.2010_12_26
+- noudevsync workaround for el6
+- several misc fixes
+- for x-zyx-0.6.0.1
 
 * Fri Dec 17 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2010_12_17
 - support el6

@@ -18,9 +18,9 @@ vsysgen_output_container_size 7G
 vsysgen_distro el-6
 vsysgen_arch x86
 vsysgen_install_boot_iso "http://ftp.scientificlinux.org/linux/scientific/6rolling/i386/os/images/boot.iso" 
-vsysgen_install_boot_iso_sha256sum "dc376a96ac416de57e2ce69d9d4194c020f8006b529718c2cece92879ff0ca53"
+vsysgen_install_boot_iso_sha256sum "b2ad496cc7d14b4c04d28403690fc0481e49c0b0365253e8093698b10093cddf"
 vsysgen_boot_cmdline "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg" 
-vsysgen_distro_config min-e-zyx-0.6.0.0.ks
+vsysgen_distro_config min-e-zyx-0.6.0.ks
 
 ##
 ## phase 2 configuration - mutation
@@ -30,7 +30,16 @@ traits splice-compose.repos.el6::no_mutate_prepost=1:mode=install
 
 traits splice-zyx-brand::distroname="min-E-ZyX":distroversion="0.1"
 traits splice-zyx-live
+# gotta have nano at least if not emacs
 traits splice-software::install=nano
+# for installation, and utc default hwclock detection
+traits splice-software::install=ntfsprogs
+traits splice-software::install=ntfs-3g
+# for now, qemu-0.11.1-x86-kqemu requires these, so they are in minimal
+traits splice-software::install=kernel-devel
+traits splice-software::install=gcc-c++
+traits splice-qemu_from_src
+traits splice-kqemu
 traits splice-zyx-adduser::username="guest":usercomment="Guest User"
 traits splice-zyx-live-iso-to-disk
 traits splice-min-e-zyx.release
@@ -56,6 +65,7 @@ vxmogopts bootloader_isolinux_menu_timeoutrow=13
 vxmogopts bootloader_isolinux_menu_vshift=3
 
 vxmogopts fs_label=min-E-ZyX
+# re-enabling/supporting this is low priority, but will happen soon enough
 vxmogopts selinux=0
-vxmogopts prelink=0
-vxmogopts md5verify=0
+vxmogopts prelink=1
+vxmogopts md5verify=1

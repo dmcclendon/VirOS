@@ -31,7 +31,7 @@ echo -en "\n"
 echo -en "########################################################################\n"
 echo -en "########################################################################\n"
 echo -en "##                                                                    ##\n"
-echo -en "## status: mutate post -fedora/x86 - starting                         ##\n"
+echo -en "## status: mutate post - el/x86 - starting                            ##\n"
 echo -en "##                                                                    ##\n"
 echo -en "\n"
 
@@ -45,7 +45,7 @@ fi
 
 echo -en "\n"
 echo -en "##                                                                    ##\n"
-echo -en "## status: mutate post -fedora/x86 - complete                         ##\n"
+echo -en "## status: mutate post - el/x86 - complete                            ##\n"
 echo -en "##                                                                    ##\n"
 echo -en "########################################################################\n"
 echo -en "########################################################################\n"

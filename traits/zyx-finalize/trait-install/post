@@ -75,12 +75,13 @@ for kernel in $( ls -1A /boot/vmlinuz-* ); do
 	rpm -ev "${kpackage}"
     fi
 done
+# grubby seems to fail badly in our chroot scenario, so fix the grub.conf
+sed -i -e "s/2\.6.*i.86/$( uname -r )/g" /boot/grub/grub.conf
 
-
-# experimental fix for occasional wierd icon cache problems (blank icons for about half of stuff)
-find /usr/share/icons -mindepth 1 -maxdepth 1 -type d | while read -r THEME; do
-  if [ -f "$THEME/index.theme" ]; then
-    gtk-update-icon-cache -f -q "$THEME"
+# for some reason this is often needed
+find /usr/share/icons -type d -mindepth 1 -maxdepth 1 | while read -r theme; do
+  if [ -f "${theme}/index.theme" ]; then
+    gtk-update-icon-cache -f -q "${theme}"
   fi
 done
 

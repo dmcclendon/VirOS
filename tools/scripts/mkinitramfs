@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+#
+#############################################################################
+#
+# mkinitramfs: make a linux 2.6 style cpio initramfs from a directory
+#
+#############################################################################
+#
+# Copyright 2007-2009 Douglas McClendon <dmc AT filteredperception DOT org>
+#
+#############################################################################
+#
+# This file is part of VirOS.
+#
+#    VirOS is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, version 3 of the License.
+#
+#    VirOS is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with VirOS.  If not, see <http://www.gnu.org/licenses/>.
+#
+#############################################################################
+
+#
+# usage: mkinitramfs <srcrootpath> <outfilename>
+#
+# TODO: this should just be a function in functions
+#       (does any other script depend on this currently?)
+
+progname=$( basename $0 )
+progdir=$( readlink -f $( dirname $0 ) )
+
+function usage {
+    echo -en "\n\n${progname}: usageusage: mkinitramfs <srcrootpath> <outfilename>\n\n"
+    exit 1
+}
+
+##
+## parse arguments
+##
+
+# check number of arguments
+if [ $# -ne 2 ]; then usage ; fi
+
+##
+## prepare / check environment
+##
+
+srcrootdir=$( readlink -f $1 )
+outfiledir=$( readlink -f $( dirname $2 ) )
+outfilename=$( basename $2 )
+
+# check source dir availability
+if [ ! -d "${srcrootdir}" ]; then usage; fi	
+
+# check destinatioon dir availability
+if [ ! -d "${outfiledir}" ]; then usage; fi	
+
+##
+## create a new compressed initramfs image file
+##
+
+cd ${srcrootdir}
+
+find . | cpio -H newc -o | gzip -c -  > ${outfiledir}/${outfilename}
+
+exit 0
+
