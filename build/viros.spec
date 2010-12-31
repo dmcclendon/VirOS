@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.7.2010_12_26
+Version:	0.7.2010_12_31
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -75,21 +75,33 @@ rm -rf $RPM_BUILD_ROOT
 
 %changelog
 
-* Sun Dec 26 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.7.2010_12_26
+* Fri Dec 31 2010 Douglas McClendon <dmc.viros@cloudsession.com> - 0.7.2010_12_31
+- mutate: make verbose logs a bit quieter (pushd/popd output)
+- strains: min and minimal symlinks fixed (untested)
+- README updated to highlight new update-mirrors.el6 script
+- bug-id-3145642: smirfgen cp arg, a missing kernel hangs a build
+- note: bug-id comes from the new tracker setup at viros.sf.net
+- trait-wmctrl: fix post script so wmctrl actually gets installed
+- trait-zli: 0.2.7 update
+- x-zyx: fix final yum repos by moving release trait after c.r uninst (untested)
+- note: this is an untested release, 12_26 built xz0601, noting filed bugs
+
+
+* Sun Dec 26 2010 Douglas McClendon <dmc.viros@cloudsession.com> - 0.7.2010_12_26
 - noudevsync workaround for el6
 - several misc fixes
 - for x-zyx-0.6.0.1
 
-* Fri Dec 17 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2010_12_17
+* Fri Dec 17 2010 Douglas McClendon <dmc.viros@cloudsession.com> - 0.6.2010_12_17
 - support el6
 - get_dna_of_vsi... hardcoded for el6 temporarily
 - add glibc-static to BuildRequires
 
-* Wed Feb 24 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2010_02_24
+* Wed Feb 24 2010 Douglas McClendon <dmc.viros@cloudsession.com> - 0.6.2010_02_24
 - misc cleanups for Guitar-ZyX-0.5.0
 - ISOLABEL back to CDLABEL for the benefit of unetbootin
 
-* Fri Feb 12 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2010_02_12
+* Fri Feb 12 2010 Douglas McClendon <dmc.viros@cloudsession.com> - 0.6.2010_02_12
 - misc cleanups
 - initrd to initramfs
 - vxmog: correctly clean up other kernels
@@ -102,13 +114,13 @@ rm -rf $RPM_BUILD_ROOT
 - smirfgen: parse ldd output a bit better
 - zbuild: new smirfgen only xmog mode (zyx-smirfgen xmog)
 
-* Wed Jan 18 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2010_01_20
+* Wed Jan 18 2010 Douglas McClendon <dmc.viros@cloudsession.com> - 0.6.2010_01_20
 - for the actual build of Guitar-ZyX-0.4.1
 
-* Mon Jan 18 2010 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2010_01_18
+* Mon Jan 18 2010 Douglas McClendon <dmc.viros@cloudsession.com> - 0.6.2010_01_18
 - for Guitar-ZyX-0.4.1
 
-* Mon Dec 21 2009 Douglas McClendon <dmc.dev@gzyx.org> - 0.6.2009_12_21
+* Mon Dec 21 2009 Douglas McClendon <dmc.viros@cloudsession.com> - 0.6.2009_12_21
 - new mutateopt of save_traits to put trait source in output
 - new trait:/trait-install/config.vml for trait dependencies
 - no longer strip out comments
@@ -120,23 +132,23 @@ rm -rf $RPM_BUILD_ROOT
 - strain: g-zyx: add empathy for voice chat
 - for Guitar-ZyX-0.4
 
-* Sun Jul 27 2009 Douglas McClendon <dmc.dev@gzyx.org> - 0.5.20090727
+* Sun Jul 27 2009 Douglas McClendon <dmc.viros@cloudsession.com> - 0.5.2009_07_27
 - for Guitar-ZyX-0.3
 
-* Sat Mar 21 2009 Douglas McClendon <dmc.dev@gzyx.org> - 0.5.20090321
+* Sat Mar 21 2009 Douglas McClendon <dmc.viros@cloudsession.com> - 0.5.2009_03_21
 - primarily, 1st pass at f10 compat
 
-* Sun Mar 09 2009 Douglas McClendon <dmc.dev@gzyx.org> - 0.5.20090309
+* Sun Mar 09 2009 Douglas McClendon <dmc.viros@cloudsession.com> - 0.5.2009_03_09
 - maintenence release - Guitar-ZyX
 
-* Fri Nov 07 2008 Douglas McClendon <dmc.dev@gzyx.org> - 0.5.20081107
+* Fri Nov 07 2008 Douglas McClendon <dmc.viros@cloudsession.com> - 0.5.2008_11_07
 - maintenence release - f9 compat
 - trait splice/unsplice replaces addtrait
 - bases renamed to ancestors
 
-* Fri Feb 29 2008 Douglas McClendon <dmc.dev@gzyx.org> - 0.5.20080229
+* Fri Feb 29 2008 Douglas McClendon <dmc.viros@cloudsession.com> - 0.5.2008_02_29
 - further extensive and rapid development.  
 - (interim changelogs deleted)
 
-* Mon Jan 07 2008 Douglas McClendon <dmc.dev@gzyx.org> - 0.5.20080107
+* Mon Jan 07 2008 Douglas McClendon <dmc.viros@cloudsession.com> - 0.5.2008_01_07
 - initial rpm-ified release

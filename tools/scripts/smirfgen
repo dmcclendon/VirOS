@@ -114,7 +114,7 @@ function target_script_to_run_as_root {
     # copy smirfgen itself into throwaway vsi rootfs
     cp -av \
 	/usr/lib/viros \
-	/vxmog.input.copy/usr/lib/viros
+	/vxmog.input.copy/usr/lib/
 
     # initialize inside-chroot outputdir
     mkdir \

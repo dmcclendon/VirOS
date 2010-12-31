@@ -1,21 +1,151 @@
-sigh... no real documentation yet.
+========================================================================
+WARNING: this text file itself is under initial incomplete development.
+========================================================================
 
-fitness/zbuild is the script used by the author, 
-and not a bad place to start.
+                            --------------
+                            Project: VirOS
+                            --------------
+
+========================================================================
+
+Summary:
+--------
+
+VirOS is a Free and Open Source Software[1] tool which allows you to
+easily create LiveOS[2] distributions descended from other popular
+existing distributions.  In a practical sense, it will allow you to
+make a new LiveDVD .iso image based on, e.g. ScientificLinux's 6rolling
+repositories, customized to your needs and specifications.  I.e. you
+can easily add or remove packages.  You can use little bash scripts
+that VirOS can ingest as 'traits' to do whatever you want, install
+software, tweak systemwide gconf settings, add browser extensions, ...
+But more generally, VirOS allows anyone to easily become their own 
+distribution maintainer.  In fact, it is so easy, an admin can create
+a distro for every type of system they are in charge of, such that they
+could reinstall all of them from an offsite pouch of usb sticks, and
+be disaster-recovered in an amazingly short period of time.  Or all of
+the other traditional varied uses of VM system/appliance images and
+LiveCD/DVD/USB/s.  The core of VirOS is to make the synthesis, mutation,
+and transmogrification of such system images, be as pushbutton and
+simple as possible.  It's still a little rough around the edges
+development-wise, but with el6, things might be nearing a 1.0 release.
+
+[1] wikipedia FOSS link, GPLv3 link, section 11/15-
+
+  15. Disclaimer of Warranty.
+
+  THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
+APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
+HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
+OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+
+
+[2] wikipedia LiveOS link
+
+========================================================================
+
+Overview:
+---------
+
+NOTE: for now, scan to end of file for relevent quasi overview/usage
+
+1) how to install (from yum repo)
+- how to optionally mirror
+- how to build first minimal and x-zyx strains
+
+viros generate \
+    --strain=minimal \
+    --output=mylive.iso 
+
+viros generate \
+    --strain=/usr/lib/viros/strains/x-zyx-latest.vml \
+    --output=mylive.iso 
+
+- how to build first modified, 
+  - logochange(1) and package install(tuxracer)
+- how to install/burn results to livedvd/liveusb
+- how to install/migrate live mode to installed mode
+- goto step 1
+
+========================================================================
+
+Development:
+------------
+
+- getting a git tree from viros.sf.net, or source rpm
+- how to build (and use from download)
+- mailinglist (viros-devel@users.sourceforge.net)
+- design overview doc(todo)
+
+========================================================================
+
+Roadmap:
+--------
+
+- 64bit
+- *el-6.1 timeframe goals
+- revive selinux support/testing for el6, hhuey style xmog option
+- future debian ancestor support
+- ...
+
+========================================================================
+
+Support:
+--------
+
+- sf forums (viros.sf.net)
+- tutorials (cloudsession.com/dawg/projects/viros)
+
+========================================================================
+
+History:
+--------
+
+- tvos 'powered by VirOS' circa 2001 printed by mixonic.com
+- genesis of livecd-tools
+ - my lfs analysis (ignorant of past casper dm-ss use)
+ - rebootless bluesky
+ - soas/godfather/zli
+- g-z on lwn distro list in 2k4?
+- guitar-zyx first release in early 2k9?
+- viros first public release- 2k7 (unionfs for fc5 very loosely related)
+  - 2k7 jan/feb, first fc6 single command iso generation works (since
+  mandrake-7/8 days)
+
+========================================================================
+========================================================================
+========================================================================
+
+sigh... no real documentation yet.
+----------------------------------
+
+fitness/zbuild is the script used by the author, and not a bad place to
+start.
+
+likewise tools/scripts/update-mirrors.el6 is the script used by the
+author to create his /var/mirrors/el6 which is referenced in zbuild.
 
 Though 
 
 ./viros generate \
-    --strain=F-ZyX \
+    --strain=minimal \
     --output=mylive.iso 
 
 should work as well.
 
 ymmv...
 
+tutorial polishing and qa coming soon...
+
+========================================================================
+
 feedback and patches are encouraged
 
----
+========================================================================
 
 note: the VirOS package currently does contain
 trademarked artwork that is not redistributable
@@ -24,9 +154,50 @@ permission.  If this is an inconvenience, let the
 author know and refactoring to ease the process of
 redistribution will be hastened.
 
----
+========================================================================
 
-note: this code is extremely unpolished.  It has improved vastly
+note: this code is unpolished.  It has improved vastly
 over the last few years, but still has vast cleanups still to go.
 
----
+========================================================================
+
+note: I presently do not have the hardware required to maintain a
+development workstation in addition to an internet connected
+workstation.  Thus there is some chance that after that happens, I
+may choose to utilize a new git signing key.
+
+Hardware donations as well as process suggestions are welcome.
+
+========================================================================
+
+note: other than a few clear exceptions, the initial git import of
+this work is exclusively the work of Douglas McClendon.  Notable 
+exceptions include (omissions would be considered a bug to file)
+
+- full qemu-0.11.1 GPL source in traits/qemu_from_src
+- full wmctrl GPL source in traits/wmctrl
+- fedora (livecd-tools,initscripts) GPL code, 
+  - in traits/zyx-live/etc/rc.d/init.d/*
+  - in traits/zyx-live-iso-to-disk
+  - in traits/zyx-live-f12*
+- fedora configurations in strains/*fedora*
+- ffox swifttabs GPL extension (needs updated version)
+- other ffox extensions traits/*ffox*
+- various external yum repository configurations
+
+========================================================================
+older todolist
+610fb0e9ea5ddf4a7da88d59ae820b089163ccc638c4a3d4197f5304e9ff78477c4fb18d
+909e4d36030c5acd26bab8bf5e01733fb60d9eed2985856fa339eb9e
+========================================================================
+
+note, that ASAP a full 'author re-perusal' code review will be done,
+of the tree initially imported to sourceforge git.  Primarily as a 
+first level defense against the fact that for most of its life, the 
+viros pre-git main development tree did live on an internet connected
+development system.  The progress of that audit will be noted in 
+some text document (this one for now).  Likewise the format of that 
+progress will also be used for subsequent peer-review code audits.
+
+========================================================================
+========================================================================

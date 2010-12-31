@@ -3,7 +3,7 @@
 echo "STATUS: building wmctrl..."
 rpmbuild --rebuild /trait-expanded/trait-install/wmctrl-*.src.rpm
 # seems to be going here actually
-rpm -Uvh /rpmbuild/RPMS/i386/wmctrl-*.i?86.rpm
+rpm -Uvh /rpmbuild/RPMS/i?86/wmctrl-*.i?86.rpm
 rm -rf /rpmbuild
-rpm -Uvh /root/rpmbuild/RPMS/i386/wmctrl-*.i?86.rpm
+rpm -Uvh /root/rpmbuild/RPMS/i?86/wmctrl-*.i?86.rpm
 rm -rf /root/rpmbuild

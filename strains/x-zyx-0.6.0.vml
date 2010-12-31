@@ -34,6 +34,8 @@ config min-e-zyx-0.6.0.vml
 #mutateopts save_traits=1
 
 # use specific offline-mirrored repos for building (begin wrap)
+# ???confirmthis??? note: you want to put traits that modify the
+#     final user visible repository config, outside the wrap(per)
 traits splice-compose.repos.el6::no_mutate_prepost=1:mode=install 
 
 # this could be used if perhaps you wanted your cached vsi
@@ -288,11 +290,12 @@ traits splice-hw.acer_aspire_one.fan
 # pull in the smileyshades main menu
 traits splice-zyx-logos
 
-traits unsplice-min-e-zyx.release
-# no_mutate_prepost=1 is needed if /etc/yum.repos.d is modified
-traits splice-x-zyx.release::no_mutate_prepost=1
 
-# precooking/baking the user homedir contents to try and speed boot
+#####################################################################
+##
+## precooking/baking the user homedir contents to try and speed boot
+##
+
 traits unsplice-zyx-marinade
 traits splice-zyx-marinade
 
@@ -314,7 +317,7 @@ traits splice-sysinfo.srpms
 
 #####################################################################
 ##
-## cleanup
+## cleanup and release package
 ##
 
 # this really needs to get run at the end, so resplice
@@ -324,6 +327,11 @@ traits splice-zyx-finalize
 
 # use specific offline-mirrored repos for building (end wrap)
 traits splice-compose.repos.el6::no_mutate_prepost=1:mode=uninstall 
+
+# release package sets up user visible yum repos, and needs to be
+# outside the compose.repos install/uninstall bookends
+traits unsplice-min-e-zyx.release
+traits splice-x-zyx.release
 
 # use this if you care about booting the mutated vsi with selinux enabled
 traits unsplice-restorecon
@@ -337,8 +345,8 @@ traits splice-restorecon
 #####################################################################
 
 vxmogopts uncompressed_size_mb=7711
-vxmogopts fs_label="zyxx0601"
-vxmogopts boot_label="Boot X-ZyX-0.6.0.1 LiveOS"
+vxmogopts fs_label="zyxx0602"
+vxmogopts boot_label="Boot X-ZyX-0.6.0.2 LiveOS"
 vxmogopts bootloader_welcome="X-ZyX Boot Menu"
 
 vxmogopts bootloader_splash=/etc/zyx/bootsplash.isolinux.jpg

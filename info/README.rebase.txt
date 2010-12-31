@@ -114,7 +114,7 @@ check
   edit window, merge previous gz into current fedora
 
 check
-mirror_base_dir="/mnt/big/pub/org/info/mirrors"
+mirror_base_dir="/var/mirrors"
 # make ${mirror_base_dir}/f${new_fbase}/viros.mirrors.cfg
 # note: this could be a simple automagic cgi script
 ls -1A ${mirror_base_dir}/f${new_fbase}/ | grep ___ \

@@ -225,7 +225,7 @@ function target_script_to_run_as_root {
 	    fi
 	fi
 
-	pushd /target/trait-expanded
+	pushd /target/trait-expanded > /dev/null 2>&1 
 
 	tar xpsf /input/trait.${trait}.${trait_num}.tar
 	cp /input/options.${trait}.${trait_num} ./trait-install/trait-options
@@ -254,11 +254,11 @@ function target_script_to_run_as_root {
 
 	chroot /target chown -R root:root /trait-expanded
 
-	pushd /target/trait-expanded
+	pushd /target/trait-expanded > /dev/null 2>&1
 	tar -cpsf - . | \
 	    ( cd /target ; tar xpsf - )
 	rm -rf /target/trait-install
-	popd
+	popd > /dev/null 2>&1
 
 	if [ -x /target/trait-expanded/trait-install/post ]; then
 	    echo -en "\n"
@@ -270,7 +270,7 @@ function target_script_to_run_as_root {
 	    chroot /target /trait-expanded/trait-install/post
 	fi
 
-	popd
+	popd > /dev/null 2>&1
 
 	# if the base provides a mutate post script, run it
 	if [ -x /input/base-trait-post ]; then

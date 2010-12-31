@@ -1,0 +1,7 @@
+this should be rechecked to see if there is still a seeming package 
+list difference between what fedora's livecd-tools generates for
+a given kickstart, versus what anaconda via netinst.iso will install
+with that same kickstart.  Though now that for el6, I'm focusing more on
+a semi-custom minimal (min-e-zyx) strain, and building others on top
+of that, instead of a fedora livecd clone attempt, so it may be easier
+to go without this trait.

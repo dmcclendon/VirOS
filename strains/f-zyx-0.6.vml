@@ -100,7 +100,7 @@ traits splice-workaround-gconf-sanity
 # default of 100% volume is not ideal
 traits splice-pulseaudio-default-quarter-volume
 # bootsplash de-theming
-traits splice-die-hotdog
+traits splice-bootsplash-fixup
 traits splice-turn-off-nfs
 # not zyx compatable yet
 #traits splice-software::install=liveusb-creator
