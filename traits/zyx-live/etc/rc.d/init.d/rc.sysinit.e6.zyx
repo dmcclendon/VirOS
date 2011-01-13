@@ -230,28 +230,20 @@ if ! strstr "$cmdline" nodmraid && [ -x /sbin/dmraid ]; then
 fi
 
 # Start any MD RAID arrays that haven't been started yet
-#:::# zyx
-# don't mess with the system's disks in LiveOS mode
-# TODO: verify/consider how this may negatively impact installed normal usage
-# I.E.: I've forgotten if this sysinit is only used in LiveOS mode, and if so,
-#       I still need to make the real sysinit have the above aesthetic mods.
-#[ -r /proc/mdstat -a -r /dev/md/md-device-map ] && /sbin/mdadm -IRs
-#:::# xyz
+[ -r /proc/mdstat -a -r /dev/md/md-device-map ] && /sbin/mdadm -IRs
+
+if [ -x /sbin/lvm ]; then
+	export LVM_SUPPRESS_LOCKING_FAILURE_MESSAGES=1
+	action $"Setting up Logical Volume Management:" /sbin/lvm vgchange -a y --sysinit
+	unset LVM_SUPPRESS_LOCKING_FAILURE_MESSAGES
+fi
 
 #:::# zyx
-# don't mess with the system's disks in LiveOS mode
-# see above comment
-#if [ -x /sbin/lvm ]; then
-#	export LVM_SUPPRESS_LOCKING_FAILURE_MESSAGES=1
-#	action $"Setting up Logical Volume Management:" /sbin/lvm vgchange -a y --sysinit
-#	unset LVM_SUPPRESS_LOCKING_FAILURE_MESSAGES
-#fi
-#:::# zyx
-
-#:::# zyx
+# todo: this is a gross workaround, better fix may involve udev, not sure, don't care yet
 if [ ! -e /dev/root ]; then
     ln -s /dev/mapper/zyx-liveos-rw /dev/root
 fi
+
 #:::# zyx
 
 if [ -f /etc/crypttab ]; then
@@ -708,6 +700,22 @@ touch /.autofsck &> /dev/null
 if strstr "$cmdline" confirm ; then
 	touch /var/run/confirm
 fi
+
+#:::# zyx
+# another gross looking workaround (also presently testing a fix in ancestor's transmogrify,
+# todo: figure out best fix and remove other(s)
+# note: was 775, group root, so really mainly about sendmail's noisy complaining
+chmod 755 /
+
+# this one is less gross, but seems harmless and prevents problems resuming from
+# pre first reboot hibernation after installation to lvm
+mkdir -p /root/.zyx.backup
+if [ -f /usr/lib/pm-utils/sleep.d/01grub ]; then
+    mv /usr/lib/pm-utils/sleep.d/01grub \
+	/root/.zyx.backup/pm-utils.sleep.d.01grub
+fi
+
+#:::# xyz
 
 # Let rhgb know that we're leaving rc.sysinit
 if [ -x /usr/bin/rhgb-client ] && /usr/bin/rhgb-client --ping ; then

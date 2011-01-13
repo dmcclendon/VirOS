@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+# idea... find piped into while readline, to get filename, then do one at a time, incrementing counters
+
+echo -en "\n\n\n"
+
+totalrpms=0
+for directory in $@; do
+    if [ ! -d "${directory}" ]; then continue; fi
+    echo -en "processing directory $directory ...\n\n"
+#    find -L $directory -type f -name "*.rpm" -print -exec rpm --checksig '{}' ';'
+    rpmcount=$( find $directory -type f -name "*.rpm" -print 2> /dev/null | wc -l )
+    totalrpms=$(( $totalrpms + $rpmcount ))
+    echo "found $rpmcount rpms in directory $directory"
+done
+
+echo -en "\n\ntotal rpms to check- ${totalrpms}\n\n\n"
+
+
+successfulrpms=0
+failedrpms=0
+
+for directory in $@; do
+    if [ ! -d "${directory}" ]; then continue; fi
+    echo -en "processing directory $directory ...\n\n"
+#    find -L $directory -type f -name "*.rpm" -print -exec rpm --checksig '{}' ';'
+    find "${directory}" -type f -name "*.rpm" -print 2> /dev/null > /tmp/viros.check-mirrors.$$.dirlist
+#    find "${directory}" -type f -name "*.rpm" -print 2> /dev/null | while read rpmfilename; do
+    while read rpmfilename; do
+	rpm --checksig "${rpmfilename}" > /tmp/viros.check-mirrors.$$.rcsout 2>&1
+	if (($?)); then
+	    failedrpms=$(( $failedrpms + 1 ))
+	    echo -en "bad sig for ${rpmfilename}, output was-\n"
+	    cat /tmp/viros.check-mirrors.$$.rcsout 
+	else
+	    if ( grep -iq gpg /tmp/viros.check-mirrors.$$.rcsout ); then
+		successfulrpms=$(( $successfulrpms + 1 ))
+		echo -en "good gpg sig for ${rpmfilename}\n"
+	    elif ( grep -iq pgp /tmp/viros.check-mirrors.$$.rcsout ); then
+		successfulrpms=$(( $successfulrpms + 1 ))
+		echo -en "good pgp sig for ${rpmfilename}\n"
+	    else
+		failedrpms=$(( $failedrpms + 1 ))
+		echo -en "NO gpg sig for ${rpmfilename}\n"
+	    fi
+	fi
+    done < /tmp/viros.check-mirrors.$$.dirlist
+done
+
+echo -en "\n\n\n"
+echo "Done checking signatures, results are-\n\n"
+echo "good: ${successfulrpms}"
+echo "bad: ${failedrpms}"
+echo "total: ${totalrpms}"
+
+echo -en "\n\n\n"
+echo -en "\n\n\n"

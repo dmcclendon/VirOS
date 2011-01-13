@@ -112,7 +112,7 @@ fi
 #
 # general vsys options
 #
-vregopt config string "f12"
+vregopt config string "platform"
 vregopt help boolean 0
 vregopt verbose boolean 0 inherit
 vregopt debug boolean 0 inherit
@@ -144,7 +144,8 @@ vregopt vsysgen_screencast_output string "" inherit
 #
 # phase2-mutate options
 #
-vregopt mirrorlist string ""
+vregopt mirrorlist string "${HOME}/.viros/mirrors.link/el6/viros.mirrors.cfg" inherit
+vregopt mutateopts cumulative ""
 vregopt traits cumulative ""
 
 #
@@ -185,6 +186,7 @@ export vopt_vsysgen_output_container_size
 export vopt_vsysgen_distro
 export vopt_vsysgen_arch
 export vopt_vsysgen_install_boot_iso
+export vopt_vsysgen_install_boot_iso_sha256sum
 export vopt_vsysgen_distro_config
 export vopt_vsysgen_boot_cmdline
 

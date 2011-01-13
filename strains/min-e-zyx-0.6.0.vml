@@ -18,7 +18,8 @@ vsysgen_output_container_size 7G
 vsysgen_distro el-6
 vsysgen_arch x86
 vsysgen_install_boot_iso "http://ftp.scientificlinux.org/linux/scientific/6rolling/i386/os/images/boot.iso" 
-vsysgen_install_boot_iso_sha256sum "b2ad496cc7d14b4c04d28403690fc0481e49c0b0365253e8093698b10093cddf"
+# sl6ra4-2k110107
+vsysgen_install_boot_iso_sha256sum "f06bca2490dfdc5a4c368d3db527dd0afe822f6eb66ef7bfbef9d080ea309a87"
 vsysgen_boot_cmdline "initrd=initrd.img ks=http://QRAP_HOST_IP:QRAP_HTTPD_PORT/os.cfg" 
 vsysgen_distro_config min-e-zyx-0.6.0.ks
 

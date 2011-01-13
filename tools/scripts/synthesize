@@ -140,7 +140,7 @@ vregopt vsysgen_boot_cmdline \
 vregopt vsysgen_screencast_output string "" inherit
 
 vregopt output string "./viros.vsi"
-vregopt mirrorlist string "" inherit
+vregopt mirrorlist string "${HOME}/.viros/mirrors.link/el6/viros.mirrors.cfg" inherit
 
 # parse options
 vparseopt "$@"
@@ -253,14 +253,13 @@ mkdir -p ${vhttpdroot}
 
 # future refactoring note: this code started as a copy of similar from mutate
 if [ "x${vopt_mirrorlist}" != "x" ]; then
+    mirror_docroot=$( dirname $( normalize_path ${vopt_mirrorlist} ) )
+    mirror_listconfig=$( basename ${vopt_mirrorlist} )
     if [ ! -f "${vopt_mirrorlist}" ]; then
-        die "specified mirrorlist ${mirrorlist} is not a file"
-    else
-        mirror_docroot=$( dirname $( normalize_path ${vopt_mirrorlist} ) )
-        mirror_listconfig=$( basename ${vopt_mirrorlist} )
+	mkdir -p "$( dirname ${vopt_mirrorlist} )"
+	touch "${vopt_mirrorlist}" 
     fi
     ln -s ${mirror_docroot} ${vhttpdroot}/mirrors
-    # todo: should also run vmirmog on kickstart
 fi
 
 ####

@@ -1,0 +1,84 @@
+########################################################################
+##
+##  VirOS Official TODO List (last updated 2010/02/10)
+##
+########################################################################
+
+
+--- more recent 2k11 ---
+
+- ctrl-c caused extra reapers are spewing to console, file a bug...
+- update-mirrors should take arg of e.g. /var/mirrors or ~/.viros/mirrors
+- need to actually time phases with vdefs qmem of 422 vs 512 vs 1024 to optimize
+- simple qfr input-path output-diskimage that yields a partd/fmtd/populated .vsi
+ - and vice versa that takes that vsi and generates a tar to diff against.  good regression test.
+
+--- end more recent 2k11 ---
+
+
+- fundamental
+  - cachedir functionality
+    - at first, at least a mirror management howto
+    - use yumdownloader, yum groupinfo, and createrepo to do a 
+      full blown livecd-tools equivalent cachedir functionality
+  - centos support (stock e-zyx example)
+  - debian support (stock deb-zyx example)
+
+- documentation
+  - more and better howtos, integrated into release
+    - cheesy graphics/diagrams/figs
+      - one for platform computing
+      - show viros at bottom, inputting f/u, outputting gz livecd
+      - one for control+arrows, one for matrix
+    - need links to basic things such as oss/gnu/linux distro, livecd, ...
+      - i.e. wikipedia articles (locally cached, sanity checked)
+
+  - also command documentation, in standard format that trivially exports
+    to text, and xhtml.
+
+- testing
+  - sanity test
+  - include qrig booting sanity test iso output, with screenshot and imagediff
+
+- official test matrix for releases
+  - 4 systems (aka k5k1apietool)
+
+- development infrastructure
+  - mailman mailinglist (need vserver)
+  - bugzilla
+  - signed releases
+  - gitweb
+  - git tree
+
+- features
+  - ntfs loopback installer
+
+- python
+  - present python api
+    - for smirfgen (perhaps could be plug in mayflower replacement)
+    - for qfakeroot (definitely a plug-in for livecd-tools restorecon issue
+    - for own gui and/or revisor
+  - rewrite many parts in python
+    - once api layer is there, at leisure, rewrite in python
+    - start with smirfgen and qfakeroot
+
+- mutate
+  - recursive unsplice
+  - resplice
+
+- vxmog::zyx-live
+  - proper udf support
+
+- liveusb:(litd/vxmog)
+  - efi
+  
+- trait::sysinfo.srpms
+  - proper yum-builddep closure
+
+- qrap
+  - needs to utilize vregopt
+
+- savetrait
+  - don't store multiples of same traits, but add some sort of
+    traitname= to the options file
+    - thus could save traits in single traitrepo useful dir

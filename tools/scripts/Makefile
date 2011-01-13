@@ -20,10 +20,10 @@ include $(TOP)/build/makefile.common
 # note/lesson-learned: whitespace after '\' made make unhappy
 
 SCRIPTS = \
+	check-mirrors \
 	dm-parts \
 	findfreeport \
 	functions \
-	generate \
 	get_dna_of_vsi \
 	libvopt.sh \
 	libvsys.sh \
@@ -34,16 +34,19 @@ SCRIPTS = \
 	qfakeroot.test.network \
 	qrap \
 	smirfgen \
+	spawn \
 	specvnc \
 	synthesize \
 	test.program.sh \
 	transmogrify \
+	update-mirrors \
 	vcommon \
 	vdefs \
 	vmirmog \
 	vreplace \
 	vsys \
-	webserver 
+	webserver \
+	zspawn
 
 
 ###############

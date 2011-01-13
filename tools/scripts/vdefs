@@ -4,13 +4,16 @@
 #
 
 
-# testing
+# 512 worked for quite a while, 422 seems ok and better for my netbook's defaults
 viros_synthesize_qmem=512
+viros_synthesize_qmem=422
 # f10: 256 seems to be OOMkilled???
 #viros_mutate_qmem=256
 viros_mutate_qmem=512
+viros_mutate_qmem=422
 #viros_transmogrify_qmem=256
 viros_transmogrify_qmem=512
+viros_transmogrify_qmem=422
 viros_transmogrify_scratch=20G
 viros_transmogrify_statuslogger_divfactor=33
 viros_mutate_statuslogger_divfactor=10

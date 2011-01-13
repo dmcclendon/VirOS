@@ -1,0 +1,43 @@
+... to be vastly improved/started
+
+To help early users and testers understand the common use case and code 
+path of viros, here it is-
+
+the spawn command invoked by running 
+
+viros spawn --strain=minimal --output=mylive.iso
+
+actually invokes 3 subcommands-
+
+'viros synthesis' to spawn a virtual system (os/disk) image (.vsi) based
+on a given referenced kickstart(future-/preseed) file and some other configuration which
+together form a strain configuration file (/usr/lib/viros/strains/*.vml, or devtarball/strains/*.vml)
+
+then 'viros mutate' to apply a series of splicing of traits defined in directories
+under /usr/lib/viros/traits/ or devtarball/traits/.  The set of traits to be spliced is also
+defined in the aforementioned strain configuration (.vml) file
+
+finally, 'viros transmogrify' is invoked to convert the mutated system disk image into
+a live.iso format can be burned onto cd/dvd, or with the script zyx-live-iso-to-disk can
+be burned to a usbstick(aka liveusb).
+
+Now, the author actually uses a script very much like the one under /usr/lib/viros/fitness/zbuild
+or devtarball/fitness/zbuild
+
+This script splits apart those 3 phases, and adds a couple more.  One to update the synthesized
+vsi, which may be unnecessary if the kickstart used for synthesis already had access to the
+system software updates repository.  And another phase to 'pre-bake' some state based on a virtual
+boot of the mutated vsi to mutate it a bit further before transmogrification to .iso.  Specifically
+this was generating a firefox profile, and I'm pretty sure I need to clean that up and generate
+it a simpler way.  But I intend to revisit much broader use of the baking phase to hopefully get
+a resulting livedvd/usb that can boot faster because it has already been booted once virtually. i.e.
+initialization of icon caches and other misc stuff like that.
+
+So, the simple use case at first should just look like that simple one line spawn
+command above, though in practical use, you'll probably write your own zbuild script.  zbuild
+also allows you to reuse output of stages from a prior build skipping them for the 
+current one.  I need to add to the roadmap the desire to fold that sort of mega-caching/pipelining
+functionality into the spawn script, i.e. args like --reuse=synthesis.
+
+For now, just ask further questions on viros-devel mailinglist, and things should
+evolve rapidly...

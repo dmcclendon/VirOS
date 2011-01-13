@@ -187,8 +187,8 @@ function view_specvnc {
     # lack of functionality in vncviewer
     if [ ! -f "${specvnc_confdir}/vsm" ]; then
 	cp $( which vncviewer ) ${specvnc_confdir}/vsm
-	sed -i -e 's/VNC:/\ \ \ \ /' ${specvnc_confdir}/vsm
-	sed -i -e 's/Tiger/\ \ \ \ \ /' ${specvnc_confdir}/vsm
+	sed -i -e 's/VNC:/\ \ \ \ /g' ${specvnc_confdir}/vsm
+	sed -i -e 's/Tiger/\ \ \ \ \ /g' ${specvnc_confdir}/vsm
     fi
 
     status "viewing special vnc server on display ${specvnc_display} ..."
@@ -200,7 +200,7 @@ function viewonly_specvnc {
     # lack of functionality in vncviewer
     if [ ! -f "${specvnc_confdir}/vsm" ]; then
 	cp $( which vncviewer ) ${specvnc_confdir}/vsm
-	sed -i -e 's/VNC:/\ \ \ \ /' ${specvnc_confdir}/vsm
+	sed -i -e 's/VNC:/\ \ \ \ /g' ${specvnc_confdir}/vsm
     fi
 
     status "viewing special vnc server on display ${specvnc_display} ..."

@@ -2,9 +2,9 @@
 WARNING: this text file itself is under initial incomplete development.
 ========================================================================
 
-                            --------------
-                            Project: VirOS
-                            --------------
+                           --------------
+                           Project: VirOS
+                           --------------
 
 ========================================================================
 
@@ -57,11 +57,11 @@ NOTE: for now, scan to end of file for relevent quasi overview/usage
 - how to optionally mirror
 - how to build first minimal and x-zyx strains
 
-viros generate \
+viros spawn \
     --strain=minimal \
     --output=mylive.iso 
 
-viros generate \
+viros spawn \
     --strain=/usr/lib/viros/strains/x-zyx-latest.vml \
     --output=mylive.iso 
 
@@ -70,6 +70,29 @@ viros generate \
 - how to install/burn results to livedvd/liveusb
 - how to install/migrate live mode to installed mode
 - goto step 1
+
+========================================================================
+
+System Requirements:
+--------------------
+
+
+- SW
+ - OS
+  - X/Sci-ZyX/SL6alpha is the present preferred OS
+  - f13 worked the last time I tried it, but that was months ago
+  - CentOS-5.* was tested maybe a year ago and worked somewhat then
+ - Virt
+  - qemu-0.11.1 is tested on x86, kvm untested on 32/64 but may work
+
+- HW
+ - x86 works
+ -  x86_64 has never been tried, to be tested when I have access to hw
+ - Memory: 1024M min-supported, 2048+ recommended, 512M might work
+ - Disk: recommended: 10 times the output iso size (~20G for 2G .iso)
+ - timing tests on an 2 year old atom netbook with 1G are forthcoming
+ - on a 3 yr old core(1)duo 2G vaio laptop, upwards of 12 hour build
+
 
 ========================================================================
 
@@ -131,7 +154,7 @@ author to create his /var/mirrors/el6 which is referenced in zbuild.
 
 Though 
 
-./viros generate \
+./viros spawn \
     --strain=minimal \
     --output=mylive.iso 
 

@@ -19,6 +19,7 @@ qcow_too_slow=0
 
 # overrides md5verify and prelink (to off)
 quickbuild=0
+domirrorupdate=0
 # mirrorcheck is not yet implemented
 domirrorcheck=0
 dosynthesis=0
@@ -37,6 +38,7 @@ dopackage=0
 #
 
 #quickbuild=1
+domirrorupdate=1
 #domirrorcheck=1
 dosynthesis=1
 doupdate=1
@@ -48,8 +50,12 @@ dopackage=1
 
 #strain="f-zyx-0.6"
 #strain="min-e-zyx-0.6.0"
-strain="x-zyx-0.6.0.0"
-mirrorlist=/var/mirrors/el6/viros.mirrors.cfg
+#strain="x-zyx-0.6.0.0"
+strain="platform"
+#mirrorlist=/var/mirrors/el6/viros.mirrors.cfg
+
+# TODO el6 hardcoded here and in mirrorlists elsewhere, need to fix for el5/f13/...
+mirrorlist=${mirrordir}/el6/viros.mirrors.cfg
 
 
 workarea=$( pwd )
@@ -69,6 +75,10 @@ cd $builddir
 
 find ${virosdir} -name "*~" -exec rm -vf '{}' ';'
 find ${virosdir} -name "#*" -exec rm -vf '{}' ';'
+
+if (($domirrorupdate)); then
+    viros update-mirrors ${mirrordir}
+fi
 
 if (($dosynthesis)); then
 #    --verbose --debug \

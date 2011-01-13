@@ -46,9 +46,6 @@ function unwind {
 	    fi
 	done
 
-	mv /etc/rc.d/init.d/halt.pre-zyx-live \
-	    /etc/rc.d/init.d/halt
-
 	rm -f /.zyxlive-configured 
     fi
 }
@@ -92,6 +89,16 @@ for o in `cat /proc/cmdline` ; do
     esac
 done
 
+
+# fix up possible forensic_mode 
+#  - from zyx-liveos initramfs initscript/live.init
+#  - better would be if stock rc.sysinit was more configurable
+if [ -x /sbin/lvm.disabled_in_forensic_mode ]; then
+    mv /sbin/lvm.disabled_in_forensic_mode /sbin/lvm
+fi
+if [ -x /sbin/mdadm.disabled_in_forensic_mode ]; then
+    mv /sbin/mdadm.disabled_in_forensic_mode /sbin/mdadm
+fi
 
 # if liveinst or textinst is given, start anaconda
 if strstr "`cat /proc/cmdline`" liveinst ; then

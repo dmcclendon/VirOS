@@ -1,6 +1,44 @@
 #!/bin/bash
 
 ##
+## get runtime environment
+##
+starttime="$( date +%Y%m%d%H%M%S )"
+rundir="$( pwd )"
+progname="$( basename $0 )"
+progdir=$( ( pushd $( dirname $( readlink -e $0 ) ) > /dev/null 2>&1 ; \
+    pwd ; popd > /dev/null 2>&1 ) )
+rundir=$( pwd )
+mypid=$$
+
+
+##
+## get parameter- mirror_root
+##
+
+# default
+mirror_root="${HOME}/.viros/mirrors"
+
+if [ $# -ge 2 ]; then
+    echo "usage: update-mirrors <mirror_root_dir:default-HOME/.viros/mirrors>"
+    exit 1
+elif [ $# -eq 1 ]; then
+    #TODO: this is a lot of hardcoded Crap.  in the name of scizyx0603 release.
+    mirror_root="$( readlink -f ${1} )"
+    rm -f "${HOME}/.viros/mirrors.link"
+    mkdir -p "${HOME}/.viros"
+    ln -s "${mirror_root}" "${HOME}/.viros/mirrors.link"
+fi
+
+if ( ! mkdir -p "${mirror_root}" > /dev/null 2>&1 ); then
+    echo "update-mirrors: error: mirror root - ${mirror_root} - could not be used/made"
+    exit 1
+fi
+
+
+cd "${mirror_root}"
+
+##
 ## in absence of cmdline args, use these for determining type of update
 ##
 
@@ -45,13 +83,24 @@ common_rsync_flags="${common_rsync_flags} -P"
 # live dangerously
 common_rsync_flags="${common_rsync_flags} --delete"
 # ignore some packages (deltarpms, PAE kernel, etc)
-common_rsync_flags="${common_rsync_flags} --exclude-from=exclude"
+# todo: make a libvsys script with proper TMPDIR handling
+common_rsync_flags="${common_rsync_flags} --exclude-from=/tmp/update-mirrors.$$.exclude"
 # use this for bandwidth limiting
 #common_rsync_flags="${common_rsync_flags} --bwlimit=64"
 
 # use this to exclude debug packages
 common_rsync_flags="${common_rsync_flags} --exclude=debug"
 
+# generate exclude file
+cat <<EOF >> /tmp/update-mirrors.$$.exclude
+drpms
+kernel*PAE*
+*kmdl*PAE*
+*kmod*PAE*
+kernel*_8k*
+*kmdl*_8k*
+*kmod*_8k*
+EOF
 
 ####
 #### update sections
@@ -169,6 +218,14 @@ if (($update_el6_atrpms_source)); then
 	rsync://rsync.mirrorservice.org/download.atrpms.net/src/sl6-i386/atrpms/stable/ \
 	el6/atrpms/stable/source/
 fi
+
+# generate viros.mirrors.cfg
+pushd el6 > /dev/null 2>&1
+ls -1A > ./viros.mirrors.cfg
+popd > /dev/null 2>&1
+
+# clean up
+rm -rf /tmp/update-mirrors.$$.exclude
 
 date >> ./last.update.el6
 

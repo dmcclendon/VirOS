@@ -62,6 +62,9 @@ function set_defaults {
     # dms|ufs
     cow_mode=dms
 
+    # prevent rc.sysinit* from probing mdadm/lvm?
+    forensic_mode=0
+
     overlay=off
 
     reset_overlay=off
@@ -71,6 +74,8 @@ function set_defaults {
     livecache=off
 
     fatime=0
+
+    udevsettle_timeout=60
 
     ram_overlay_size=4224
 
@@ -312,8 +317,14 @@ function parse_options {
 	    fatime)
                 fatime=1
 		;;
+	    forensic_mode)
+                forensic_mode=1
+		;;
 	    ram_overlay_size=*)
                 ram_overlay_size=${option#ram_overlay_size=}
+		;;
+            udevsettle_timeout=*)
+                udevsettle_timeout=${option#udevsettle_timeout=}
 		;;
 	    zyx_noautopanic)
 	        # disable automatic exit/panic on failed commands
@@ -574,7 +585,9 @@ function start_udev {
     /sbin/udevadm trigger > /dev/null 2>&1
 
     status "waiting for udev to settle"
-    if ( ! /sbin/udevadm settle --timeout=30 ); then
+#    if ( ! /sbin/udevadm settle --timeout=30 ); then
+    # does 60 solve the X starting bug on netbook?
+    if ( ! /sbin/udevadm settle --timeout="${udevsettle_timeout}" ); then
 	status "udev is still unsettled"
     fi
 }
@@ -882,6 +895,20 @@ SLUREOF
     rm -f /sysroot/dev/root
     ln -s /dev/mapper/zyx-liveos-rw /sysroot/dev/root
 
+    # experimental alternate mechanism to prevent lvm/mdadm probing in live mode
+    if (( ${forensic_mode} )); then
+	if [ -x /sysroot/sbin/lvm ]; then
+	    mv /sysroot/sbin/lvm \
+		/sysroot/sbin/lvm.disabled_in_forensic_mode
+	    ln -s /bin/true /sysroot/sbin/lvm
+	fi
+	if [ -x /sysroot/sbin/mdadm ]; then
+	    mv /sysroot/sbin/mdadm \
+		/sysroot/sbin/mdadm.disabled_in_forensic_mode
+	    ln -s /bin/true /sysroot/sbin/mdadm
+	fi
+    fi
+
     mount -n -t ext3 -o remount,ro /dev/mapper/zyx-liveos-rw /sysroot
 }
 
@@ -889,7 +916,7 @@ SLUREOF
 function init_selinux {
 
     # do nothing if selinux=0 on cmdline
-    if ((! ${selinux})); then return; fi
+    if (( ! ${selinux} )); then return; fi
     
     # SELINUX should only be enabled if config exists
     SELINUX="disabled"

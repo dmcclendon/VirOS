@@ -27,11 +27,9 @@ all clean install uninstall: $(SUBDIRS)
 
 all_also:
 	ln -fs ./tools/scripts/vsys ./viros
-	ln -fs fedora-12 ./ancestors/zyx-0.5
 
 clean_also:
 	rm -vf ./viros
-	rm -vf ./ancestors/zyx-*
 
 install_also:
 	mkdir -p $(PREFIX)/lib/viros/ 
@@ -58,8 +56,12 @@ tidy:
 	chmod -R g-w traits
 
 release:
-	@ echo "building release tarball"
-	./tools/scripts/makerelease $(VERSION) $(RELEASE)
+	@ echo "building release tarball" 
+	if [ -x "./tools/scripts/makerelease" ]; then \
+		./tools/scripts/makerelease $(VERSION) $(RELEASE) ; \
+	else \
+		tar --transform="s|^\./|viros-$(VERSION)/|" -cvjf viros-$(VERSION).tar.bz2 . ; \
+	fi
 	sha512sum viros-$(VERSION).tar.bz2 > viros-$(VERSION).tar.bz2.sha512sum
 
 xrelease:
@@ -74,7 +76,8 @@ distclean:
 	rm -f viros-$(VERSION).tar.bz2
 	rm -rf viros-$(VERSION)
 
-srpm:	
+srpm:
+	make distclean
 	rpmdev-setuptree
 	make release
 	cp viros-$(VERSION).tar.bz2 ${HOME}/rpmbuild/SOURCES/
@@ -87,12 +90,13 @@ rpm:
 	rpmbuild --rebuild viros-$(VERSION)-$(RELEASE).src.rpm 
 	mv ${HOME}/rpmbuild/RPMS/i686/viros-$(VERSION)-$(RELEASE).i686.rpm .
 
-# note: archaic, but perhaps to be revived someday 
-#
-#vrepostuff:
-#	make rpm
-#	cp -av viros-$(VERSION)-$(RELEASE).i686.rpm ./vrepo/fedora/9/i686/
-#	cp -av viros-$(VERSION)-$(RELEASE).src.rpm ./vrepo/fedora/9/SRPMS/
-#	cp -av viros-$(VERSION).tar.bz2 ./vrepo/tarballs/
-#	createrepo ./vrepo/el/6/i686
-#	createrepo ./vrepo/el/6/SRPMS
+el6-repo:
+	make rpm
+	cp -av viros-$(VERSION)-$(RELEASE).i686.rpm ./vrepo/el/6/i686/viros-$(VERSION)-$(RELEASE).i686.rpm
+	cp -av viros-$(VERSION)-$(RELEASE).src.rpm ./vrepo/el/6/SRPMS/viros-$(VERSION)-$(RELEASE).src.rpm
+	cp -av viros-$(VERSION).tar.bz2 ./vrepo/tarballs/
+	createrepo ./vrepo/el/6/i686
+	createrepo ./vrepo/el/6/SRPMS
+
+repos:
+	make el6-repo

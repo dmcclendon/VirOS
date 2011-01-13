@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2011 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -387,14 +387,18 @@ fi
 export LIBVOPT_IGNORE_UNKNOWN_OPTIONS=true
 vregopt help boolean 0
 # todo: inherit this?(consider)
+#       2k11/01/06 code perusal - inheriting here seems necessary in the
+#       generate case, not sure how it seems to be working on my current build
 vregopt config string ""
 vregopt verbose boolean 0 inherit
 vregopt debug boolean 0 inherit
 vregopt quiet boolean 0 inherit
-vregopt mirrorlist string "" inherit
+vregopt mirrorlist string "${HOME}/.viros/mirrors.link/el6/viros.mirrors.cfg" inherit
 vregopt mutateopts cumulative "" inherit
 vregopt traits cumulative "" inherit
-vregopt trait_dirs cumulative "" inherit
+# sigh, trait_dirs has to be special like add_search_paths
+# todo: document the vile libvopt system much better
+#vregopt trait_dirs cumulative "" inherit
 vregopt tmpdir string "${default_vopt_tmpdir}" inherit
 vparseopt "$@"
 
@@ -498,6 +502,7 @@ for (( i=1 ; $i <= ${num_traits} ; i=$(( $i + 1 )) )); do
 
     # iterate over trait directories to find the first that has the target trait
     trait_dir=""
+    
     for test_trait_dir in $vopt_trait_dirs; do
 	if [ -d "${test_trait_dir}/${trait_base}" ]; then
 	    trait_dir=$( normalize_path "${test_trait_dir}/${trait_base}" )
@@ -541,11 +546,11 @@ echo -en ${vopt_mutateopts} > ${tmpdir}/mutateopts
 ##
 
 if [ "x${vopt_mirrorlist}" != "x" ]; then
+    mirror_docroot=$( dirname $( normalize_path ${vopt_mirrorlist} ) )
+    mirror_listconfig=$( basename ${vopt_mirrorlist} )
     if [ ! -f "${vopt_mirrorlist}" ]; then
-	die "specified mirrorlist ${mirrorlist} is not a file"
-    else
-	mirror_docroot=$( dirname $( normalize_path ${vopt_mirrorlist} ) )
-	mirror_listconfig=$( basename ${vopt_mirrorlist} )
+	mkdir -p "$( dirname ${vopt_mirrorlist} )"
+	touch "${vopt_mirrorlist}" 
     fi
 
     vsys_mutate_httpdport=$( findfreeport \

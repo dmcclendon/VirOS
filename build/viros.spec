@@ -1,5 +1,5 @@
 Name:		viros
-Version:	0.7.2010_12_31
+Version:	0.7.2011_01_09
 #Release:	1%{?dist}
 Release:	1.zyx
 Summary:	System Image Synthesis Toolset
@@ -24,9 +24,12 @@ Requires:	httpd
 Requires:	pykickstart
 Requires:	tigervnc
 Requires:	tigervnc-server
-Requires:	qemu
+# sad, so sad, that apparently this is not easily satisfiable
+# on stock el6-x86...
+# todo: add qemu build (single target) to this specfile
+#Requires:	qemu
 Requires:	wget
-# optional actually
+# optional actually (and currently needs x11vnc from rpmforge)
 #Requires:	pyvnc2swf
 
 
@@ -64,8 +67,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
-#%doc AUTHORS COPYING README
-%doc README
+%doc info/README info/AUTHORS info/COPYING info/ROADMAP info/STYLE info/DESIGN
 %{_bindir}/%{name}
 %{_libdir}/%{name}/
 %{_datadir}/%{name}/
@@ -74,6 +76,28 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+
+* Sun Jan 09 2011 Douglas McClendon <dmc.viros@cloudsession.com> - 0.7.2011_01_09
+- bugfix: qemu not provided by stock el6-x86 repos, so presume it is provided for now
+- bugfix: broken and missing documentation in output rpm
+- bugfix: update-mirrors.el6 needed an exclude file
+- bugfix: strains min/minimal and even platform have correct symlinks
+- bugfix: generate was not exporting boot_iso_sha256sum to synthesize
+- bugfix: update-mirrors now sans .el6, and exclude file generated on the fly
+- tuning: changed qemu mem reqs from 512 to 422, better for my netbook, and seems fine
+- aesthetic: fixed VNC titlebar sed renaming
+- bugfix/workround: live booted rootfs(/) should now be 755 instead of 775(group:root)
+- generate renamed to spawn, zgen to zspawn, more inline with the metaphor
+- zgen: fitness/zbuild->scripts/zgen, now with update-mirrors phase by default
+- fix add_search_paths and trait_dirs option parsing
+- trait for x-zyx: bootsplash-solar
+- bugfix: make rpm(&repos) (for non-primary-developers tree)
+-  even verified make release from made release is idempotent
+- forensic-mode: cheat code to prevent liveos from probing lvm/mdadm
+- info/README: added system requirements outline
+- update-mirrors: now takes an arg, synth/generate/mutate also utilize good defaults
+- check-mirrors: new script for mass checking of rpmsigs
+
 
 * Fri Dec 31 2010 Douglas McClendon <dmc.viros@cloudsession.com> - 0.7.2010_12_31
 - mutate: make verbose logs a bit quieter (pushd/popd output)

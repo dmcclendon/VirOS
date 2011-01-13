@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2011 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -190,8 +190,6 @@ function handle_subtrait_vml {
     local trait
     local trait_base
     local trait_opts
-    # XXX cough, die, cough (screams bad code)
-    local traits_dir
     local trait_dir
     local trait_dirs
 
@@ -210,30 +208,14 @@ function handle_subtrait_vml {
     # ever be called, if libvopt.sh was sourced by libvsys.sh which
 # now
     if (($viros_devenv)); then
-	vopt_trait_dirs=". ${vopt_trait_dirs} ${viros_devdir}/traits"
+	x_vopt_trait_dirs=". ${vopt_trait_dirs} ${viros_devdir}/traits"
     else
-	vopt_trait_dirs=". ${vopt_trait_dirs} ${viros_prefix}/lib/viros/traits"
+	x_vopt_trait_dirs=". ${vopt_trait_dirs} ${viros_prefix}/lib/viros/traits"
     fi
-
-# was
-    # defines viros_devenv
-#    if (($viros_devenv)); then
-#	traits_dir=${viros_devdir}/traits
-#    else
-#        traits_dir=${viros_prefix}/lib/viros/traits
-#    fi
-
-#    if [ -d "${trait_base}" ]; then
-#        trait_dir=$( normalize_path "${trait_base}" )
-#    elif [ -d "${traits_dir}/${trait_base}" ]; then
-#        trait_dir=$( normalize_path "${traits_dir}/${trait_base}" )
-#    else
-#	return
-#    fi
 
     # iterate over trait directories to find the first that has the target trait
     trait_dir=""
-    for test_trait_dir in $vopt_trait_dirs; do
+    for test_trait_dir in $x_vopt_trait_dirs; do
 	if [ -d "${test_trait_dir}/${trait_base}" ]; then
 	    trait_dir=$( normalize_path "${test_trait_dir}/${trait_base}" )
 	    break
@@ -295,6 +277,7 @@ function vparseopt {
 	option_handled=0
 	shift
 	local conf
+	local addpath
 	local vpo_config_read
 	local option_handled
 	local optval
@@ -307,6 +290,14 @@ function vparseopt {
 	    conf=$( echo "$option" | sed -e "s/^--strain=//" )
 	    vopt_read_config $conf
 	    vpo_config_read=1
+	    option_handled=1
+	elif ( echo "$option" | grep -q  "^--add_search_paths=" ); then
+	    addpath=$( echo "$option" | sed -e "s/^--add_search_paths=//" )
+	    vopt_add_search_paths="${vopt_add_search_paths} ${addpath}"
+	    option_handled=1
+	elif ( echo "$option" | grep -q  "^--trait_dirs=" ); then
+	    addpath=$( echo "$option" | sed -e "s/^--trait_dirs=//" )
+	    vopt_trait_dirs="${vopt_trait_dirs} ${addpath}"
 	    option_handled=1
 	else
 	    for (( i=1 ; $i <= ${vopts_numopts} ; i=$(( $i + 1 )) )); do

@@ -6,7 +6,7 @@
 #
 #############################################################################
 #
-# Copyright 2007-2010 Douglas McClendon <dmc AT filteredperception DOT org>
+# Copyright 2007-2011 Douglas McClendon <dmc AT filteredperception DOT org>
 #
 #############################################################################
 #
@@ -427,6 +427,7 @@ menu timeoutrow ${bootloader_isolinux_menu_timeoutrow}
 #menu background splash.jpg
 menu background /boot/isolinux/splash.jpg
 menu title ${bootloader_welcome}
+
 menu color screen 0 #ffffffff #00000000
 menu color border 0 #ffffffff #00000000
 menu color sel 7 #ffffffff #ff000000
@@ -481,7 +482,7 @@ mkfs.ext3 \
     -U "42244224-4224-4224-4224-422442244224" \
     -m 1 \
     ${loopdevice} \
-    $(( $uncompressed_size_mb * 1024 * 1024 / ${ext3_blocksize} ))
+    $(( ${uncompressed_size_mb} * 1024 * 1024 / ${ext3_blocksize} ))
 
 verbose "about to tune2fs"
 ${targetroot}/sbin/tune2fs -c 0 -i 0 ${loopdevice}
@@ -561,8 +562,10 @@ if (( ! $debug_skip_tar )); then
     popd
 fi
 
-verbose "cleaning up scratch target vartmp"
+verbose "cleaning up scratch target vartmp, and setting rootslash to 755"
 rm -rf /scratch/target/var/tmp/*
+# not sure how/why / on output was becoming 775, but this may fix (ls -ld /)
+chmod 755 /scratch/target
 
 if (( $selinux )); then
     verbose "running restorecon again" 

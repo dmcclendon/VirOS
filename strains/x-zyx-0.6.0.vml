@@ -31,10 +31,9 @@ config min-e-zyx-0.6.0.vml
 
 # saving trait sources in iso:/source/viros-traits
 # note: Guitar-ZyX will be used as a superset w/source iso
-#mutateopts save_traits=1
+mutateopts save_traits=1
 
 # use specific offline-mirrored repos for building (begin wrap)
-# ???confirmthis??? note: you want to put traits that modify the
 #     final user visible repository config, outside the wrap(per)
 traits splice-compose.repos.el6::no_mutate_prepost=1:mode=install 
 
@@ -79,6 +78,13 @@ traits splice-software::groupinstall="Virtualization Client"
 traits splice-software::groupinstall="Virtualization Platform"
 traits splice-software::groupinstall="Virtualization Tools"
 # todo, all others... virt* bla bla
+
+# generally useful things
+traits splice-software::install=system-config-*
+
+# nice bootsplash
+traits splice-bootsplash-solar
+
 
 # for pokerth building
 traits splice-software::install=svn
@@ -178,7 +184,7 @@ traits splice-service::enable=httpd
 ##
 
 traits splice-genericize-gdm
-traits splice-zyx-brand::distroname="X-ZyX":distroversion="0.6.0.1"
+traits splice-zyx-brand::distroname="X-ZyX":distroversion="0.6.0.2"
 # note: see HHH comments in ZyX.marinade bake-it script for current
 # hardcoded assumptions
 traits splice-zyx-adduser::username="zyxuser":usercomment="ZyX System User"
@@ -228,12 +234,16 @@ traits splice-software::install=lftp
 # development
 traits splice-software::install=rpm-build
 traits splice-software::install=gcc-c++
+traits splice-software::install=meld
 
 # vidconf
 traits splice-software::install=ekiga
 
-# misc (temp for rakarrack)
+# for my dovecot/tbird/fetchmail/procmail setup
 traits splice-software::install=sendmail
+
+# misc (temp for rakarrack)
+traits splice-software::install=fftw-devel
 traits splice-software::install=jack-audio-connection-kit-devel
 traits splice-software::install=qjackctl
 traits splice-software::install=libsamplerate-devel
@@ -250,11 +260,16 @@ traits splice-software::install=git
 ## self replication/regeneration
 ##
 
+# note, these deps and others like them should be removable 
+# now that yum install foo.rpm works to the same effect,
+# though these packages aren't so bad to just have around regardless
 traits splice-software::install=glibc-static
 traits splice-software::install=unetbootin
 traits splice-software::install=tigervnc
 traits splice-software::install=tigervnc-server
 traits splice-software::install=glibc-static
+# this requires that [/usr/lib/viros|viros-version]/traits/viros
+# have its trait-install subdir populated with a binary viros rpm
 #traits splice-viros
 
 
@@ -321,7 +336,7 @@ traits splice-sysinfo.srpms
 ##
 
 # this really needs to get run at the end, so resplice
-# note: if this works as desired, motivates a resplice abbreviation
+# (need a resplice abbreviation implementation in libvopt.sh)
 traits unsplice-zyx-finalize
 traits splice-zyx-finalize
 
@@ -329,9 +344,11 @@ traits splice-zyx-finalize
 traits splice-compose.repos.el6::no_mutate_prepost=1:mode=uninstall 
 
 # release package sets up user visible yum repos, and needs to be
-# outside the compose.repos install/uninstall bookends
+# outside the compose.repos install/uninstall bookends *and* 
+# needs to use no_mutate_prepost=1 (which means its trait-install/
+# scripts won't use compose.repos's repos
 traits unsplice-min-e-zyx.release
-traits splice-x-zyx.release
+traits splice-x-zyx.release::no_mutate_prepost=1
 
 # use this if you care about booting the mutated vsi with selinux enabled
 traits unsplice-restorecon
@@ -345,8 +362,8 @@ traits splice-restorecon
 #####################################################################
 
 vxmogopts uncompressed_size_mb=7711
-vxmogopts fs_label="zyxx0602"
-vxmogopts boot_label="Boot X-ZyX-0.6.0.2 LiveOS"
+vxmogopts fs_label="zyxx0603"
+vxmogopts boot_label="Boot X-ZyX-0.6.0.3 LiveOS"
 vxmogopts bootloader_welcome="X-ZyX Boot Menu"
 
 vxmogopts bootloader_splash=/etc/zyx/bootsplash.isolinux.jpg
